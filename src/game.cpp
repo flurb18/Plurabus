@@ -136,16 +136,23 @@ SpawnerID Game::getPlayerSpawnID() {
   return playerSpawnID;
 }
 
+bool Game::rectCollidesOneWay(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2) {
+  if (x1 >= x2 && x1 <= x2 + w2 - 1) {
+    if (y1 >= y2 && y1 <= y2 + h2 - 1) return true;
+    if (y1 + h1 - 1 >= y2 && y1 + h1 - 1 <= y2 + h2 - 1) return true;
+  }
+  if (x1 + w1 - 1 >= x2 && x1 + w1 - 1 <= x2 + w2 - 1) {
+    if (y1 >= y2 && y1 <= y2 + h2 - 1) return true;
+    if (y1 + h1 - 1 >= y2 && y1 + h1 - 1 <= y2 + h2 - 1) return true;
+  }
+  return false;
+}
+
 bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
   for (Objective *o: objectives) {
-    if (potX >= o->region.x && potX <= o->region.x + o->region.w - 1) {
-      if (potY >= o->region.y && potY <= o->region.y + o->region.h - 1) return true;
-      if (potY + potH - 1 >= o->region.y && potY + potH - 1 <= o->region.y + o->region.h - 1) return true;
-    }
-    if (potX + potW - 1 >= o->region.x && potX + potW - 1 <= o->region.x + o->region.w - 1) {
-      if (potY >= o->region.y && potY <= o->region.y + o->region.h - 1) return true;
-      if (potY + potH - 1 >= o->region.y && potY + potH - 1 <= o->region.y + o->region.h - 1) return true;
-    }
+    if (rectCollidesOneWay(potX, potY, potW, potH, o->region.x, o->region.y, o->region.w, o->region.h) ||
+	rectCollidesOneWay(o->region.x, o->region.y, o->region.w, o->region.h, potX, potY, potW, potH))
+      return true;
   }
   return false;
 }

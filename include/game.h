@@ -65,6 +65,7 @@ private:
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
+  bool rectCollidesOneWay(int,int,int,int,int,int,int,int);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
   void mouseMoved(int, int);
   void leftMouseDown(int, int);

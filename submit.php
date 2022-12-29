@@ -21,7 +21,7 @@
 
     <script>
       var gameSize = parseInt('<?php echo $size; ?>');
-      var gamePanelSize = 250;
+      var gamePanelSize = 240;
       var menuItems = 6;
       var unitLimit = 4096;
       var gameWindowPadding = 10;
