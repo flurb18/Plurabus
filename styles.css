@@ -1,0 +1,34 @@
+body {
+    background-color: #222222;
+    color: #CCCCCC;
+    font-family: "Helvetica";
+}
+
+canvas{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);               
+}
+
+.submitForm {
+    position:absolute;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1.5em;
+}
+
+input[type="text"] {
+    position: relative;
+    display: block;
+    margin: 0 auto;
+}
+
+input[type="submit"] {
+    position:relative;
+    display: block;
+    margin: 0 auto;
+}
+

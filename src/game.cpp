@@ -1,0 +1,784 @@
+#include "game.h"
+
+#include <emscripten.h>
+
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL_rect.h>
+#include <iostream>
+#include <cstdlib>
+#include <stdlib.h>
+#include <string>
+#include <math.h>
+
+#include "agent.h"
+#include "constants.h"
+#include "display.h"
+#include "door.h"
+#include "event.h"
+#include "menu.h"
+#include "nethandler.h"
+#include "panel.h"
+#include "spawner.h"
+
+/* Constructor sets up map units, creates a friendly spawner */
+Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
+  
+  numPlayerAgents(0),
+  context(GAME_CONTEXT_CONNECTING),
+  initScale(scl),
+  scale(scl),
+  gameSize(sz),
+  menuItemsInView(numMenIt),
+  panelSize(psz),
+  unitLimit(ulim),
+  mouseX(0),
+  mouseY(0),
+  newAgentID(1),
+  outside(this),
+  selectedObjective(nullptr) {
+
+  net = new NetHandler(this, pstr);
+  gameDisplaySize = scaleInt(gameSize);
+  /* mapUnits is a vector */
+  mapUnits.reserve(gameSize * gameSize);
+  /* Units are created in the x direction; it fills the top row with map units
+  from left to right, then the next row and so on
+  SDL window x and y start at 0 at top left and increase right and
+  down respectively*/
+  for (unsigned int i = 0; i < gameSize; i++) {
+    for (unsigned int j = 0; j < gameSize; j++) {
+      mapUnits.push_back(new MapUnit(this, j, i));
+    }
+  }
+  /* Interlink the map units so they all know their adjacent units */
+  for (unsigned int i = 0; i < gameSize; i++) {
+    for (unsigned int j = 0; j < gameSize; j++) {
+      int index = i * gameSize + j;
+      if (i == 0) mapUnits[index]->up = &outside;
+      else mapUnits[index]->up = mapUnits[index - gameSize];
+      if (i == gameSize - 1) mapUnits[index]->down = &outside;
+      else mapUnits[index]->down = mapUnits[index + gameSize];
+      if (j == 0) mapUnits[index]->left = &outside;
+      else mapUnits[index]->left = mapUnits[index - 1];
+      if (j == gameSize - 1) mapUnits[index]->right = &outside;
+      else mapUnits[index]->right = mapUnits[index + 1];
+    }
+  }
+
+  selection = {0, 0, 1, 1};
+  menuSize = gameDisplaySize / menuItemsInView;
+  disp = new Display(gameDisplaySize, menuSize, panelSize, FONT_SIZE);
+  panel = new Panel(disp, PANEL_PADDING);
+  std::string welcomeText = "Welcome to " + std::string(TITLE) + "!";
+  panel->addText(welcomeText.c_str());
+  view = {0,0,gameSize,gameSize};
+  selectedUnit = mapUnitAt(0,0);
+  menu = new Menu(this, menuItemsInView);
+  MapUnit *greenspawn = mapUnitAt(SPAWNER_PADDING, SPAWNER_PADDING);
+  MapUnit *redspawn = mapUnitAt(gameSize - SPAWNER_SIZE - SPAWNER_PADDING, gameSize - SPAWNER_SIZE - SPAWNER_PADDING);
+  spawnerDict.insert(std::make_pair(SPAWNER_ID_GREEN, new Spawner(this, greenspawn, SPAWNER_ID_GREEN, SPAWNER_SIZE, 1)));
+  spawnerDict.insert(std::make_pair(SPAWNER_ID_RED, new Spawner(this, redspawn, SPAWNER_ID_RED, SPAWNER_SIZE, 1)));
+  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_ATTACK] = disp->cacheTextWrapped("Objective - Attack", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_DOOR] = disp->cacheTextWrapped("Objective - Build Door", 0);
+}
+
+/* Public helper method */
+MapUnit* Game::mapUnitAt(int x, int y) {
+  return mapUnits[y * gameSize + x];
+}
+
+void Game::zoomIn() {
+  scale += 1.0;
+  if (scale > MAX_SCALE) scale = MAX_SCALE;
+  adjustViewToScale();
+}
+
+void Game::zoomOut() {
+  scale -= 1.0;
+  if (scale < initScale) scale = initScale;
+  adjustViewToScale();
+}
+
+void Game::adjustViewToScale() {
+  view.w = (int)((double)gameDisplaySize / scale);
+  view.h = (int)((double)gameDisplaySize / scale);
+  view.x = selectedUnit->x - view.w/2;
+  view.y = selectedUnit->y - view.h/2;
+  if (view.x < 0) view.x = 0;
+  if (view.y < 0) view.y = 0;
+  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
+  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
+  if (context == GAME_CONTEXT_UNSELECTED) {
+    selectedUnit = mapUnitAt(view.x + view.w/2, view.y + view.h/2);
+  }
+  mouseMoved(mouseX, mouseY);
+}
+
+int Game::scaleInt(int toScale) {
+  return (int)(scale * ((double)toScale));
+}
+
+Context Game::getContext() {
+  return context;
+}
+
+int Game::getUnitLimit() {
+  return unitLimit;
+}
+
+int Game::getSize() {
+  return gameSize;
+}
+
+SpawnerID Game::getPlayerSpawnID() {
+  return playerSpawnID;
+}
+
+/* Handle a mouse moved to (x,y) */
+void Game::mouseMoved(int x, int y) {
+  mouseX = x;
+  mouseY = y;
+  if (y >= gameDisplaySize || x >= gameDisplaySize) {
+    selectedObjective = nullptr;
+    switch (context) {
+    case GAME_CONTEXT_SELECTING:
+      context = GAME_CONTEXT_SELECTED;
+    default:
+      break;
+    }
+    return;
+  }
+  int mouseUnitX =(int)((double)x / scale) + view.x;
+  int mouseUnitY =(int)((double)y / scale) + view.y;
+  if (menu->getIfObjectivesShown()) {
+    if (selectedObjective) {
+      if (mouseUnitX < selectedObjective->region.x ||
+	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w ||
+	  mouseUnitY < selectedObjective->region.y ||
+	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h) {
+	selectedObjective = nullptr;
+      }
+    } else {
+      for (Objective *o: objectives) {
+	if (mouseUnitX >= o->region.x &&
+	    mouseUnitX <= o->region.x + o->region.w &&
+	    mouseUnitY >= o->region.y &&
+	    mouseUnitY <= o->region.y + o->region.h) {
+	  selectedObjective = o;
+	}
+      }
+    }
+  }
+  switch(context) {
+  case GAME_CONTEXT_UNSELECTED:
+    selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
+    selection.x = mouseUnitX;
+    selection.y = mouseUnitY;
+    selection.w = 1;
+    selection.h = 1;
+    break;
+  case GAME_CONTEXT_SELECTING:
+    if (mouseUnitX >= (int)selectedUnit->x) {
+      selection.w = mouseUnitX - selectedUnit->x + 1;
+    } else {
+      selection.x = mouseUnitX;
+      selection.w = selectedUnit->x - mouseUnitX;
+    }
+    if (mouseUnitY > (int)selectedUnit->y) {
+      selection.h = mouseUnitY - selectedUnit->y + 1;
+    } else {
+      selection.y = mouseUnitY;
+      selection.h = selectedUnit->y - mouseUnitY;
+    }
+    if (selection.w <= 0) selection.w = 1;
+    if (selection.h <= 0) selection.h = 1;
+    if (selection.x + selection.w > gameSize) selection.w = gameSize - selection.x;
+    if (selection.y + selection.h > gameSize) selection.h = gameSize - selection.y;
+    break;
+  case GAME_CONTEXT_SELECTED:
+    break;
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    break;
+  }
+}
+
+/* Handle a left mouse down at (x,y) */
+void Game::leftMouseDown(int x, int y) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    if (x >= gameDisplaySize) return;
+    if (y >= gameDisplaySize) {
+      int idx = (x / menuSize) - menu->indexOffset;
+      (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
+      return;
+    } else {
+      for (MenuItem *it: menu->items) {
+	if (it->subMenuShown) {
+	  if (x > it->subMenu.x &&
+	      x < it->subMenu.x + it->subMenu.w &&
+	      y > it->subMenu.y &&
+	      y < it->subMenu.y + it->subMenu.h) {
+	    int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
+	    if (it->subMenu.isToggleSubMenu) {
+       	      it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
+	    } else {
+	      (this->*(it->subMenu.funcs.at(idy)))();
+	      menu->hideAllSubMenus();
+	      context = GAME_CONTEXT_UNSELECTED;
+	    }
+	    return;
+	  }
+	}
+      }
+      context = GAME_CONTEXT_UNSELECTED;
+      mouseMoved(x,y);
+      context = GAME_CONTEXT_SELECTING;
+    }
+    break;
+  }
+}
+
+/* Handle a left mouse up at (x,y) */
+void Game::leftMouseUp(int x, int y) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    if (context == GAME_CONTEXT_SELECTING) context = GAME_CONTEXT_SELECTED;
+    break;
+  }
+}
+
+/* Handle a right mouse click at (x,y) */
+void Game::rightMouseDown(int x, int y) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    context = GAME_CONTEXT_UNSELECTED;
+    menu->hideAllSubMenus();
+    break;
+  }
+}
+
+void Game::panViewLeft() {
+  view.x -= view.w/4;
+  if (view.x < 0) view.x = 0;
+}
+
+void Game::panViewRight() {
+  view.x += view.w/4;
+  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
+}
+
+void Game::panViewUp() {
+  view.y -= view.h/4;
+  if (view.y < 0) view.y = 0;
+}
+
+void Game::panViewDown() {
+  view.y += view.h/4;
+  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
+}
+
+/* Get MapUnit iterator of the MapUnits in the current selected region */
+MapUnit::iterator Game::getSelectionIterator() {
+  MapUnit* first = mapUnitAt(selection.x + view.x, selection.y + view.y);
+  return first->getIterator(selection.w, selection.h);
+}
+
+void Game::buildWall() {
+  setObjective(OBJECTIVE_TYPE_BUILD_WALL);
+}
+
+void Game::goTo() {
+  setObjective(OBJECTIVE_TYPE_GOTO);
+}
+
+void Game::buildDoor() {
+  setObjective(OBJECTIVE_TYPE_BUILD_DOOR);
+}
+
+void Game::attack() {
+  setObjective(OBJECTIVE_TYPE_ATTACK);
+}
+
+void Game::clearScent() {
+  for (auto it = getSelectionIterator(); it.hasNext(); it++) {
+    it->clearScent();
+  }
+}
+
+void Game::setObjective(ObjectiveType oType) {
+  if (context != GAME_CONTEXT_UNSELECTED) {
+    Objective *o = new Objective(oType, 255, this, selection);
+    objectives.push_back(o);
+    context = GAME_CONTEXT_UNSELECTED;
+  }
+}
+
+void Game::deleteSelectedObjective() {
+  if (menu->getIfObjectivesShown()) {
+    if (selectedObjective) {
+      for (auto it = objectives.begin(); it != objectives.end(); it++) {
+	if (*it == selectedObjective) {
+	  objectives.erase(it);
+	  break;
+	}
+      }
+      MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
+      for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
+	   it.hasNext(); it++) {
+	it->objective = nullptr;
+      }
+      delete selectedObjective;
+      selectedObjective = nullptr;
+    }
+  }
+}
+
+void Game::showControls() {
+  panel->controlsText();
+}
+
+void Game::showBasicInfo() {
+  panel->basicInfoText();
+}
+
+void Game::clearPanel() {
+  
+}
+
+void Game::setTeamDrawColor(SpawnerID sid) {
+  switch (sid) {
+  case SPAWNER_ID_GREEN:
+    disp->setDrawColor(0,255,0);
+    break;
+  case SPAWNER_ID_RED:
+    disp->setDrawColor(255,0,0);
+    break;
+  }
+}
+
+/* Draw the current game screen based on context */
+void Game::draw() {
+  disp->fillBlack();
+  int lum;
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    disp->drawText("Connecting...",0,0);
+    break;
+  default:
+    MapUnit* first = mapUnitAt(view.x, view.y);
+    /* Iterate over view */
+    for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
+	 iter.hasNext(); iter++) {
+      int scaledX = scaleInt(iter->x - view.x);
+      int scaledY = scaleInt(iter->y - view.y);
+      int off;
+      double offProp;
+      switch (iter->type) {
+      case UNIT_TYPE_AGENT:
+	setTeamDrawColor(iter->agent->sid);
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	break;
+      case UNIT_TYPE_DOOR:
+	setTeamDrawColor(iter->door->sid);
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
+	  if (menu->getIfScentsShown()) {
+	    lum = (int)(255.0 * (double)iter->scent/255.0);
+	    disp->setDrawColor(lum, 0, lum);
+	  } else {
+	    disp->setDrawColorBlack();
+	  }
+	  offProp = (double)iter->door->hp/(double)MAX_DOOR_HEALTH;
+	  off = (int)(offProp*scale*1.0/4.0); 
+	  disp->drawRectFilled(scaledX + (int)(scale/2.0) - off, scaledY + (int)(scale/2.0) - off, 2*off, 2*off);
+	}
+	break;
+      case UNIT_TYPE_SPAWNER:
+	if (((iter->x + iter->y) % 2) == 0) {
+	  setTeamDrawColor(iter->spawner->sid);
+	} else {
+	  switch (iter->spawner->sid) {
+	  case SPAWNER_ID_GREEN:
+	    disp->setDrawColor(0,128,0);
+	    break;
+	  case SPAWNER_ID_RED:
+	    disp->setDrawColor(128,0,0);
+	    break;
+	  }
+	}
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	break;
+      case UNIT_TYPE_WALL:
+	lum = (int)(((double)iter->hp/(double)MAX_WALL_HEALTH)*100.0)+155;
+	disp->setDrawColor(lum,lum,lum);
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	break;
+      case UNIT_TYPE_EMPTY:
+	if (menu->getIfScentsShown()) {
+	  lum = (int)(255.0 * (double)iter->scent/255.0);
+	  disp->setDrawColor(lum, 0, lum);
+	  disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	}
+	break;
+      default:	
+	break;
+      }
+    }
+    if (context != GAME_CONTEXT_UNSELECTED) {
+      disp->setDrawColor(150,150,150);
+      int selectionScaledX = scaleInt(selection.x - view.x);
+      int selectionScaledY = scaleInt(selection.y - view.y);
+      disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
+    }
+    if (menu->getIfObjectivesShown()) {
+      for (Objective *o: objectives) {
+	disp->setDrawColor(100,100,100);
+	int scaledX = scaleInt(o->region.x - view.x);
+	int scaledY = scaleInt(o->region.y - view.y);
+	disp->drawRect(scaledX, scaledY, scaleInt(o->region.w), scaleInt(o->region.h));
+      }
+      if (selectedObjective) {
+	SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];
+	int objectiveInfoWidth;
+	int objectiveInfoHeight;
+	SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
+	int x = mouseX + 20;
+	int y = mouseY + 10;
+	if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
+	if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
+	disp->setDrawColorBlack();
+	disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
+	disp->setDrawColorWhite();
+	disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+	disp->drawTexture(texture, x, y);
+      }
+    }
+    disp->setDrawColorWhite();
+    disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
+    panel->draw();
+    menu->draw(disp);
+    break;
+  }
+}
+
+void Game::receiveAgentEvent(AgentEvent *aevent) {
+  Agent *a = agentDict[aevent->id];
+  MapUnit *startuptr = a->unit;
+  MapUnit *destuptr;
+  switch (aevent->dir) {
+  case AGENT_DIRECTION_LEFT:
+    destuptr = startuptr->left;
+    break;
+  case AGENT_DIRECTION_RIGHT:
+    destuptr = startuptr->right;
+    break;
+  case AGENT_DIRECTION_UP:
+    destuptr = startuptr->up;
+    break;
+  case AGENT_DIRECTION_DOWN:
+    destuptr = startuptr->down;
+    break;
+  case AGENT_DIRECTION_STAY:
+    destuptr = startuptr;
+    break;
+  }
+  switch (aevent->action) {
+  case AGENT_ACTION_MOVE:
+    if (destuptr->type == UNIT_TYPE_DOOR) {
+      destuptr->door->isEmpty = false;
+    } else {
+      destuptr->type = UNIT_TYPE_AGENT;
+    }
+    a->unit = destuptr;
+    destuptr->agent = a;
+    if (startuptr->type == UNIT_TYPE_DOOR) {
+      startuptr->door->isEmpty = true;
+    } else {
+      startuptr->type = UNIT_TYPE_EMPTY;
+    }
+    startuptr->agent = nullptr;
+    break;
+  case AGENT_ACTION_BUILDWALL:
+    destuptr->type = UNIT_TYPE_WALL;
+    destuptr->hp = STARTING_WALL_HEALTH;
+    a->die();
+    delete a;
+    break;
+  case AGENT_ACTION_BUILDDOOR:
+    if (destuptr->type == UNIT_TYPE_WALL) {
+      destuptr->type = UNIT_TYPE_DOOR;
+      destuptr->door = new Door();
+      destuptr->door->sid = a->sid;
+      destuptr->door->hp = 1;
+      destuptr->door->isEmpty = false;
+    } else {
+      destuptr->door->hp++;
+      if (destuptr->door->hp == MAX_DOOR_HEALTH) destuptr->door->isEmpty = true;
+    }
+    a->die();
+    delete a;
+    break;
+  case AGENT_ACTION_ATTACK:
+    Agent *b;
+    switch (destuptr->type) {
+    case UNIT_TYPE_SPAWNER:
+      destuptr->type = UNIT_TYPE_EMPTY;
+      destuptr->spawner = nullptr;
+      a->die();
+      delete a;
+      break;
+    case UNIT_TYPE_AGENT:
+      b = destuptr->agent;
+      b->die();
+      delete b;
+      a->die();
+      delete a;
+      break;
+    case UNIT_TYPE_WALL:
+      destuptr->hp--;
+      if (destuptr->hp == 0) destuptr->type = UNIT_TYPE_EMPTY;
+      a->die();
+      delete a;
+      break;
+    case UNIT_TYPE_DOOR:
+      destuptr->door->hp--;
+      if (destuptr->door->hp == 0) {
+	delete destuptr->door;
+	if (destuptr->agent != nullptr) {
+	  destuptr->type = UNIT_TYPE_AGENT;
+	} else {
+	  destuptr->type = UNIT_TYPE_EMPTY;
+	}
+      }
+      a->die();
+      delete a;
+      break;
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+}
+
+void Game::receiveEvents(Events *events, int numAgentEvents) {
+  for (int i = 0; i < numAgentEvents; i++) {
+    receiveAgentEvent(&events->agentEvents[i]);
+  }
+  if (events->spawnEvent.created) {
+    MapUnit *uptr = mapUnitAt(events->spawnEvent.x, events->spawnEvent.y);
+    Agent *a = new Agent(this, uptr, events->spawnEvent.id, events->spawnEvent.sid);
+    agentDict.insert(std::make_pair(events->spawnEvent.id, a));
+    uptr->agent = a;
+    uptr->type = UNIT_TYPE_AGENT;
+    if (events->spawnEvent.id >= newAgentID) newAgentID = events->spawnEvent.id + 1;
+    if (events->spawnEvent.sid == playerSpawnID) numPlayerAgents++;
+  }
+}
+
+AgentID Game::getNewAgentID() {
+  return newAgentID++;
+}
+
+void Game::checkSpawnersDestroyed() {
+  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
+    if (it->second->isDestroyed()) {
+      context = GAME_CONTEXT_EXIT;
+      std::string reason;
+      switch (it->first) {
+      case SPAWNER_ID_GREEN:
+	reason = "RED team wins!";
+	break;
+      case SPAWNER_ID_RED:
+	reason = "GREEN team wins!";
+	break;
+      }
+      net->closeConnection(reason.c_str());
+    }
+  }
+}
+
+void Game::receiveData(void* data, int numBytes) {
+  Events *events = (Events*)data;
+  int bytesInAgentEventArray = numBytes - sizeof(SpawnerEvent);
+  int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
+  receiveEvents(events, numEvents);
+  checkSpawnersDestroyed();
+  if (context != GAME_CONTEXT_EXIT) update();
+}
+
+/* Update errythang */
+void Game::update() {
+  for (MapUnit* u: mapUnits) {
+    u->marked = false;
+    u->update();
+    u->objective = nullptr;
+  }
+  auto it = objectives.begin();
+  while (it != objectives.end()) {
+    (*it)->update();
+    if ((*it)->isDone()) {
+      if (selectedObjective == *it) selectedObjective = nullptr;
+      delete *it;
+      it = objectives.erase(it);
+    } else it++;
+  }
+  int messageSize = sizeof(SpawnerEvent) + (sizeof(AgentEvent) * numPlayerAgents);
+  Events *events = (Events*)malloc(messageSize);
+  int i = 0;
+  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+    if (it->second->sid == playerSpawnID) {
+      it->second->update(&events->agentEvents[i]);
+      i++;
+    }
+  }
+  spawnerDict[playerSpawnID]->update(&events->spawnEvent);
+  receiveEvents(events, numPlayerAgents);
+  net->send((void *)events, messageSize);
+  checkSpawnersDestroyed();
+  free(events);
+}
+
+void Game::handleSDLEvent(SDL_Event *e) {
+  int x, y;
+  if (e->type == SDL_QUIT) {
+    context = GAME_CONTEXT_EXIT;
+    return;
+  }
+  /* Handle other events case by case */
+  SDL_GetMouseState(&x, &y);
+  switch(e->type) {
+  case SDL_MOUSEWHEEL:
+    if (x >= gameDisplaySize) {
+      if (e->wheel.y > 0) panel->scrollDown();
+      else if (e->wheel.y < 0) panel->scrollUp();
+      break;
+    }
+    if (y >= gameDisplaySize) break;
+    if (e->wheel.y > 0) zoomIn();
+    else if (e->wheel.y < 0) zoomOut();
+    break;
+  case SDL_MOUSEMOTION:
+    mouseMoved(x, y);
+    break;
+  case SDL_MOUSEBUTTONDOWN:
+    switch(e->button.button) {
+    case SDL_BUTTON_LEFT:
+      leftMouseDown(x, y);
+      break;
+    case SDL_BUTTON_RIGHT:
+      rightMouseDown(x, y);
+      break;
+    }
+    mouseMoved(x, y);
+    break;
+  case SDL_MOUSEBUTTONUP:
+    switch(e->button.button) {
+    case SDL_BUTTON_LEFT:
+      leftMouseUp(x, y);
+      break;
+    }
+    mouseMoved(x,y);
+    break;
+  case SDL_KEYDOWN:
+    switch(e->key.keysym.sym) {
+    case SDLK_SPACE:
+      break;
+    case SDLK_UP:
+      panViewUp();
+      mouseMoved(x,y);
+      break;
+    case SDLK_DOWN:
+      panViewDown();
+      mouseMoved(x,y);
+      break;
+    case SDLK_RIGHT:
+      panViewRight();
+      mouseMoved(x,y);
+      break;
+    case SDLK_LEFT:
+      panViewLeft();
+      mouseMoved(x,y);
+      break;
+    case SDLK_w:
+      buildWall();
+      break;
+    case SDLK_d:
+      buildDoor();
+      break;
+    case SDLK_c:
+      clearScent();
+      break;
+    case SDLK_a:
+      attack();
+      break;
+    case SDLK_g:
+      goTo();
+      break;
+    case SDLK_BACKSPACE:
+    case SDLK_DELETE:
+      deleteSelectedObjective();
+      break;
+    }
+    break;
+  }
+}
+
+/* Main loop of the game */
+void Game::mainLoop(void) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    if (net->readyForGame()) {
+      context = GAME_CONTEXT_UNSELECTED;
+    }
+    break;
+  default:
+    break;
+  }
+  SDL_Event e;
+  if (SDL_PollEvent(&e) != 0) {
+    handleSDLEvent(&e);
+  }
+  draw();
+  disp->update();
+}
+
+Game::~Game() {
+  /* Reset inter-mapunit links, so we don't have bad pointer segfaults on deletion */
+  for (MapUnit* u : mapUnits) {
+    u->left = nullptr;
+    u->right = nullptr;
+    u->down = nullptr;
+    u->up = nullptr;
+  }
+  for (unsigned int i = 0; i < mapUnits.size(); i++) {
+    delete mapUnits[i];
+  }
+  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+    delete it->second;
+  }
+  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
+    delete it->second;
+  }
+  for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
+    SDL_DestroyTexture(it->second);
+  }
+  objectiveInfoTextures.clear();
+  agentDict.clear();
+  spawnerDict.clear();
+  mapUnits.clear();
+  delete disp;
+  delete net;
+  delete menu;
+  delete panel;
+}
