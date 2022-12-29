@@ -3,6 +3,7 @@
 #include <cstring>
 #include <string>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <iterator>
 
 #include "constants.h"
@@ -15,9 +16,9 @@ Panel::Panel(Display *d, int pad): basicInfoAdded(false), controlsAdded(false),
   wrap = width - (2*padding);
   offset = 0;
   textHeight = 0;
-  titleTexture = disp->cacheTextWrapped(TITLE, 0);
+  bannerHeight = width / 3;
+  bannerTexture = disp->cacheImage("assets/img/banner.png");
   newlineTexture = disp->cacheTextWrapped(">", 0);
-  SDL_QueryTexture(titleTexture, NULL, NULL, &titleWidth, &titleHeight);
 }
 
 void Panel::addText(const char* input) {
@@ -74,7 +75,7 @@ void Panel::draw() {
   disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, disp->getHeight());
   disp->setDrawColorWhite();
   disp->drawRect(disp->getGameDisplaySize(), 0, width, disp->getHeight());
-  int y = PANEL_TITLE_HEIGHT + PANEL_VERTICAL_PADDING + offset;
+  int y = bannerHeight + PANEL_VERTICAL_PADDING + offset;
   for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
     int textureHeight;
     SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
@@ -83,11 +84,10 @@ void Panel::draw() {
     y += textureHeight;
   }
   disp->setDrawColorBlack();
-  disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, PANEL_TITLE_HEIGHT);
+  disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, bannerHeight);
+  disp->drawTexture(bannerTexture, disp->getGameDisplaySize(), 0, width, bannerHeight);
   disp->setDrawColorWhite();
-  disp->drawRect(disp->getGameDisplaySize(), 0, width, PANEL_TITLE_HEIGHT);
-  disp->drawTexture(titleTexture, disp->getGameDisplaySize() + width/2 - titleWidth/2,
-		 PANEL_TITLE_HEIGHT/2 - titleHeight/2);
+  disp->drawRect(disp->getGameDisplaySize(), 0, width, bannerHeight);
 }
 
 void Panel::scrollUp() {
@@ -101,4 +101,5 @@ void Panel::scrollDown() {
 
 Panel::~Panel() {
   clearText();
+  SDL_DestroyTexture(bannerTexture);
 }

@@ -114,6 +114,11 @@ void Display::drawTexture(SDL_Texture *texture, int x, int y) {
   SDL_RenderCopy(render, texture, nullptr, &rect);
 }
 
+void Display::drawTexture(SDL_Texture *texture, int x, int y, int w, int h) {
+  SDL_Rect rect = {x, y, w, h};
+  SDL_RenderCopy(render, texture, nullptr, &rect);
+}
+
 /* Draw a filled in rectangle at (x,y) of size (w,h) */
 void Display::drawRectFilled(int x, int y, int w, int h) {
   SDL_Rect rect = {x, y, w, h};
@@ -123,6 +128,17 @@ void Display::drawRectFilled(int x, int y, int w, int h) {
 SDL_Texture *Display::cacheTextWrapped(const char *text, int wrap) {
   SDL_Color white = {255,255,255};
   SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
+  SDL_FreeSurface(surface);
+  return texture;
+}
+
+SDL_Texture *Display::cacheSurface(SDL_Surface *surface) {
+  return SDL_CreateTextureFromSurface(render, surface);
+}
+
+SDL_Texture *Display::cacheImage(const char *file) {
+  SDL_Surface *surface = IMG_Load(file);
   SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_FreeSurface(surface);
   return texture;

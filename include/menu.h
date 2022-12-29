@@ -1,4 +1,3 @@
-
 #ifndef MENU_H
 #define MENU_H
 
@@ -6,6 +5,7 @@
 #include <emscripten.h>
 #endif
 
+#include <SDL2/SDL.h>
 #include <vector>
 
 /* Forward declarations */
@@ -29,7 +29,7 @@ class MenuItem {
   friend class Game;
 private:
   Game *game;
-  SDL_Surface *icon;
+  SDL_Texture *icon;
   int positionIndex;
   void (MenuItem::*menuFunc)();
   SubMenu subMenu;
@@ -50,7 +50,7 @@ class Menu {
   friend class Game;
 private:
   Game *game;
-  SDL_Surface *checkIcon;
+  SDL_Texture *checkIcon;
   std::vector<MenuItem*> items;
   int itemsInView;
   int indexOffset;

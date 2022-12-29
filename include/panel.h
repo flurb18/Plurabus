@@ -16,10 +16,10 @@ private:
   int wrap;
   int offset;
   int textHeight;
-  int titleWidth, titleHeight;
+  int bannerHeight;
   Display *disp;
   std::deque<SDL_Texture *> displayedStrings;
-  SDL_Texture *titleTexture;
+  SDL_Texture *bannerTexture;
   SDL_Texture *newlineTexture;
 public:
   void addText(const char *);

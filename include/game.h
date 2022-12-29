@@ -62,10 +62,10 @@ private:
   std::map<SpawnerID, Spawner*> spawnerDict;
   SpawnerID playerSpawnID;
   AgentID newAgentID;
-  Display* disp;
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
+  bool potentialSelectionCollidesWithObjective(int, int, int, int);
   void mouseMoved(int, int);
   void leftMouseDown(int, int);
   void leftMouseUp(int, int);
@@ -93,6 +93,7 @@ private:
   void checkSpawnersDestroyed();
   void update();
 public:
+  Display* disp;
   MapUnit* mapUnitAt(int, int);
   Context getContext();
   unsigned long long getTime();

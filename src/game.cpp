@@ -74,8 +74,8 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   view = {0,0,gameSize,gameSize};
   selectedUnit = mapUnitAt(0,0);
   menu = new Menu(this, menuItemsInView);
-  MapUnit *greenspawn = mapUnitAt(SPAWNER_PADDING, SPAWNER_PADDING);
-  MapUnit *redspawn = mapUnitAt(gameSize - SPAWNER_SIZE - SPAWNER_PADDING, gameSize - SPAWNER_SIZE - SPAWNER_PADDING);
+  MapUnit *redspawn = mapUnitAt(SPAWNER_PADDING, SPAWNER_PADDING);
+  MapUnit *greenspawn = mapUnitAt(gameSize - SPAWNER_SIZE - SPAWNER_PADDING, gameSize - SPAWNER_SIZE - SPAWNER_PADDING);
   spawnerDict.insert(std::make_pair(SPAWNER_ID_GREEN, new Spawner(this, greenspawn, SPAWNER_ID_GREEN, SPAWNER_SIZE, 1)));
   spawnerDict.insert(std::make_pair(SPAWNER_ID_RED, new Spawner(this, redspawn, SPAWNER_ID_RED, SPAWNER_SIZE, 1)));
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
@@ -90,14 +90,14 @@ MapUnit* Game::mapUnitAt(int x, int y) {
 }
 
 void Game::zoomIn() {
+  if (scale == MAX_SCALE) return;
   scale += 1.0;
-  if (scale > MAX_SCALE) scale = MAX_SCALE;
   adjustViewToScale();
 }
 
 void Game::zoomOut() {
+  if (scale == initScale) return;
   scale -= 1.0;
-  if (scale < initScale) scale = initScale;
   adjustViewToScale();
 }
 
@@ -136,6 +136,20 @@ SpawnerID Game::getPlayerSpawnID() {
   return playerSpawnID;
 }
 
+bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
+  for (Objective *o: objectives) {
+    if (potX >= o->region.x && potX <= o->region.x + o->region.w - 1) {
+      if (potY >= o->region.y && potY <= o->region.y + o->region.h - 1) return true;
+      if (potY + potH - 1 >= o->region.y && potY + potH - 1 <= o->region.y + o->region.h - 1) return true;
+    }
+    if (potX + potW - 1 >= o->region.x && potX + potW - 1 <= o->region.x + o->region.w - 1) {
+      if (potY >= o->region.y && potY <= o->region.y + o->region.h - 1) return true;
+      if (potY + potH - 1 >= o->region.y && potY + potH - 1 <= o->region.y + o->region.h - 1) return true;
+    }
+  }
+  return false;
+}
+
 /* Handle a mouse moved to (x,y) */
 void Game::mouseMoved(int x, int y) {
   mouseX = x;
@@ -150,27 +164,31 @@ void Game::mouseMoved(int x, int y) {
     }
     return;
   }
-  int mouseUnitX =(int)((double)x / scale) + view.x;
-  int mouseUnitY =(int)((double)y / scale) + view.y;
+  int mouseUnitX = (int)((double)x / scale) + view.x;
+  int mouseUnitY = (int)((double)y / scale) + view.y;
   if (menu->getIfObjectivesShown()) {
     if (selectedObjective) {
       if (mouseUnitX < selectedObjective->region.x ||
-	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w ||
+	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w - 1 ||
 	  mouseUnitY < selectedObjective->region.y ||
-	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h) {
+	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h - 1) {
 	selectedObjective = nullptr;
       }
     } else {
       for (Objective *o: objectives) {
 	if (mouseUnitX >= o->region.x &&
-	    mouseUnitX <= o->region.x + o->region.w &&
+	    mouseUnitX <= o->region.x + o->region.w - 1 &&
 	    mouseUnitY >= o->region.y &&
-	    mouseUnitY <= o->region.y + o->region.h) {
+	    mouseUnitY <= o->region.y + o->region.h - 1) {
 	  selectedObjective = o;
 	}
       }
     }
   }
+  int potX = selection.x;
+  int potY = selection.y;
+  int potW = selection.w;
+  int potH = selection.h;
   switch(context) {
   case GAME_CONTEXT_UNSELECTED:
     selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
@@ -180,22 +198,32 @@ void Game::mouseMoved(int x, int y) {
     selection.h = 1;
     break;
   case GAME_CONTEXT_SELECTING:
-    if (mouseUnitX >= (int)selectedUnit->x) {
-      selection.w = mouseUnitX - selectedUnit->x + 1;
+    if (mouseUnitX > (int)selectedUnit->x) {
+      potW = mouseUnitX - selectedUnit->x + 1;
     } else {
-      selection.x = mouseUnitX;
-      selection.w = selectedUnit->x - mouseUnitX;
+      potX = mouseUnitX;
+      potW = selectedUnit->x - mouseUnitX;
     }
     if (mouseUnitY > (int)selectedUnit->y) {
-      selection.h = mouseUnitY - selectedUnit->y + 1;
+      potH = mouseUnitY - selectedUnit->y + 1;
     } else {
-      selection.y = mouseUnitY;
-      selection.h = selectedUnit->y - mouseUnitY;
+      potY = mouseUnitY;
+      potH = selectedUnit->y - mouseUnitY;
     }
-    if (selection.w <= 0) selection.w = 1;
-    if (selection.h <= 0) selection.h = 1;
-    if (selection.x + selection.w > gameSize) selection.w = gameSize - selection.x;
-    if (selection.y + selection.h > gameSize) selection.h = gameSize - selection.y;
+    if (potW <= 0) potW = 1;
+    if (potH <= 0) potH = 1;
+    if (potX + potW > gameSize) potW = gameSize - potX;
+    if (potY + potH > gameSize) potH = gameSize - potY;
+    if (potX < 0) potX = 0;
+    if (potY < 0) potY = 0;
+    if (potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
+      context = GAME_CONTEXT_SELECTED;
+      break;
+    }
+    selection.x = potX;
+    selection.y = potY;
+    selection.w = potW;
+    selection.h = potH;
     break;
   case GAME_CONTEXT_SELECTED:
     break;
@@ -236,9 +264,12 @@ void Game::leftMouseDown(int x, int y) {
 	  }
 	}
       }
-      context = GAME_CONTEXT_UNSELECTED;
       mouseMoved(x,y);
-      context = GAME_CONTEXT_SELECTING;
+      if (selectedObjective == nullptr) {
+	context = GAME_CONTEXT_UNSELECTED;
+	mouseMoved(x,y);
+	context = GAME_CONTEXT_SELECTING;
+      }
     }
     break;
   }

@@ -45,7 +45,7 @@ MenuItem::MenuItem(Game *g, const char *iconFile, void (MenuItem::*f)(),int i):
   subMenuShown(false),
   isBlank(false),
   highlighted(false) {
-  icon = IMG_Load(iconFile);
+  icon = game->disp->cacheImage(iconFile);
   menuFunc = f;
 }
 
@@ -56,7 +56,7 @@ MenuItem::MenuItem(Game *g, const char *iconFile, SubMenu sub, int i):
   subMenuShown(false),
   isBlank(false),
   highlighted(false) {
-  icon = IMG_Load(iconFile);
+  icon = game->disp->cacheImage(iconFile);
   menuFunc = &MenuItem::toggleSubMenu;
 }
 
@@ -81,7 +81,7 @@ void MenuItem::toggleSubMenu() {
 }
 
 Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
-  checkIcon = IMG_Load("assets/img/check.png");
+  checkIcon = game->disp->cacheImage("assets/img/check.png");
   SubMenu barsSubMenu;
   int barsSubIdx = 5;
   barsSubMenu.strings.push_back("Wall");
@@ -149,7 +149,7 @@ void Menu::draw(Display *disp) {
     disp->drawRect(itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
     if (!item->isBlank) {
       disp->setDrawColorWhite();
-      disp->drawSurface(item->icon, itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
+      disp->drawTexture(item->icon, itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
       if (item->subMenuShown) {
 	disp->setDrawColorBlack();
 	disp->drawRectFilled(item->subMenu.x, item->subMenu.y, item->subMenu.w, item->subMenu.h);
@@ -161,7 +161,7 @@ void Menu::draw(Display *disp) {
 	  disp->drawRect(item->subMenu.x, y, item->subMenu.w, textHeight);
 	  if (item->subMenu.isToggleSubMenu) {
 	    if (item->subMenu.toggleFlags.at(i)) {
-	      disp->drawSurface(checkIcon, item->subMenu.x, y, textHeight, textHeight);
+	      disp->drawTexture(checkIcon, item->subMenu.x, y, textHeight, textHeight);
 	    }
 	    disp->drawText(item->subMenu.strings.at(i), item->subMenu.x + textHeight + SUBMENU_HORIZONTAL_PADDING, y);
 	  } else {
@@ -176,8 +176,9 @@ void Menu::draw(Display *disp) {
 
 Menu::~Menu() {
   for (MenuItem *item : items) {
-    SDL_FreeSurface(item->icon);
+    SDL_DestroyTexture(item->icon);
     delete item;
   }
+  SDL_DestroyTexture(checkIcon);
   items.clear();
 }
