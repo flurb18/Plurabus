@@ -30,6 +30,7 @@ public:
   void setDrawColorBrightness(double);
   void drawPixel(int, int);
   void drawLine(int, int, int, int);
+  void drawLines(SDL_Point *, int);
   void drawRect(int, int, int, int);
   void drawRect(SDL_Rect*);
   void drawRectFilled(int, int, int, int);

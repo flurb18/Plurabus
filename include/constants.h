@@ -13,11 +13,12 @@ const int SUBMENU_HORIZONTAL_PADDING = 10;
 const int PANEL_TITLE_HEIGHT = 80;
 const int PANEL_VERTICAL_PADDING = 10;
 const int MAX_TOWERS = 3;
-const int TOWER_UPDATE_TIME = 10;
-const int TOWER_MAX_HP = 20;
+const int TOWER_UPDATE_TIME = 4;
+const int TOWER_MAX_HP = 100;
 const int TOWER_SIZE = 4;
 const int TOWER_AOE_RADIUS_SQUARED = 225;
-const int ZAP_CLEAR_TIME = 15;
+const int ZAP_CLEAR_TIME = 10;
+const int ZAP_EFFECTS_SUBDIVISION = 20;
 extern const char *TITLE;
 
 #endif

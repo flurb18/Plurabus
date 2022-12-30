@@ -106,6 +106,10 @@ void Display::drawLine(int x1, int y1, int x2, int y2) {
   SDL_RenderDrawLine(render, x1, y1, x2, y2);
 }
 
+void Display::drawLines(SDL_Point *points, int count) {
+  SDL_RenderDrawLines(render, points, count);
+}
+
 /* Draw a rectangle outline at (x,y) of size (w,h) */
 void Display::drawRect(int x, int y, int w, int h) {
   SDL_Rect rect = {x, y, w, h};

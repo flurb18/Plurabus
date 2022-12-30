@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <string>
-#include <math.h>
+#include <random>
 
 #include "agent.h"
 #include "constants.h"
@@ -154,11 +154,34 @@ bool Game::rectCollidesOneWay(int x1, int y1, int w1, int h1, int x2, int y2, in
   return false;
 }
 
+bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
+  return (rectCollidesOneWay(r1.x, r1.y, r1.w, r1.h, r2.x, r2.y, r2.w, r2.h) ||
+	  rectCollidesOneWay(r2.x, r2.y, r2.w, r2.h, r1.x, r1.y, r1.w, r1.h));
+}
+
 bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
+  SDL_Rect r = {potX, potY, potW, potH};
   for (Objective *o: objectives) {
-    if (rectCollidesOneWay(potX, potY, potW, potH, o->region.x, o->region.y, o->region.w, o->region.h) ||
-	rectCollidesOneWay(o->region.x, o->region.y, o->region.w, o->region.h, potX, potY, potW, potH))
-      return true;
+    if (rectCollides(r, o->region)) return true;
+  }
+  return false;
+}
+
+bool Game::potentialSelectionCollidesWithTower(int potX, int potY, int potW, int potH) {
+  SDL_Rect r= {potX, potY, potW, potH};
+  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
+    Tower *t = it->second;
+    if (rectCollides(r, t->region)) return true;
+  }
+  return false;
+}
+
+bool Game::potentialSelectionCollidesWithSpawner(int potX, int potY, int potW, int potH) {
+  SDL_Rect r = {potX, potY, potW, potH};
+  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
+    Spawner *s = it->second;
+    SDL_Rect rs = {(int)s->topLeft->x, (int)s->topLeft->y, s->size, s->size};
+    if (rectCollides(r, rs)) return true;
   }
   return false;
 }
@@ -219,7 +242,9 @@ void Game::mouseMoved(int x, int y) {
     if (potY + potH > gameSize) potH = gameSize - potY;
     if (potX < 0) potX = 0;
     if (potY < 0) potY = 0;
-    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
+    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
+	!potentialSelectionCollidesWithTower(potX, potY, potW, potH) &&
+	!potentialSelectionCollidesWithSpawner(potX, potY, potW, potH)) {
       selection.x = potX;
       selection.y = potY;
       selection.w = potW;
@@ -517,12 +542,33 @@ void Game::draw() {
       }
       int x = scaleInt(it->second->region.x-view.x);
       int y = scaleInt(it->second->region.y-view.y);
-      disp->drawRectFilled(x,y+scaleInt(TOWER_SIZE/4),scaleInt(TOWER_SIZE),scaleInt(TOWER_SIZE/2));
-      disp->drawRectFilled(x+scaleInt(TOWER_SIZE/4),y,scaleInt(TOWER_SIZE/2),scaleInt(TOWER_SIZE));
+      int s = scaleInt(TOWER_SIZE);
+      disp->drawRectFilled(x, y+s/4, s, s/2);
+      disp->drawRectFilled(x+s/4, y, s/2, s);
+      disp->drawLine(x, y+s/4, x+s/4, y);
+      disp->drawLine(x+s-s/4, y, x+s, y+s/4);
+      disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
+      disp->drawLine(x+s/4, y+s, x, y+s-s/4);
     }
     for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
       disp->setDrawColorWhite();
-      disp->drawLine(scaleInt(it->x1 - view.x), scaleInt(it->y1 - view.y), scaleInt(it->x2 - view.x), scaleInt(it->y2 - view.y));
+      int x1 = scaleInt(it->x1 - view.x);
+      int y1 = scaleInt(it->y1 - view.y);
+      int x2 = scaleInt(it->x2 - view.x);
+      int y2 = scaleInt(it->y2 - view.y);
+      SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
+      for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
+	double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
+	int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
+	int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
+	effectPoints[i] = { tx, ty };
+      }
+      for (int i = 1; i < ZAP_EFFECTS_SUBDIVISION-1; i++) {
+	effectPoints[i].x += rand() % (int)scale;
+	effectPoints[i].y += rand() % (int)scale;
+      }
+      disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
+      //      disp->drawLine(x1, y1, x2, y2);
     }
     if (context != GAME_CONTEXT_UNSELECTED) {
       disp->setDrawColor(150,150,150);
