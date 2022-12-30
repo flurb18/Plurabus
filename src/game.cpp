@@ -408,6 +408,10 @@ void Game::placeTower() {
   for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
     if (it->second->sid == playerSpawnID) numPlayerTowers++;
   }
+  for (Objective *o: objectives) {
+    if (o->type == OBJECTIVE_TYPE_BUILD_TOWER && mapUnitAt(o->region.x, o->region.y)->type != UNIT_TYPE_BUILDING)
+      numPlayerTowers++;
+  }
   if (numPlayerTowers < MAX_TOWERS) {
     placementW = TOWER_SIZE;
     placementH = TOWER_SIZE;
@@ -421,10 +425,12 @@ void Game::placeTower() {
 }
 
 void Game::setObjective(ObjectiveType oType) {
-  if (context != GAME_CONTEXT_UNSELECTED) {
+  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_PLACING) {
     Objective *o = new Objective(oType, 255, this, selection);
     objectives.push_back(o);
     context = GAME_CONTEXT_UNSELECTED;
+  } else {
+    panel->addText("You must select a region to designate.");
   }
 }
 
@@ -561,11 +567,11 @@ void Game::draw() {
 	double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
 	int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
 	int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
+	if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
+	  tx += (rand() % 2*(int)scale) - (int)scale;
+	  ty += (rand() % 2*(int)scale) - (int)scale;
+	}
 	effectPoints[i] = { tx, ty };
-      }
-      for (int i = 1; i < ZAP_EFFECTS_SUBDIVISION-1; i++) {
-	effectPoints[i].x += rand() % (int)scale;
-	effectPoints[i].y += rand() % (int)scale;
       }
       disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
       //      disp->drawLine(x1, y1, x2, y2);
