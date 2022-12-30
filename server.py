@@ -52,6 +52,7 @@ async def serveFunction(websocket):
         SocketQueue.append(websocket)
         await websocket.foundPartner.wait()
 
+
     await trySend(websocket, str(websocket.pairedClient.desiredPairedString))
     
     ready = await tryRecv(websocket)
@@ -64,33 +65,31 @@ async def serveFunction(websocket):
     set1 = await tryRecv(websocket)
     websocket.readyForGame.set()
     await websocket.pairedClient.readyForGame.wait()
-    
     if (websocket.player == 2):
         await websocket.wait_closed()
-        return
+        
     if (websocket.player == 1):
         await trySend(websocket, "Go")
         
         async for data in websocket:
-            
             try:
                 await websocket.pairedClient.send(data)
             except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(socket.remote_address[0])+" connection closed")
+                print("Host "+str(websocket.pairedClient.remote_address[0])+" connection closed")
                 if (websocket.pairedClient.close_code == 1001):
                     await websocket.close(1001, "Other player disconnected.")
                     
             try:
                 otherdata = await websocket.pairedClient.recv()
             except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(socket.remote_address[0])+" connection closed")
+                print("Host "+str(websocket.pairedClient.remote_address[0])+" connection closed")
                 if (websocket.pairedClient.close_code == 1001):
                     await websocket.close(1001, "Other player disconnected.")
 
             try:
                 await websocket.send(otherdata)
             except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(socket.remote_address[0])+" connection closed")
+                print("Host "+str(websocket.remote_address[0])+" connection closed")
                 if (websocket.pairedClient.close_code == 1001):
                     await websocket.close(1001, "Other player disconnected.")
 

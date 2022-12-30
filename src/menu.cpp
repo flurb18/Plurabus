@@ -83,7 +83,7 @@ void MenuItem::toggleSubMenu() {
 Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   checkIcon = game->disp->cacheImage("assets/img/check.png");
   SubMenu barsSubMenu;
-  int barsSubIdx = 2;
+  int barsSubIdx = 4;
   barsSubMenu.strings.push_back("Wall");
   barsSubMenu.strings.push_back("Door");
   barsSubMenu.strings.push_back("Tower");
@@ -99,7 +99,7 @@ Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   barsSubMenu.isToggleSubMenu = false;
   barsSubMenu.size(game->disp, barsSubIdx);
   SubMenu viewSubMenu;
-  int viewSubIdx = 4;
+  int viewSubIdx = 3;
   viewSubMenu.strings.push_back("Show Objectives");
   viewSubMenu.strings.push_back("Show Scents");
   viewSubMenu.isToggleSubMenu = true;
@@ -107,7 +107,7 @@ Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   viewSubMenu.toggleFlags.push_back(false);
   viewSubMenu.size(game->disp, viewSubIdx);
   SubMenu infoSubMenu;
-  int infoSubIdx = 3;
+  int infoSubIdx = 2;
   infoSubMenu.strings.push_back("Basic Info");
   infoSubMenu.strings.push_back("Controls");
   infoSubMenu.strings.push_back("Agent Action Costs");
@@ -127,19 +127,19 @@ Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   items.reserve(6);
   items.push_back(new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
   items.push_back(new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
-  items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
   items.push_back(new MenuItem(game, "assets/img/info.png", infoSubMenu, infoSubIdx));
   items.push_back(new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
+  items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
   items.push_back(new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
 
 }
 
 bool Menu::getIfScentsShown() {
-  return items.at(4)->subMenu.toggleFlags.at(1);
+  return items.at(3)->subMenu.toggleFlags.at(1);
 }
 
 bool Menu::getIfObjectivesShown() {
-  return items.at(4)->subMenu.toggleFlags.at(0);
+  return items.at(3)->subMenu.toggleFlags.at(0);
 }
 
 void Menu::hideAllSubMenus() {
