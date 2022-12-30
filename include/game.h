@@ -8,6 +8,7 @@
 #include <SDL2/SDL_rect.h>
 
 #include "agent.h"
+#include "building.h"
 #include "event.h"
 #include "mapunit.h"
 #include "objective.h"
@@ -25,23 +26,31 @@ enum Context {
   GAME_CONTEXT_UNSELECTED,
   GAME_CONTEXT_SELECTING,
   GAME_CONTEXT_SELECTED,
-  GAME_CONTEXT_CONNECTING,
+  GAME_CONTEXT_PLACING,
+  GAME_CONTEXT_CONNECTING
 };
 
 typedef struct MarkedCoord {
   int x,y;
 } MarkedCoord;
 
+typedef struct TowerZap {
+  int x1, y1, x2, y2;
+} TowerZap;
+
 class Game {
   friend class NetHandler;
   friend class Agent;
   friend class Spawner;
   friend class Menu;
+  friend class Building;
+  friend class Tower;
 private:
   Menu *menu;
   Panel *panel;
   NetHandler *net;
   unsigned int numPlayerAgents;
+  unsigned int numPlayerTowers;
   Context context;
   double initScale;
   double scale;
@@ -52,16 +61,22 @@ private:
   int panelSize;
   int unitLimit;
   int mouseX, mouseY;
+  int placementW, placementH;
+  int zapCounter;
   SDL_Rect selection;
   SDL_Rect view;
   std::map<ObjectiveType, SDL_Texture*> objectiveInfoTextures;
   std::vector<MapUnit*> mapUnits;
   std::vector<MarkedCoord> markedCoords;
+  std::vector<TowerZap> towerZaps;
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
   std::map<SpawnerID, Spawner*> spawnerDict;
+  std::map<TowerID, Tower*> towerDict;
   SpawnerID playerSpawnID;
   AgentID newAgentID;
+  TowerID newTowerID;
+  BuildingType placingType;
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
@@ -82,14 +97,18 @@ private:
   void buildWall();
   void buildDoor();
   void goTo();
+  void placeTower();
   void setObjective(ObjectiveType);
   void clearScent();
+  void resign();
   void setTeamDrawColor(SpawnerID);
   void draw();
   void handleSDLEvent(SDL_Event*);
   void receiveData(void*, int);
   void receiveEvents(Events*, int);
   void receiveAgentEvent(AgentEvent*);
+  void receiveTowerEvent(TowerEvent*);
+  void addTowerZap(TowerID, int, int);
   void deleteSelectedObjective();
   void checkSpawnersDestroyed();
   void update();
@@ -103,6 +122,7 @@ public:
   int getSize();
   void showBasicInfo();
   void showControls();
+  void showCosts();
   void clearPanel();
   void zoomIn();
   void zoomOut();

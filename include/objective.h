@@ -10,6 +10,7 @@ enum ObjectiveType {
   OBJECTIVE_TYPE_BUILD_WALL,
   OBJECTIVE_TYPE_BUILD_WALL_SUB,
   OBJECTIVE_TYPE_BUILD_DOOR,
+  OBJECTIVE_TYPE_BUILD_TOWER,
   OBJECTIVE_TYPE_GOTO,
   OBJECTIVE_TYPE_ATTACK
 };
@@ -28,6 +29,7 @@ struct Objective {
   Objective(ObjectiveType, int, Game*, SDL_Rect);
   MapUnit::iterator getIterator();
   bool isDone();
+  bool regionIsEmpty();
   void update();
   ~Objective();
 };

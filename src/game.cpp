@@ -24,6 +24,7 @@
 Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   
   numPlayerAgents(0),
+  numPlayerTowers(0),
   context(GAME_CONTEXT_CONNECTING),
   initScale(scl),
   scale(scl),
@@ -33,7 +34,11 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   unitLimit(ulim),
   mouseX(0),
   mouseY(0),
+  placementW(0),
+  placementH(0),
+  zapCounter(1),
   newAgentID(1),
+  newTowerID(1),
   outside(this),
   selectedObjective(nullptr) {
 
@@ -82,6 +87,7 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   objectiveInfoTextures[OBJECTIVE_TYPE_ATTACK] = disp->cacheTextWrapped("Objective - Attack", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_DOOR] = disp->cacheTextWrapped("Objective - Build Door", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
 }
 
 /* Public helper method */
@@ -159,8 +165,6 @@ bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW,
 
 /* Handle a mouse moved to (x,y) */
 void Game::mouseMoved(int x, int y) {
-  mouseX = x;
-  mouseY = y;
   if (y >= gameDisplaySize || x >= gameDisplaySize) {
     selectedObjective = nullptr;
     switch (context) {
@@ -171,6 +175,8 @@ void Game::mouseMoved(int x, int y) {
     }
     return;
   }
+  mouseX = x;
+  mouseY = y;
   int mouseUnitX = (int)((double)x / scale) + view.x;
   int mouseUnitY = (int)((double)y / scale) + view.y;
   if (menu->getIfObjectivesShown()) {
@@ -203,6 +209,22 @@ void Game::mouseMoved(int x, int y) {
     selection.y = mouseUnitY;
     selection.w = 1;
     selection.h = 1;
+    break;
+  case GAME_CONTEXT_PLACING:
+    potX = mouseUnitX - (placementW/2);
+    potY = mouseUnitY - (placementH/2);
+    potW = placementW;
+    potH = placementH;
+    if (potX + potW > gameSize) potW = gameSize - potX;
+    if (potY + potH > gameSize) potH = gameSize - potY;
+    if (potX < 0) potX = 0;
+    if (potY < 0) potY = 0;
+    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
+      selection.x = potX;
+      selection.y = potY;
+      selection.w = potW;
+      selection.h = potH;
+    }
     break;
   case GAME_CONTEXT_SELECTING:
     if (mouseUnitX > (int)selectedUnit->x) {
@@ -243,42 +265,45 @@ void Game::mouseMoved(int x, int y) {
 
 /* Handle a left mouse down at (x,y) */
 void Game::leftMouseDown(int x, int y) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    if (x >= gameDisplaySize) return;
-    if (y >= gameDisplaySize) {
-      int idx = (x / menuSize) - menu->indexOffset;
-      (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
-      return;
-    } else {
-      for (MenuItem *it: menu->items) {
-	if (it->subMenuShown) {
-	  if (x > it->subMenu.x &&
-	      x < it->subMenu.x + it->subMenu.w &&
-	      y > it->subMenu.y &&
-	      y < it->subMenu.y + it->subMenu.h) {
-	    int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
-	    if (it->subMenu.isToggleSubMenu) {
-       	      it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
-	    } else {
-	      (this->*(it->subMenu.funcs.at(idy)))();
-	      menu->hideAllSubMenus();
-	      context = GAME_CONTEXT_UNSELECTED;
-	    }
-	    return;
+  if (context == GAME_CONTEXT_CONNECTING) return;
+  if (x >= gameDisplaySize) return;
+  if (y >= gameDisplaySize) {
+    int idx = (x / menuSize) - menu->indexOffset;
+    (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
+    return;
+  } else {
+    for (MenuItem *it: menu->items) {
+      if (it->subMenuShown) {
+	if (x > it->subMenu.x &&
+	    x < it->subMenu.x + it->subMenu.w &&
+	    y > it->subMenu.y &&
+	    y < it->subMenu.y + it->subMenu.h) {
+	  int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
+	  if (it->subMenu.isToggleSubMenu) {
+	    it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
+	  } else {
+	    (this->*(it->subMenu.funcs.at(idy)))();
+	    menu->hideAllSubMenus();
 	  }
+	  return;
 	}
       }
+    }   
+    switch(context) {
+    case GAME_CONTEXT_CONNECTING:
+      break;
+    case GAME_CONTEXT_PLACING:
+      setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
+      break;
+    default:
       mouseMoved(x,y);
       if (selectedObjective == nullptr) {
 	context = GAME_CONTEXT_UNSELECTED;
 	mouseMoved(x,y);
 	context = GAME_CONTEXT_SELECTING;
       }
+      break;
     }
-    break;
   }
 }
 
@@ -353,6 +378,23 @@ void Game::clearScent() {
   }
 }
 
+void Game::placeTower() {
+  int numPlayerTowers = 0;
+  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
+    if (it->second->sid == playerSpawnID) numPlayerTowers++;
+  }
+  if (numPlayerTowers < MAX_TOWERS) {
+    placementW = TOWER_SIZE;
+    placementH = TOWER_SIZE;
+    placingType = BUILDING_TYPE_TOWER;
+    context = GAME_CONTEXT_PLACING;
+    mouseMoved(mouseX, mouseY);
+  } else {
+    std::string tooManyTowersString = "You can only build "+std::to_string(MAX_TOWERS)+" towers.";
+    panel->addText(tooManyTowersString.c_str());
+  }
+}
+
 void Game::setObjective(ObjectiveType oType) {
   if (context != GAME_CONTEXT_UNSELECTED) {
     Objective *o = new Objective(oType, 255, this, selection);
@@ -389,8 +431,12 @@ void Game::showBasicInfo() {
   panel->basicInfoText();
 }
 
+void Game::showCosts() {
+  panel->costsText();
+}
+
 void Game::clearPanel() {
-  
+  panel->clearText();
 }
 
 void Game::setTeamDrawColor(SpawnerID sid) {
@@ -426,6 +472,8 @@ void Game::draw() {
 	setTeamDrawColor(iter->agent->sid);
 	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
 	break;
+      case UNIT_TYPE_BUILDING:
+	break;
       case UNIT_TYPE_DOOR:
 	setTeamDrawColor(iter->door->sid);
 	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
@@ -442,18 +490,8 @@ void Game::draw() {
 	}
 	break;
       case UNIT_TYPE_SPAWNER:
-	if (((iter->x + iter->y) % 2) == 0) {
-	  setTeamDrawColor(iter->spawner->sid);
-	} else {
-	  switch (iter->spawner->sid) {
-	  case SPAWNER_ID_GREEN:
-	    disp->setDrawColor(0,128,0);
-	    break;
-	  case SPAWNER_ID_RED:
-	    disp->setDrawColor(128,0,0);
-	    break;
-	  }
-	}
+	setTeamDrawColor(iter->spawner->sid);
+	if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
 	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
 	break;
       case UNIT_TYPE_WALL:
@@ -471,6 +509,20 @@ void Game::draw() {
       default:	
 	break;
       }
+    }
+    for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
+      setTeamDrawColor(it->second->sid);
+      if (it->second->hp < it->second->max_hp) {
+	disp->setDrawColorBrightness((double)it->second->hp / (double)it->second->max_hp);
+      }
+      int x = scaleInt(it->second->region.x-view.x);
+      int y = scaleInt(it->second->region.y-view.y);
+      disp->drawRectFilled(x,y+scaleInt(TOWER_SIZE/4),scaleInt(TOWER_SIZE),scaleInt(TOWER_SIZE/2));
+      disp->drawRectFilled(x+scaleInt(TOWER_SIZE/4),y,scaleInt(TOWER_SIZE/2),scaleInt(TOWER_SIZE));
+    }
+    for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
+      disp->setDrawColorWhite();
+      disp->drawLine(scaleInt(it->x1 - view.x), scaleInt(it->y1 - view.y), scaleInt(it->x2 - view.x), scaleInt(it->y2 - view.y));
     }
     if (context != GAME_CONTEXT_UNSELECTED) {
       disp->setDrawColor(150,150,150);
@@ -511,6 +563,7 @@ void Game::draw() {
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
   Agent *a = agentDict[aevent->id];
+  Building *build;
   MapUnit *startuptr = a->unit;
   MapUnit *destuptr;
   switch (aevent->dir) {
@@ -566,6 +619,19 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     a->die();
     delete a;
     break;
+  case AGENT_ACTION_BUILDTOWER:
+    if (destuptr->type == UNIT_TYPE_EMPTY) {
+      newTowerID++;
+      Tower *tower = new Tower(this, a->sid, newTowerID, destuptr->x, destuptr->y);
+      tower->sid = a->sid;
+      towerDict[newTowerID] = tower;
+    } else {
+      destuptr->building->hp++;
+      if (destuptr->building->hp == destuptr->building->max_hp) destuptr->building->ready = true;
+    }
+    a->die();
+    delete a;
+    break;
   case AGENT_ACTION_ATTACK:
     Agent *b;
     switch (destuptr->type) {
@@ -601,6 +667,22 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       a->die();
       delete a;
       break;
+    case UNIT_TYPE_BUILDING:
+      build = destuptr->building;
+      build->hp--;
+      if (build->hp == 0) {
+	for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
+	  it->type = UNIT_TYPE_EMPTY;
+	  it->building = nullptr;
+	}
+	if (build->type == BUILDING_TYPE_TOWER) {
+	  towerDict.erase(((Tower *)build)->tid);
+	}
+	delete build;
+      }
+      a->die();
+      delete a;
+      break;
     default:
       break;
     }
@@ -609,9 +691,24 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
   }
 }
 
+void Game::receiveTowerEvent(TowerEvent *tevent) {
+  if (tevent->destroyed) {
+    auto it = agentDict.find(tevent->id);
+    if (it != agentDict.end()) {
+      Agent *a = it->second;
+      addTowerZap(tevent->tid, a->unit->x, a->unit->y);
+      a->die();
+      delete a;
+    }
+  }
+}
+
 void Game::receiveEvents(Events *events, int numAgentEvents) {
   for (int i = 0; i < numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
+  }
+  for (int i = 0; i < MAX_TOWERS; i++) {
+    receiveTowerEvent(&events->towerEvents[i]);
   }
   if (events->spawnEvent.created) {
     MapUnit *uptr = mapUnitAt(events->spawnEvent.x, events->spawnEvent.y);
@@ -622,6 +719,14 @@ void Game::receiveEvents(Events *events, int numAgentEvents) {
     if (events->spawnEvent.id >= newAgentID) newAgentID = events->spawnEvent.id + 1;
     if (events->spawnEvent.sid == playerSpawnID) numPlayerAgents++;
   }
+}
+
+void Game::addTowerZap(TowerID tid, int x, int y) {
+  Tower *tower = towerDict[tid];
+  int tx = tower->region.x + (tower->region.w/2);
+  int ty = tower->region.y + (tower->region.h/2);
+  TowerZap t = {tx, ty, x, y};
+  towerZaps.push_back(t);
 }
 
 AgentID Game::getNewAgentID() {
@@ -646,9 +751,13 @@ void Game::checkSpawnersDestroyed() {
   }
 }
 
+void Game::resign()  {
+
+}
+
 void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
-  int bytesInAgentEventArray = numBytes - sizeof(SpawnerEvent);
+  int bytesInAgentEventArray = numBytes - sizeof(SpawnerEvent) - (sizeof(TowerEvent) * MAX_TOWERS);
   int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
   receiveEvents(events, numEvents);
   checkSpawnersDestroyed();
@@ -657,6 +766,8 @@ void Game::receiveData(void* data, int numBytes) {
 
 /* Update errythang */
 void Game::update() {
+  zapCounter = (zapCounter + 1) % ZAP_CLEAR_TIME;
+  if (zapCounter == 0) towerZaps.clear();
   for (MapUnit* u: mapUnits) {
     u->marked = false;
     u->update();
@@ -671,12 +782,22 @@ void Game::update() {
       it = objectives.erase(it);
     } else it++;
   }
-  int messageSize = sizeof(SpawnerEvent) + (sizeof(AgentEvent) * numPlayerAgents);
+  int messageSize = sizeof(SpawnerEvent) + (sizeof(TowerEvent) * MAX_TOWERS) + (sizeof(AgentEvent) * numPlayerAgents);
   Events *events = (Events*)malloc(messageSize);
   int i = 0;
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
     if (it->second->sid == playerSpawnID) {
       it->second->update(&events->agentEvents[i]);
+      i++;
+    }
+  }
+  for (i = 0; i < MAX_TOWERS; i++) {
+    events->towerEvents[i].destroyed = false;
+  }
+  i = 0;
+  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
+    if (it->second->sid == playerSpawnID) {
+      it->second->update(&events->towerEvents[i]);
       i++;
     }
   }
@@ -763,6 +884,9 @@ void Game::handleSDLEvent(SDL_Event *e) {
     case SDLK_g:
       goTo();
       break;
+    case SDLK_t:
+      placeTower();
+      break;
     case SDLK_BACKSPACE:
     case SDLK_DELETE:
       deleteSelectedObjective();
@@ -808,9 +932,14 @@ Game::~Game() {
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     delete it->second;
   }
+  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
+    delete it->second;
+  }
   for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
     SDL_DestroyTexture(it->second);
   }
+  towerDict.clear();
+  towerZaps.clear();
   objectiveInfoTextures.clear();
   agentDict.clear();
   spawnerDict.clear();

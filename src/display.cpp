@@ -91,9 +91,19 @@ void Display::setDrawColorBlack() {
   setDrawColor(0, 0, 0);
 }
 
+void Display::setDrawColorBrightness(double prop) {
+  unsigned char r, g, b, a;
+  SDL_GetRenderDrawColor(render, &r, &g, &b, &a);
+  SDL_SetRenderDrawColor(render, (int)(prop*(double)r), (int)(prop*(double)g), (int)(prop*(double)b), a);
+}
+
 /* Draw a single pixel at (x,y) */
 void Display::drawPixel(int x, int y) {
   SDL_RenderDrawPoint(render, x, y);
+}
+
+void Display::drawLine(int x1, int y1, int x2, int y2) {
+  SDL_RenderDrawLine(render, x1, y1, x2, y2);
 }
 
 /* Draw a rectangle outline at (x,y) of size (w,h) */
@@ -123,6 +133,35 @@ void Display::drawTexture(SDL_Texture *texture, int x, int y, int w, int h) {
 void Display::drawRectFilled(int x, int y, int w, int h) {
   SDL_Rect rect = {x, y, w, h};
   SDL_RenderFillRect(render, &rect);
+}
+
+/* Midpoint Circle Algorithm */
+void Display::drawCircleFilled(int x, int y, int r) {
+  int diam = 2*r;
+  int i = r-1;
+  int j = 0;
+  int tx = 1;
+  int ty = 1;
+  int error = tx - diam;
+  while (i >= j) {
+    SDL_RenderDrawPoint(render, x+i, y-j);
+    SDL_RenderDrawPoint(render, x+i, y+j);
+    SDL_RenderDrawPoint(render, x-i, y-j);
+    SDL_RenderDrawPoint(render, x-i, y+j);
+    SDL_RenderDrawPoint(render, x+j, y-i);
+    SDL_RenderDrawPoint(render, x+j, y+i);
+    SDL_RenderDrawPoint(render, x-j, y-i);
+    SDL_RenderDrawPoint(render, x-j, y+i);
+    if (error <= 0) {
+      j++;
+      error += ty;
+      ty += 2;
+    } else {
+      i--;
+      tx += 2;
+      error += (tx- diam);
+    }
+  }
 }
 
 SDL_Texture *Display::cacheTextWrapped(const char *text, int wrap) {

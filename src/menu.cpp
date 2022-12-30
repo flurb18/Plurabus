@@ -83,14 +83,16 @@ void MenuItem::toggleSubMenu() {
 Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   checkIcon = game->disp->cacheImage("assets/img/check.png");
   SubMenu barsSubMenu;
-  int barsSubIdx = 5;
+  int barsSubIdx = 2;
   barsSubMenu.strings.push_back("Wall");
   barsSubMenu.strings.push_back("Door");
+  barsSubMenu.strings.push_back("Tower");
   barsSubMenu.strings.push_back("Go To");
   barsSubMenu.strings.push_back("Attack");
   barsSubMenu.strings.push_back("Clear Scent");
   barsSubMenu.funcs.push_back(&Game::buildWall);
   barsSubMenu.funcs.push_back(&Game::buildDoor);
+  barsSubMenu.funcs.push_back(&Game::placeTower);
   barsSubMenu.funcs.push_back(&Game::goTo);
   barsSubMenu.funcs.push_back(&Game::attack);
   barsSubMenu.funcs.push_back(&Game::clearScent);
@@ -108,17 +110,28 @@ Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
   int infoSubIdx = 3;
   infoSubMenu.strings.push_back("Basic Info");
   infoSubMenu.strings.push_back("Controls");
+  infoSubMenu.strings.push_back("Agent Action Costs");
+  infoSubMenu.strings.push_back("Clear Panel");
   infoSubMenu.funcs.push_back(&Game::showBasicInfo);
   infoSubMenu.funcs.push_back(&Game::showControls);
+  infoSubMenu.funcs.push_back(&Game::showCosts);
+  infoSubMenu.funcs.push_back(&Game::clearPanel);
   infoSubMenu.isToggleSubMenu = false;
   infoSubMenu.size(game->disp, infoSubIdx);
+  SubMenu userSubMenu;
+  int userSubIdx = 5;
+  userSubMenu.strings.push_back("Resign");
+  userSubMenu.funcs.push_back(&Game::resign);
+  userSubMenu.isToggleSubMenu = false;
+  userSubMenu.size(game->disp, userSubIdx);
   items.reserve(6);
   items.push_back(new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
   items.push_back(new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
-  items.push_back(new MenuItem(game, 2));
+  items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
   items.push_back(new MenuItem(game, "assets/img/info.png", infoSubMenu, infoSubIdx));
   items.push_back(new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
-  items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
+  items.push_back(new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
+
 }
 
 bool Menu::getIfScentsShown() {

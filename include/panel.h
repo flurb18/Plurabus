@@ -11,6 +11,7 @@ class Panel {
 private:
   bool basicInfoAdded;
   bool controlsAdded;
+  bool costsAdded;
   int width, height;
   int padding;
   int wrap;
@@ -25,6 +26,7 @@ public:
   void addText(const char *);
   void basicInfoText();
   void controlsText();
+  void costsText();
   void clearText();
   void draw();
   void scrollUp();

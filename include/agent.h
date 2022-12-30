@@ -10,6 +10,8 @@ struct MapUnit;
 class Agent {
   friend class Spawner;
   friend class Game;
+  friend class Building;
+  friend class Tower;
 private:
   AgentID id;
   SpawnerID sid;

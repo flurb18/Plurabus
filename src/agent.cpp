@@ -48,6 +48,14 @@ void Agent::update(AgentEvent *aevent) {
 	  return;
 	}
 	break;
+      case OBJECTIVE_TYPE_BUILD_TOWER:
+	if (m->objective->regionIsEmpty() || (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid)) {
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_BUILDTOWER;
+	  m->mark();
+	  return;
+	}
+	break;
       case OBJECTIVE_TYPE_BUILD_DOOR:
 	switch(m->type) {
 	case UNIT_TYPE_WALL:
@@ -92,6 +100,14 @@ void Agent::update(AgentEvent *aevent) {
 	  break;
 	case UNIT_TYPE_DOOR:
 	  if (m->door->sid != sid) {
+	    aevent->dir = dirRef[i];
+	    aevent->action = AGENT_ACTION_ATTACK;
+	    m->mark();
+	    return;
+	  }
+	  break;
+	case UNIT_TYPE_BUILDING:
+	  if(m->building->sid != sid) {
 	    aevent->dir = dirRef[i];
 	    aevent->action = AGENT_ACTION_ATTACK;
 	    m->mark();

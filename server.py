@@ -37,6 +37,7 @@ async def serveFunction(websocket):
         return
     print("Desired pair string: " + websocket.desiredPairedString)
     websocket.foundPartner = asyncio.Event()
+    websocket.readyForGame = asyncio.Event()
     for waitingClient in SocketQueue:
         if (waitingClient.desiredPairedString == websocket.desiredPairedString):
             websocket.pairedClient = waitingClient
@@ -61,19 +62,38 @@ async def serveFunction(websocket):
         await trySend(websocket, "P2")
 
     set1 = await tryRecv(websocket)
+    websocket.readyForGame.set()
+    await websocket.pairedClient.readyForGame.wait()
+    
+    if (websocket.player == 2):
+        await websocket.wait_closed()
+        return
     if (websocket.player == 1):
         await trySend(websocket, "Go")
-        data1 = await tryRecv(websocket)
-        await websocket.pairedClient.send(data1)
         
-    async for data in websocket:
-        try:
-            await websocket.pairedClient.send(data)
-        except websockets.exceptions.ConnectionClosedOK:
-            print("Host "+str(socket.remote_address[0])+" connection closed")
-            if (websocket.pairedClient.close_code == 1001):
-                await websocket.close(1001, "Other player disconnected.")
-                        
+        async for data in websocket:
+            
+            try:
+                await websocket.pairedClient.send(data)
+            except websockets.exceptions.ConnectionClosed:
+                print("Host "+str(socket.remote_address[0])+" connection closed")
+                if (websocket.pairedClient.close_code == 1001):
+                    await websocket.close(1001, "Other player disconnected.")
+                    
+            try:
+                otherdata = await websocket.pairedClient.recv()
+            except websockets.exceptions.ConnectionClosed:
+                print("Host "+str(socket.remote_address[0])+" connection closed")
+                if (websocket.pairedClient.close_code == 1001):
+                    await websocket.close(1001, "Other player disconnected.")
+
+            try:
+                await websocket.send(otherdata)
+            except websockets.exceptions.ConnectionClosed:
+                print("Host "+str(socket.remote_address[0])+" connection closed")
+                if (websocket.pairedClient.close_code == 1001):
+                    await websocket.close(1001, "Other player disconnected.")
+
     if (websocket.close_code == 1001):
         await websocket.pairedClient.close(1001, "Other player disconnected.")
 

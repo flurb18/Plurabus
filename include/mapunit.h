@@ -3,7 +3,7 @@
 
 enum UnitType {
   UNIT_TYPE_EMPTY,
-  UNIT_TYPE_DESTINATION,
+  UNIT_TYPE_BUILDING,
   UNIT_TYPE_AGENT,
   UNIT_TYPE_SPAWNER,
   UNIT_TYPE_WALL,
@@ -12,6 +12,7 @@ enum UnitType {
 };
 
 class Agent;
+class Building;
 class Game;
 struct Objective;
 class Spawner;
@@ -46,6 +47,7 @@ struct MapUnit {
   Spawner *spawner;
   Game* game;
   Door *door;
+  Building *building;
   bool marked;
   Objective* objective;
   MapUnit* up;

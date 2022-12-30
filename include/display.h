@@ -27,10 +27,13 @@ public:
   void setDrawColor(int, int, int);
   void setDrawColorWhite();
   void setDrawColorBlack();
+  void setDrawColorBrightness(double);
   void drawPixel(int, int);
+  void drawLine(int, int, int, int);
   void drawRect(int, int, int, int);
   void drawRect(SDL_Rect*);
   void drawRectFilled(int, int, int, int);
+  void drawCircleFilled(int, int, int);
   void drawSurface(SDL_Surface*, int, int, int, int);
   void drawTexture(SDL_Texture*, int, int);
   void drawTexture(SDL_Texture*, int, int, int, int);
