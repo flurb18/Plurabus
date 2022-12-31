@@ -2,14 +2,18 @@
 #define NETHANDLER_H
 
 #ifdef __EMSCRIPTEN__
+
 #include <emscripten/websocket.h>
+
 #else
+
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
 #include <string>
 #include <map>
 
 typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+typedef websocketpp::client<websocketpp::config::asio_client> client;
 
 #endif
 
@@ -30,18 +34,31 @@ private:
   NetContext ncon;
   char *pairString;
   Game *game;
-  #ifdef __EMSCRIPTEN__
+  
+#ifdef __EMSCRIPTEN__
+
   EMSCRIPTEN_WEBSOCKET_T sock;
-  #else
-  typedef websocketpp::client<websocketpp::config::asio_client> client;
+
+#else
+
   client m_client;
   websocketpp::connection_hdl m_hdl;
-  void on_open(websocketpp::connection_hdl);
-  void on_fail(websocketpp::connection_hdl);
-  void on_message(websocketpp::connection_hdl, message_ptr);
-  void on_close(websocketpp::connection_hdl);
-  #endif
+  websocketpp::lib::shared_ptr<websocketpp::lib::thread> m_thread;
+
+#endif
+
 public:
+
+#ifndef __EMSCRIPTEN__
+
+  typedef websocketpp::lib::shared_ptr<NetHandler> ptr;
+  void on_open(client*, websocketpp::connection_hdl);
+  void on_fail(client*, websocketpp::connection_hdl);
+  void on_message(client*, websocketpp::connection_hdl, message_ptr);
+  void on_close(client*, websocketpp::connection_hdl);
+
+#endif
+
   NetHandler(Game*, char*);
   ~NetHandler();
   void sendText(const char*);

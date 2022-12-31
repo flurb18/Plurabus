@@ -1,9 +1,11 @@
 #include "nethandler.h"
 
 #ifdef __EMSCRIPTEN__
+
 #include <emscripten/emscripten.h>
 #include <emscripten/websocket.h>
 #include <emscripten.h>
+
 #endif
 
 #include <iostream>
@@ -15,6 +17,7 @@
 
 
 #ifdef __EMSCRIPTEN__
+
 EM_BOOL onOpen(int eventType, const EmscriptenWebSocketOpenEvent *event, void *data) {
   NetHandler *net = (NetHandler*)data;
   net->notifyOpen();
@@ -32,6 +35,7 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
   net->notifyClosed((const char*)event->reason);
   return EM_TRUE;
 }
+
 #endif
 
 NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
@@ -39,7 +43,7 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   strcpy(pairString, pstr);
   std::string uri = "ws://10.8.0.1:31108";
   
-  #ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
   
   EmscriptenWebSocketCreateAttributes attr = {
     uri.c_str(),
@@ -53,36 +57,59 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   emscripten_websocket_set_onopen_callback(sock, this, onOpen);
   emscripten_websocket_set_onmessage_callback(sock, this, onMessage);
   emscripten_websocket_set_onclose_callback(sock, this, onClose);
-  #else
-  m_client.init_asio();
 
-  using websocketpp::lib::placeholders::_1;
-  using websocketpp::lib::placeholders::_2;
-  using websocketpp::lib::bind; 
-  m_client.set_open_handler(bind(&NetHandler::on_open,this,_1));
-  m_client.set_fail_handler(bind(&NetHandler::on_fail,this,_1));
-  m_client.set_message_handler(bind(&NetHandler::on_message,this,_1,_2));
-  m_client.set_close_handler(bind(&NetHandler::on_close,this,_1));
+#else
+
+  m_client.clear_access_channels(websocketpp::log::alevel::all);
+  m_client.clear_error_channels(websocketpp::log::elevel::all);
+
+  m_client.init_asio();
+  m_client.start_perpetual();
+ 
+  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
+  
   websocketpp::lib::error_code ec;
   client::connection_ptr con = m_client.get_connection(uri, ec);
   m_hdl = con->get_handle();
+  NetHandler::ptr metadata_ptr(this);
+  using websocketpp::lib::placeholders::_1;
+  using websocketpp::lib::placeholders::_2;
+  using websocketpp::lib::bind; 
+  m_client.set_open_handler(bind(&NetHandler::on_open,
+				 metadata_ptr,
+				 &m_client,
+				 _1));
+  m_client.set_fail_handler(bind(&NetHandler::on_fail,
+				 metadata_ptr,
+				 &m_client,
+				 _1));
+  m_client.set_message_handler(bind(&NetHandler::on_message,
+				    metadata_ptr,
+				    &m_client,
+				    _1,
+				    _2));
+  m_client.set_close_handler(bind(&NetHandler::on_close,
+				  metadata_ptr,
+				  &m_client,
+				  _1));
+  
   m_client.connect(con);
-  websocketpp::lib::thread asio_thread(&client::run, &m_client);
-  asio_thread.join();
-  #endif
+
+#endif
+
 }
 
 #ifndef __EMSCRIPTEN__
 
-void NetHandler::on_open(websocketpp::connection_hdl hdl) {
+void NetHandler::on_open(client *c, websocketpp::connection_hdl hdl) {
   notifyOpen();
 }
 
-void NetHandler::on_fail(websocketpp::connection_hdl hdl) {
+void NetHandler::on_fail(client *c, websocketpp::connection_hdl hdl) {
 
 }
 
-void NetHandler::on_message(websocketpp::connection_hdl hdl, message_ptr data) {
+void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, message_ptr data) {
   if (data->get_opcode() == websocketpp::frame::opcode::text) {
     receive((void*)data->get_payload().data(), data->get_payload().size(), true);
   } else {
@@ -90,7 +117,7 @@ void NetHandler::on_message(websocketpp::connection_hdl hdl, message_ptr data) {
   }
 }
 
-void NetHandler::on_close(websocketpp::connection_hdl hdl) {
+void NetHandler::on_close(client *c, websocketpp::connection_hdl hdl) {
   notifyClosed("");
 }
 
@@ -98,25 +125,37 @@ void NetHandler::on_close(websocketpp::connection_hdl hdl) {
 #endif
 
 void NetHandler::sendText(const char *text) {
-  #ifdef __EMSCRIPTEN__
+
+#ifdef __EMSCRIPTEN__
+
   EMSCRIPTEN_RESULT result = emscripten_websocket_send_utf8_text(sock, text);
   if (result) {
     printf("Failed to send text: %d\n", result);
   }
-  #else
+
+#else
+
   m_client.send(m_hdl, std::string(text), websocketpp::frame::opcode::text);
-  #endif
+
+#endif
+
 }
 
 void NetHandler::send(void *data, int numBytes) {
-  #ifdef __EMSCRIPTEN__
+
+#ifdef __EMSCRIPTEN__
+
   EMSCRIPTEN_RESULT result = emscripten_websocket_send_binary(sock, data, numBytes);
   if (result) {
     printf("Failed to send data: %d\n", result);
   }
-  #else
-  m_client.send(m_hdl, std::string((const char *)data, numBytes), websocketpp::frame::opcode::binary);
-  #endif
+
+#else
+
+  m_client.send(m_hdl, (const void *)data, numBytes, websocketpp::frame::opcode::binary);
+
+#endif
+
 }
 
 void NetHandler::receive(void *data, int numBytes, bool isText) {
@@ -157,11 +196,17 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 }
 
 void NetHandler::closeConnection(const char *reason) {
-  #ifdef __EMSCRIPTEN__
+
+#ifdef __EMSCRIPTEN__
+
   emscripten_websocket_close(sock, 1000, reason);
-  #else
+
+#else
+
   m_client.close(m_hdl,websocketpp::close::status::normal,reason);
-  #endif
+
+#endif
+
   ncon = NET_CONTEXT_CLOSED;
 }
 
@@ -184,8 +229,13 @@ bool NetHandler::readyForGame() {
 }
 
 NetHandler::~NetHandler() {
-  #ifdef __EMSCRIPTEN__
+  if (ncon != NET_CONTEXT_CLOSED)
+    closeConnection();
+#ifdef __EMSCRIPTEN__
+
   emscripten_websocket_delete(sock);
-  #endif
+
+#endif
+
 }
 

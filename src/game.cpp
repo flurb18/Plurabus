@@ -922,13 +922,14 @@ void Game::update() {
     }
   }
   for (i = 0; i < MAX_SUBSPAWNERS+1; i++) events->spawnEvents[i].created = false;
-  i = 0;
+  i = 1;
   for (Subspawner *s: subspawnerList) {
     if (s->sid == playerSpawnID) {
       s->update(&events->spawnEvents[i]);
+      i++;
     }
   }
-  spawnerDict[playerSpawnID]->update(&events->spawnEvents[MAX_SUBSPAWNERS]);
+  spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
   receiveEvents(events, numPlayerAgents);
   net->send((void *)events, messageSize);
   checkSpawnersDestroyed();
