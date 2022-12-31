@@ -88,6 +88,7 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_DOOR] = disp->cacheTextWrapped("Objective - Build Door", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
 }
 
 /* Public helper method */
@@ -183,6 +184,9 @@ bool Game::potentialSelectionCollidesWithSpawner(int potX, int potY, int potW, i
     SDL_Rect rs = {(int)s->topLeft->x, (int)s->topLeft->y, s->size, s->size};
     if (rectCollides(r, rs)) return true;
   }
+  for (Subspawner *s: subspawnerList) {
+    if (rectCollides(r, s->region)) return true;
+  }
   return false;
 }
 
@@ -238,8 +242,8 @@ void Game::mouseMoved(int x, int y) {
     potY = mouseUnitY - (placementH/2);
     potW = placementW;
     potH = placementH;
-    if (potX + potW > gameSize) potW = gameSize - potX;
-    if (potY + potH > gameSize) potH = gameSize - potY;
+    if (potX + potW > gameSize) potX = gameSize - potW;
+    if (potY + potH > gameSize) potY = gameSize - potH;
     if (potX < 0) potX = 0;
     if (potY < 0) potY = 0;
     if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
@@ -318,8 +322,14 @@ void Game::leftMouseDown(int x, int y) {
     case GAME_CONTEXT_CONNECTING:
       break;
     case GAME_CONTEXT_PLACING:
-      setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
-      break;
+      switch (placingType) {
+      case BUILDING_TYPE_TOWER:
+	setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
+	break;
+      case BUILDING_TYPE_SUBSPAWNER:
+	setObjective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER);
+	break;
+      }
     default:
       mouseMoved(x,y);
       if (selectedObjective == nullptr) {
@@ -409,7 +419,7 @@ void Game::placeTower() {
     if (it->second->sid == playerSpawnID) numPlayerTowers++;
   }
   for (Objective *o: objectives) {
-    if (o->type == OBJECTIVE_TYPE_BUILD_TOWER && mapUnitAt(o->region.x, o->region.y)->type != UNIT_TYPE_BUILDING)
+    if (o->type == OBJECTIVE_TYPE_BUILD_TOWER && !o->started)
       numPlayerTowers++;
   }
   if (numPlayerTowers < MAX_TOWERS) {
@@ -421,6 +431,27 @@ void Game::placeTower() {
   } else {
     std::string tooManyTowersString = "You can only build "+std::to_string(MAX_TOWERS)+" towers.";
     panel->addText(tooManyTowersString.c_str());
+  }
+}
+
+void Game::placeSubspawner() {
+  int numPlayerSubspawners = 0;
+  for (Subspawner *s: subspawnerList) {
+    if (s->sid == playerSpawnID) numPlayerSubspawners++;
+  }
+  for (Objective *o: objectives) {
+    if (o->type == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && !o->started)
+      numPlayerSubspawners++;
+  }
+  if (numPlayerSubspawners < MAX_SUBSPAWNERS) {
+    placementW = SUBSPAWNER_SIZE;
+    placementH = SUBSPAWNER_SIZE;
+    placingType = BUILDING_TYPE_SUBSPAWNER;
+    context = GAME_CONTEXT_PLACING;
+    mouseMoved(mouseX, mouseY);
+  } else {
+    std::string tooManySubspawnersString = "You can only build "+std::to_string(MAX_SUBSPAWNERS)+" subspawners.";
+    panel->addText(tooManySubspawnersString.c_str());
   }
 }
 
@@ -485,6 +516,7 @@ void Game::setTeamDrawColor(SpawnerID sid) {
 void Game::draw() {
   disp->fillBlack();
   int lum;
+  double lumprop;
   switch(context) {
   case GAME_CONTEXT_CONNECTING:
     disp->drawText("Connecting...",0,0);
@@ -522,6 +554,8 @@ void Game::draw() {
 	break;
       case UNIT_TYPE_SPAWNER:
 	setTeamDrawColor(iter->spawner->sid);
+	lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
+	disp->setDrawColorBrightness(lumprop);
 	if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
 	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
 	break;
@@ -675,11 +709,29 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     if (destuptr->type == UNIT_TYPE_EMPTY) {
       newTowerID++;
       Tower *tower = new Tower(this, a->sid, newTowerID, destuptr->x, destuptr->y);
+      if (a->sid == playerSpawnID)
+	destuptr->objective->started = true;
       tower->sid = a->sid;
       towerDict[newTowerID] = tower;
     } else {
       destuptr->building->hp++;
-      if (destuptr->building->hp == destuptr->building->max_hp) destuptr->building->ready = true;
+    }
+    a->die();
+    delete a;
+    break;
+  case AGENT_ACTION_BUILDSUBSPAWNER:
+    if (destuptr->type == UNIT_TYPE_EMPTY) {
+      destuptr->hp = 1;
+      destuptr->spawner = spawnerDict[a->sid];
+      destuptr->type = UNIT_TYPE_SPAWNER;
+      if (destuptr->building == nullptr) {
+	Subspawner *subspawner = new Subspawner(this, a->sid, destuptr->x-SUBSPAWNER_SIZE/2, destuptr->y-SUBSPAWNER_SIZE/2);
+	if (a->sid == playerSpawnID)
+	  destuptr->objective->super->started = true;
+	subspawnerList.push_back(subspawner);
+      }
+    } else {
+      destuptr->hp++;
     }
     a->die();
     delete a;
@@ -755,6 +807,18 @@ void Game::receiveTowerEvent(TowerEvent *tevent) {
   }
 }
 
+void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
+  if (sevent->created) {
+    MapUnit *uptr = mapUnitAt(sevent->x, sevent->y);
+    Agent *a = new Agent(this, uptr, sevent->id, sevent->sid);
+    agentDict.insert(std::make_pair(sevent->id, a));
+    uptr->agent = a;
+    uptr->type = UNIT_TYPE_AGENT;
+    if (sevent->id >= newAgentID) newAgentID = sevent->id + 1;
+    if (sevent->sid == playerSpawnID) numPlayerAgents++;
+  }
+}
+
 void Game::receiveEvents(Events *events, int numAgentEvents) {
   for (int i = 0; i < numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
@@ -762,14 +826,8 @@ void Game::receiveEvents(Events *events, int numAgentEvents) {
   for (int i = 0; i < MAX_TOWERS; i++) {
     receiveTowerEvent(&events->towerEvents[i]);
   }
-  if (events->spawnEvent.created) {
-    MapUnit *uptr = mapUnitAt(events->spawnEvent.x, events->spawnEvent.y);
-    Agent *a = new Agent(this, uptr, events->spawnEvent.id, events->spawnEvent.sid);
-    agentDict.insert(std::make_pair(events->spawnEvent.id, a));
-    uptr->agent = a;
-    uptr->type = UNIT_TYPE_AGENT;
-    if (events->spawnEvent.id >= newAgentID) newAgentID = events->spawnEvent.id + 1;
-    if (events->spawnEvent.sid == playerSpawnID) numPlayerAgents++;
+  for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
+    receiveSpawnerEvent(&events->spawnEvents[i]);
   }
 }
 
@@ -786,6 +844,16 @@ AgentID Game::getNewAgentID() {
 }
 
 void Game::checkSpawnersDestroyed() {
+  auto ssit = subspawnerList.begin();
+  while (ssit != subspawnerList.end()) {
+    if ((*ssit)->isDestroyed()) {
+      for (MapUnit::iterator m = (*ssit)->getIterator(); m.hasNext(); m++) {
+	m->building = nullptr;
+      }
+      delete (*ssit);
+      ssit = subspawnerList.erase(ssit);
+    } else ssit++;
+  }
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     if (it->second->isDestroyed()) {
       context = GAME_CONTEXT_EXIT;
@@ -809,7 +877,7 @@ void Game::resign()  {
 
 void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
-  int bytesInAgentEventArray = numBytes - sizeof(SpawnerEvent) - (sizeof(TowerEvent) * MAX_TOWERS);
+  int bytesInAgentEventArray = numBytes - (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) - (sizeof(TowerEvent) * MAX_TOWERS);
   int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
   receiveEvents(events, numEvents);
   checkSpawnersDestroyed();
@@ -834,7 +902,7 @@ void Game::update() {
       it = objectives.erase(it);
     } else it++;
   }
-  int messageSize = sizeof(SpawnerEvent) + (sizeof(TowerEvent) * MAX_TOWERS) + (sizeof(AgentEvent) * numPlayerAgents);
+  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + (sizeof(AgentEvent) * numPlayerAgents);
   Events *events = (Events*)malloc(messageSize);
   int i = 0;
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
@@ -843,9 +911,7 @@ void Game::update() {
       i++;
     }
   }
-  for (i = 0; i < MAX_TOWERS; i++) {
-    events->towerEvents[i].destroyed = false;
-  }
+  for (i = 0; i < MAX_TOWERS; i++) events->towerEvents[i].destroyed = false;
   i = 0;
   for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
     if (it->second->sid == playerSpawnID) {
@@ -853,7 +919,14 @@ void Game::update() {
       i++;
     }
   }
-  spawnerDict[playerSpawnID]->update(&events->spawnEvent);
+  for (i = 0; i < MAX_SUBSPAWNERS+1; i++) events->spawnEvents[i].created = false;
+  i = 0;
+  for (Subspawner *s: subspawnerList) {
+    if (s->sid == playerSpawnID) {
+      s->update(&events->spawnEvents[i]);
+    }
+  }
+  spawnerDict[playerSpawnID]->update(&events->spawnEvents[MAX_SUBSPAWNERS]);
   receiveEvents(events, numPlayerAgents);
   net->send((void *)events, messageSize);
   checkSpawnersDestroyed();
@@ -938,6 +1011,9 @@ void Game::handleSDLEvent(SDL_Event *e) {
       break;
     case SDLK_t:
       placeTower();
+      break;
+    case SDLK_s:
+      placeSubspawner();
       break;
     case SDLK_BACKSPACE:
     case SDLK_DELETE:

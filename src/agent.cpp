@@ -48,7 +48,15 @@ void Agent::update(AgentEvent *aevent) {
 	  return;
 	}
 	break;
-      case OBJECTIVE_TYPE_BUILD_TOWER:	
+      case OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB:
+	if (m->type == UNIT_TYPE_EMPTY || (m->type == UNIT_TYPE_SPAWNER && m->hp < SUBSPAWNER_UNIT_COST)) {
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_BUILDSUBSPAWNER;
+	  m->mark();
+	  return;
+	}
+	break;
+      case OBJECTIVE_TYPE_BUILD_TOWER:
 	if (m->objective->regionIsEmpty() || (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid)) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_BUILDTOWER;

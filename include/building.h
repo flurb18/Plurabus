@@ -7,7 +7,8 @@
 #include "mapunit.h"
 
 typedef enum BuildingType {
-  BUILDING_TYPE_TOWER
+  BUILDING_TYPE_TOWER,
+  BUILDING_TYPE_SUBSPAWNER
 } BuildingType;
 
 class Game;
@@ -41,6 +42,16 @@ private:
 public:
   Tower(Game*, SpawnerID, TowerID, int, int);
   void update(TowerEvent*);
+};
+
+class Subspawner: public Building {
+  friend class Game;
+private:
+  bool isDestroyed();
+  bool canSpawnAgent(int*, int*);
+public:
+  Subspawner(Game*, SpawnerID, int, int);
+  void update(SpawnerEvent*);
 };
 
 #endif

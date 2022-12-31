@@ -16,6 +16,7 @@ typedef enum AgentAction {
   AGENT_ACTION_MOVE,
   AGENT_ACTION_BUILDWALL,
   AGENT_ACTION_BUILDDOOR,
+  AGENT_ACTION_BUILDSUBSPAWNER,
   AGENT_ACTION_BUILDTOWER,
   AGENT_ACTION_ATTACK
 } AgentAction;
@@ -37,7 +38,7 @@ typedef struct AgentEvent {
 typedef struct SpawnerEvent {
   AgentID id;
   SpawnerID sid;
-  unsigned short x, y;
+  int x, y;
   bool created;
 } SpawnerEvent;
 
@@ -48,7 +49,7 @@ typedef struct TowerEvent {
 } TowerEvent;
 
 typedef struct Events {
-  SpawnerEvent spawnEvent;
+  SpawnerEvent spawnEvents[MAX_SUBSPAWNERS+1];
   TowerEvent towerEvents[MAX_TOWERS];
   AgentEvent agentEvents[0];
 } Events;

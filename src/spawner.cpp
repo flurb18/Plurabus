@@ -13,6 +13,7 @@ Spawner::Spawner(Game* g, MapUnit* u, SpawnerID spwnid,	\
   for (MapUnit::iterator iter = topLeft->getIterator(size, size); iter.hasNext(); iter++) {
     iter->type = UNIT_TYPE_SPAWNER;
     iter->spawner = this;
+    iter->hp = SUBSPAWNER_UNIT_COST;
   }
 }
 
@@ -60,6 +61,7 @@ bool Spawner::canSpawnAgent(int *retx, int *rety) {
   if (uptr->type == UNIT_TYPE_EMPTY && !uptr->isMarked()) {
     *retx = spawnX;
     *rety = spawnY;
+    uptr->mark();
     return true;
   } else {
     return false;
