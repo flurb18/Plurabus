@@ -90,8 +90,8 @@ async def serveFunction(websocket):
                 await websocket.send(otherdata)
             except websockets.exceptions.ConnectionClosed:
                 print("Host "+str(websocket.remote_address[0])+" connection closed")
-                if (websocket.pairedClient.close_code == 1001):
-                    await websocket.close(1001, "Other player disconnected.")
+                if (websocket.close_code == 1001):
+                    await websocket.pairedClient.close(1001, "Other player disconnected.")
 
     if (websocket.close_code == 1001):
         await websocket.pairedClient.close(1001, "Other player disconnected.")
