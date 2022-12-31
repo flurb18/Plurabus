@@ -1,6 +1,8 @@
 #include "game.h"
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#endif
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_rect.h>

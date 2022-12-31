@@ -1,10 +1,10 @@
 obj
 obj/*
-hd
-webhd.data
-webhd.html
-webhd.js
-webhd.wasm
+hivemind
+hivemindweb.data
+hivemindweb.html
+hivemindweb.js
+hivemindweb.wasm
 webobj/*
 *~
 push

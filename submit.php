@@ -49,7 +49,7 @@
       };
       </script>
     
-    <script src="webhd.js"></script>
+    <script src="hivemindweb.js"></script>
     
   </body>
 
