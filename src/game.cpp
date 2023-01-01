@@ -25,7 +25,7 @@
 /* Constructor sets up map units, creates a friendly spawner */
 Game::Game(int sz, int psz, double scl, char *pstr):
 
-  lock(false),
+  lock(true),
   numPlayerAgents(0),
   numPlayerTowers(0),
   context(GAME_CONTEXT_CONNECTING),

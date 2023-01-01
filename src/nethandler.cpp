@@ -193,7 +193,17 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	sendText("Set");
       } else if (strcmp((char *)data, "Go") == 0) {
 	ncon = NET_CONTEXT_PLAYING;
+
+#ifdef __EMSCRIPTEN__
+	
 	game->update();
+
+#else
+	
+	game->lock = false;
+
+#endif
+
       }
     }
     break;
