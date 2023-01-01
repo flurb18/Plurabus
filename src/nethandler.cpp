@@ -69,26 +69,28 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
   
   websocketpp::lib::error_code ec;
-  client::connection_ptr con = m_client.get_connection(uri, ec);
-  m_hdl = con->get_handle();
+  con = m_client.get_connection(uri, ec);
+  if (ec) {
+    printf("Initial connection error");
+  }
   NetHandler::ptr metadata_ptr(this);
   using websocketpp::lib::placeholders::_1;
   using websocketpp::lib::placeholders::_2;
   using websocketpp::lib::bind; 
-  m_client.set_open_handler(bind(&NetHandler::on_open,
+  con->set_open_handler(bind(&NetHandler::on_open,
 				 metadata_ptr,
 				 &m_client,
 				 _1));
-  m_client.set_fail_handler(bind(&NetHandler::on_fail,
+  con->set_fail_handler(bind(&NetHandler::on_fail,
 				 metadata_ptr,
 				 &m_client,
 				 _1));
-  m_client.set_message_handler(bind(&NetHandler::on_message,
+  con->set_message_handler(bind(&NetHandler::on_message,
 				    metadata_ptr,
 				    &m_client,
 				    _1,
 				    _2));
-  m_client.set_close_handler(bind(&NetHandler::on_close,
+  con->set_close_handler(bind(&NetHandler::on_close,
 				  metadata_ptr,
 				  &m_client,
 				  _1));
@@ -106,7 +108,7 @@ void NetHandler::on_open(client *c, websocketpp::connection_hdl hdl) {
 }
 
 void NetHandler::on_fail(client *c, websocketpp::connection_hdl hdl) {
-
+  printf(":(");
 }
 
 void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, message_ptr data) {
@@ -118,7 +120,8 @@ void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, message_
 }
 
 void NetHandler::on_close(client *c, websocketpp::connection_hdl hdl) {
-  notifyClosed("");
+  client::connection_ptr con = c->get_con_from_hdl(hdl);
+  notifyClosed(con->get_remote_close_reason().c_str());
 }
 
 
@@ -135,8 +138,12 @@ void NetHandler::sendText(const char *text) {
 
 #else
 
-  m_client.send(m_hdl, std::string(text), websocketpp::frame::opcode::text);
-
+  websocketpp::lib::error_code ec;
+  m_client.send(con->get_hdl(), std::string(text), websocketpp::frame::opcode::text, ec);
+  if (ec) {
+    std::cout << "Error sending message" << std::endl;
+  }
+  
 #endif
 
 }
@@ -152,8 +159,12 @@ void NetHandler::send(void *data, int numBytes) {
 
 #else
 
-  m_client.send(m_hdl, (const void *)data, numBytes, websocketpp::frame::opcode::binary);
-
+  websocketpp::lib::error_code ec;
+  m_client.send(con->get_hdl(), (const void *)data, numBytes, websocketpp::frame::opcode::binary, ec);
+  if (ec) {
+    std::cout << "> Error sending message" << std::endl;
+  }
+  
 #endif
 
 }
@@ -203,7 +214,7 @@ void NetHandler::closeConnection(const char *reason) {
 
 #else
 
-  m_client.close(m_hdl,websocketpp::close::status::normal,reason);
+  m_client.close(con->get_hdl(),websocketpp::close::status::normal, std::string(reason));
 
 #endif
 
@@ -230,7 +241,7 @@ bool NetHandler::readyForGame() {
 
 NetHandler::~NetHandler() {
   if (ncon != NET_CONTEXT_CLOSED)
-    closeConnection();
+    closeConnection("Cleanup");
 #ifdef __EMSCRIPTEN__
 
   emscripten_websocket_delete(sock);

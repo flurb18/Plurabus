@@ -1,10 +1,10 @@
 CC=g++
-FLAGS=-I$(IDIR) -I/usr/include/websocketpp -Wall
-LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image
+FLAGS=-I$(IDIR) -Wall
+LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread
 EXECNAME=hivemind
 
 WEBCC=/usr/lib/emscripten/emcc
-WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR)  -Wall
+WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall
 WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --preload-file assets --use-preload-plugins
 WEBEXECNAME=hivemindweb
 

@@ -104,6 +104,8 @@ bool Subspawner::canSpawnAgent(int *retx, int *rety) {
   int spawnIncrementOptions[4][2] = {{SUBSPAWNER_SIZE, 0}, {0, SUBSPAWNER_SIZE}, {-SUBSPAWNER_SIZE, 0}, {0, -SUBSPAWNER_SIZE}};
   spawnX += spawnIncrementOptions[whichSide][0];
   spawnY += spawnIncrementOptions[whichSide][1];
+  if (spawnX < 0 || spawnX >= game->getSize() || spawnY < 0 || spawnY >= game->getSize())
+    return false;
   MapUnit *uptr = game->mapUnitAt(spawnX,spawnY);
   if (uptr->type == UNIT_TYPE_EMPTY && !uptr->isMarked()) {
     *retx = spawnX;

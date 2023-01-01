@@ -50,13 +50,20 @@ async def serveFunction(websocket):
 
     if (not websocket.foundPartner.is_set()):
         SocketQueue.append(websocket)
-        await websocket.foundPartner.wait()
+        try:
+            ready = await websocket.recv()
+        except websockets.exceptions.ConnectionClosed:
+            SocketQueue.remove(websocket)
+            return
+        except Exception as e:
+            return
 
+    else:
+        await trySend(websocket, str(websocket.pairedClient.desiredPairedString))
+        await trySend(websocket.pairedClient, str(websocket.desiredPairedString))
+        ready = await tryRecv(websocket)
 
-    await trySend(websocket, str(websocket.pairedClient.desiredPairedString))
-    
-    ready = await tryRecv(websocket)
-
+    # threads merge here
     if (websocket.player == 1):
         await trySend(websocket, "P1")
     if (websocket.player == 2):

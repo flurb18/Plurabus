@@ -42,7 +42,7 @@ private:
 #else
 
   client m_client;
-  websocketpp::connection_hdl m_hdl;
+  client::connection_ptr con;
   websocketpp::lib::shared_ptr<websocketpp::lib::thread> m_thread;
 
 #endif

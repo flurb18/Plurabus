@@ -244,10 +244,10 @@ void Game::mouseMoved(int x, int y) {
     potY = mouseUnitY - (placementH/2);
     potW = placementW;
     potH = placementH;
-    if (potX + potW > gameSize) potX = gameSize - potW;
-    if (potY + potH > gameSize) potY = gameSize - potH;
-    if (potX < 0) potX = 0;
-    if (potY < 0) potY = 0;
+    if (potX + potW > gameSize - 1) potX = gameSize - potW - 1;
+    if (potY + potH > gameSize - 1) potY = gameSize - potH - 1;
+    if (potX < 1) potX = 1;
+    if (potY < 1) potY = 1;
     if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
 	!potentialSelectionCollidesWithTower(potX, potY, potW, potH) &&
 	!potentialSelectionCollidesWithSpawner(potX, potY, potW, potH)) {
