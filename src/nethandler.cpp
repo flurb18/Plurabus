@@ -98,8 +98,6 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   
   m_client.connect(con);
 
-  m_thread.join();
-
 #endif
 
 }

@@ -51,6 +51,7 @@ typedef struct TowerEvent {
 typedef struct Events {
   SpawnerEvent spawnEvents[MAX_SUBSPAWNERS+1];
   TowerEvent towerEvents[MAX_TOWERS];
+  int numAgentEvents;
   AgentEvent agentEvents[0];
 } Events;
 

@@ -810,8 +810,8 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
   }
 }
 
-void Game::receiveEvents(Events *events, int numAgentEvents) {
-  for (int i = 0; i < numAgentEvents; i++) {
+void Game::receiveEvents(Events *events, int n) {
+  for (int i = 0; i < events->numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
   }
   for (int i = 0; i < MAX_TOWERS; i++) {
@@ -867,17 +867,30 @@ void Game::resign()  {
 }
 
 void Game::receiveData(void* data, int numBytes) {
-  lock = true;
   Events *events = (Events*)data;
-  int bytesInAgentEventArray = numBytes - (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) - (sizeof(TowerEvent) * MAX_TOWERS);
+  int bytesInAgentEventArray = numBytes - (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) - sizeof(int) - (sizeof(TowerEvent) * MAX_TOWERS);
   int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
   receiveEvents(events, numEvents);
   checkSpawnersDestroyed();
-  if (context != GAME_CONTEXT_EXIT) update();
+
+#ifdef __EMSCRIPTEN__
+  
+  if (context != GAME_CONTEXT_EXIT) {
+    update();
+  }
+
+#else
+
+  lock = false;
+  
+#endif
+  
 }
 
 /* Update errythang */
 void Game::update() {
+  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * numPlayerAgents);
+  Events *events = (Events*)malloc(messageSize);
   zapCounter = (zapCounter + 1) % ZAP_CLEAR_TIME;
   if (zapCounter == 0) towerZaps.clear();
   for (MapUnit* u: mapUnits) {
@@ -894,8 +907,6 @@ void Game::update() {
       it = objectives.erase(it);
     } else it++;
   }
-  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + (sizeof(AgentEvent) * numPlayerAgents);
-  Events *events = (Events*)malloc(messageSize);
   int i = 0;
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
     if (it->second->sid == playerSpawnID) {
@@ -920,11 +931,11 @@ void Game::update() {
     }
   }
   spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
+  events->numAgentEvents = numPlayerAgents;
   receiveEvents(events, numPlayerAgents);
   net->send((void *)events, messageSize);
   checkSpawnersDestroyed();
   free(events);
-  lock = false;
 }
 
 void Game::handleSDLEvent(SDL_Event *e) {
@@ -1029,14 +1040,22 @@ void Game::mainLoop(void) {
   default:
     break;
   }
-  if (!lock) {
-    SDL_Event e;
-    if (SDL_PollEvent(&e) != 0) {
-      handleSDLEvent(&e);
-    }
-    draw();
-    disp->update();
+
+#ifndef __EMSCRIPTEN__
+
+  if (!lock && context != GAME_CONTEXT_EXIT) {
+    lock = true;
+    update();
   }
+  
+#endif
+  
+  SDL_Event e;
+  if (SDL_PollEvent(&e) != 0) {
+    handleSDLEvent(&e);
+  }
+  draw();
+  disp->update();
 }
 
 Game::~Game() {
