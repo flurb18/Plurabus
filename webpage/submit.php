@@ -33,28 +33,19 @@
     <script>
       var gameSize = parseInt('<?php echo $size; ?>');
       var gamePanelSize = 240;
-      var menuItems = 6;
-      var unitLimit = 4096;
       var gameWindowPadding = 10;
-      var dispSize = Math.min(window.innerWidth, window.innerHeight);
-      var gameDispSize = dispSize;
       var i = 0;
-      do {
-	  gameDispSize = (dispSize - (2*gameWindowPadding) - i) * menuItems / (menuItems + 1);
-	  if (gameDispSize % gameSize == 0) {
-	      break;
-	  }
-	  i++;
-      } while (gameDispSize > gameSize);
-      var gameScale = gameDispSize / gameSize;
+      var scale = 1;
+      while (scale*(gameSize + gamePanelSize) < window.innerWidth && scale*(gameSize*7/6) < window.innerHeight) {
+	  scale++;
+      }
+      scale--;
       var Module = {
           canvas: (function() { return document.getElementById('canvas'); })(),
 	  arguments: [
 	      gameSize.toString(),
 	      gamePanelSize.toString(),
-	      menuItems.toString(),
-	      gameScale.toString(),
-	      unitLimit.toString(),
+	      scale.toString(),
 	      '<?php echo $pairstr; ?>'
 	  ]
       };

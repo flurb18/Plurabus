@@ -1,6 +1,6 @@
 CC=g++
 FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_
-LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread
+LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread -lboost_random
 EXECNAME=hivemind
 
 WEBCC=/usr/lib/emscripten/emcc
@@ -8,9 +8,9 @@ WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORM
 WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --preload-file assets --use-preload-plugins
 WEBEXECNAME=hivemindweb
 WEBEXECOUTPUTDIR=webpage
-WEBEXECOUTPUTEXT=.html .js .wasm .data
-WEBEXECOUTPUTFILES=$(patsubst %, $(WEBEXECNAME)%, $(WEBEXECOUTPUTEXT))
-WEBEXECOUTPUTFILESPATH=$(patsubst %, $(WEBEXECOUTPUTDIR)/%, $(WEBEXECOUTPUTFILES))
+WEBEXECOUTPUTEXT=.js .wasm .data
+WEBEXECOUTPUTFILES=$(patsubst %,$(WEBEXECNAME)%,$(WEBEXECOUTPUTEXT))
+WEBEXECOUTPUTFILESPATH=$(patsubst %,$(WEBEXECOUTPUTDIR)/%,$(WEBEXECOUTPUTFILES))
 
 ODIR = obj
 WEBODIR = webobj

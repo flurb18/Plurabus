@@ -52,14 +52,12 @@ private:
   Game *game;
   SDL_Texture *checkIcon;
   std::vector<MenuItem*> items;
-  int itemsInView;
-  int indexOffset;
 public:
   void hideAllSubMenus();
   void draw(Display*);
   bool getIfScentsShown();
   bool getIfObjectivesShown();
-  Menu(Game*, int);
+  Menu(Game*);
   ~Menu();
 };
 

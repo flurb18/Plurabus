@@ -23,7 +23,7 @@
 #include "spawner.h"
 
 /* Constructor sets up map units, creates a friendly spawner */
-Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
+Game::Game(int sz, int psz, double scl, char *pstr):
   
   numPlayerAgents(0),
   numPlayerTowers(0),
@@ -31,9 +31,7 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   initScale(scl),
   scale(scl),
   gameSize(sz),
-  menuItemsInView(numMenIt),
   panelSize(psz),
-  unitLimit(ulim),
   mouseX(0),
   mouseY(0),
   placementW(0),
@@ -52,14 +50,14 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   from left to right, then the next row and so on
   SDL window x and y start at 0 at top left and increase right and
   down respectively*/
-  for (unsigned int i = 0; i < gameSize; i++) {
-    for (unsigned int j = 0; j < gameSize; j++) {
+  for (int i = 0; i < gameSize; i++) {
+    for (int j = 0; j < gameSize; j++) {
       mapUnits.push_back(new MapUnit(this, j, i));
     }
   }
   /* Interlink the map units so they all know their adjacent units */
-  for (unsigned int i = 0; i < gameSize; i++) {
-    for (unsigned int j = 0; j < gameSize; j++) {
+  for (int i = 0; i < gameSize; i++) {
+    for (int j = 0; j < gameSize; j++) {
       int index = i * gameSize + j;
       if (i == 0) mapUnits[index]->up = &outside;
       else mapUnits[index]->up = mapUnits[index - gameSize];
@@ -73,14 +71,14 @@ Game::Game(int sz, int psz, int numMenIt, double scl, int ulim, char *pstr):
   }
 
   selection = {0, 0, 1, 1};
-  menuSize = gameDisplaySize / menuItemsInView;
+  menuSize = gameDisplaySize / MENU_ITEMS_IN_VIEW;
   disp = new Display(gameDisplaySize, menuSize, panelSize, FONT_SIZE);
   panel = new Panel(disp, PANEL_PADDING);
   std::string welcomeText = "Welcome to " + std::string(TITLE) + "!";
   panel->addText(welcomeText.c_str());
   view = {0,0,gameSize,gameSize};
   selectedUnit = mapUnitAt(0,0);
-  menu = new Menu(this, menuItemsInView);
+  menu = new Menu(this);
   MapUnit *redspawn = mapUnitAt(SPAWNER_PADDING, SPAWNER_PADDING);
   MapUnit *greenspawn = mapUnitAt(gameSize - SPAWNER_SIZE - SPAWNER_PADDING, gameSize - SPAWNER_SIZE - SPAWNER_PADDING);
   spawnerDict.insert(std::make_pair(SPAWNER_ID_GREEN, new Spawner(this, greenspawn, SPAWNER_ID_GREEN, SPAWNER_SIZE, 1)));
@@ -131,10 +129,6 @@ int Game::scaleInt(int toScale) {
 
 Context Game::getContext() {
   return context;
-}
-
-int Game::getUnitLimit() {
-  return unitLimit;
 }
 
 int Game::getSize() {
@@ -291,7 +285,7 @@ void Game::leftMouseDown(int x, int y) {
   if (context == GAME_CONTEXT_CONNECTING) return;
   if (x >= gameDisplaySize) return;
   if (y >= gameDisplaySize) {
-    int idx = (x / menuSize) - menu->indexOffset;
+    int idx = (x / menuSize);
     (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
     return;
   } else {
@@ -450,7 +444,9 @@ void Game::placeSubspawner() {
 }
 
 void Game::setObjective(ObjectiveType oType) {
-  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_PLACING || context == GAME_CONTEXT_SELECTING) {
+  bool placingOverride = (context == GAME_CONTEXT_PLACING &&
+		   (oType == OBJECTIVE_TYPE_BUILD_TOWER || oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER));
+  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_SELECTING || placingOverride) {
     Objective *o = new Objective(oType, 255, this, selection);
     objectives.push_back(o);
     context = GAME_CONTEXT_UNSELECTED;

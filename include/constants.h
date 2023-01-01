@@ -1,6 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+const int MENU_ITEMS_IN_VIEW = 6;
 const int SPAWNER_SIZE = 8;
 const int SPAWNER_PADDING = 10;
 const int FONT_SIZE = 16;

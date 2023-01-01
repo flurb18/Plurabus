@@ -20,6 +20,14 @@ canvas{
     left: 50%;
     transform: translate(-50%, -50%);
     line-height: 1.5em;
+
+}
+
+div.horizontalgap {
+    float: left;
+    overflow: hidden;
+    height: 1px;
+    width: 0px;
 }
 
 input[type="text"] {

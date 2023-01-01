@@ -80,7 +80,7 @@ void MenuItem::toggleSubMenu() {
   }
 }
 
-Menu::Menu(Game *g, int n): game(g), itemsInView(n), indexOffset(0) {
+Menu::Menu(Game *g): game(g) {
   checkIcon = game->disp->cacheImage("assets/img/check.png");
   SubMenu barsSubMenu;
   int barsSubIdx = 4;
@@ -155,7 +155,7 @@ void Menu::draw(Display *disp) {
   disp->setDrawColorWhite();
   disp->drawRect(0, disp->getGameDisplaySize(), disp->getGameDisplaySize(), disp->getMenuSize());
   for (MenuItem *item : items) {
-    int idx = item->positionIndex + indexOffset;
+    int idx = item->positionIndex;
     int itemSize = disp->getMenuSize();
     disp->setDrawColorBlack();
     if (item->highlighted) disp->setDrawColor(50,50,50);

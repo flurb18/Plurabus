@@ -57,9 +57,7 @@ private:
   int gameSize;
   int gameDisplaySize;
   int menuSize;
-  int menuItemsInView;
   int panelSize;
-  int unitLimit;
   int mouseX, mouseY;
   int placementW, placementH;
   int zapCounter;
@@ -132,8 +130,7 @@ public:
   void clearPanel();
   void zoomIn();
   void zoomOut();
-  int getUnitLimit();
-  Game(int, int, int, double, int, char*);
+  Game(int, int, double, char*);
   ~Game();
   void mainLoop();
 };

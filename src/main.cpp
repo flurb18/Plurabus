@@ -20,16 +20,12 @@ int main(int argc, char* argv[]) {
   srand(time(0));
   int gameSize = atoi(argv[1]);
   int gamePanelSize = atoi(argv[2]);
-  int gameMenuItemsInView = atoi(argv[3]);
-  double gameInitScale = atof(argv[4]);
-  int gameUnitLimit = atoi(argv[5]);
+  double gameInitScale = atof(argv[3]);
   Game *g = new Game(
 		     gameSize,
 		     gamePanelSize,
-		     gameMenuItemsInView,
 		     gameInitScale,
-		     gameUnitLimit,
-		     argv[6]
+		     argv[4]
 		     );
 
   #ifdef __EMSCRIPTEN__
