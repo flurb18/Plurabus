@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Hive Mind</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="submitForm">
+    <form action="/submit.php" autocomplete="off" method="post">
+      <fieldset>
+	<legend>Game size:</legend>
+	<div>
+	  <input type="radio" id="choice1" name="gameSize" value="100" />
+	  <label for="choice1">Small</label>
+
+	  <input type="radio" id="choice2" name="gameSize" value="150" checked />
+	  <label for="choice2">Medium</label>
+
+	  <input type="radio" id="choice3" name="gameSize" value="200" />
+	  <label for="choice3">Large</label>
+	</div>
+	</fieldset>
+      <br>
+      You will be matched with the first player in the queue
+      with the same text (case-sensitive) as you enter in the box.
+      You may only enter up to 16 alphanumeric characters;
+      no spaces or special characters.
+      Leave the input blank to play with anyone.
+      <div>
+	<br>
+	<input type="text" autocomplete="off" placeholder="Any" id="pstr-input" name="pstr" pattern="^$|[a-zA-Z0-9]+" maxlength="16">
+	<br>
+	<button type="submit">Play</button>
+      </div>
+    </form>
+  </div>
+    
+</body>
+
+<script>
+
+  var input = document.getElementById('pstr-input');
+  input.oninvalid = function(event) {
+      event.target.setCustomValidity('Please enter only letters and numbers, or leave the field blank.');
+  }
+  
+</script>
+
+
+</html>

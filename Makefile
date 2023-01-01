@@ -7,6 +7,10 @@ WEBCC=/usr/lib/emscripten/emcc
 WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall
 WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --preload-file assets --use-preload-plugins
 WEBEXECNAME=hivemindweb
+WEBEXECOUTPUTDIR=webpage
+WEBEXECOUTPUTEXT=.html .js .wasm .data
+WEBEXECOUTPUTFILES=$(patsubst %, $(WEBEXECNAME)%, $(WEBEXECOUTPUTEXT))
+WEBEXECOUTPUTFILESPATH=$(patsubst %, $(WEBEXECOUTPUTDIR)/%, $(WEBEXECOUTPUTFILES))
 
 ODIR = obj
 WEBODIR = webobj
@@ -35,7 +39,7 @@ $(WEBODIR)/%.o: src/%.cpp $(DEPS)
 	$(WEBCC) -c -o $@ $< $(WEBFLAGS)
 
 web $(WEBEXECNAME): $(WEBOBJ)
-	$(WEBCC) -o $(WEBEXECNAME).html $^ $(WEBLINKFLAGS)
+	$(WEBCC) -o $(WEBEXECOUTPUTDIR)/$(WEBEXECNAME).js $^ $(WEBLINKFLAGS)
 
 all: $(EXECNAME) $(WEBEXECNAME)
 
@@ -44,7 +48,8 @@ all: $(EXECNAME) $(WEBEXECNAME)
 clean:
 	rm -f $(ODIR)/*.o
 	rm -f $(WEBODIR)/*.o
-	rm -f $(WEBEXECNAME).html $(WEBEXECNAME).js $(WEBEXECNAME).wasm $(WEBEXECNAME).data $(EXECNAME)
+	rm -f $(WEBEXECOUTPUTFILESPATH)
+	rm -f $(EXECNAME)
 	rm -f *~
 	rm -f $(SDIR)/*~
 	rm -f $(IDIR)/*~

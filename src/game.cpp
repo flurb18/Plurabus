@@ -196,12 +196,6 @@ bool Game::potentialSelectionCollidesWithSpawner(int potX, int potY, int potW, i
 void Game::mouseMoved(int x, int y) {
   if (y >= gameDisplaySize || x >= gameDisplaySize) {
     selectedObjective = nullptr;
-    switch (context) {
-    case GAME_CONTEXT_SELECTING:
-      context = GAME_CONTEXT_SELECTED;
-    default:
-      break;
-    }
     return;
   }
   mouseX = x;
@@ -276,14 +270,12 @@ void Game::mouseMoved(int x, int y) {
     if (potY + potH > gameSize) potH = gameSize - potY;
     if (potX < 0) potX = 0;
     if (potY < 0) potY = 0;
-    if (potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
-      context = GAME_CONTEXT_SELECTED;
-      break;
+    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
+      selection.x = potX;
+      selection.y = potY;
+      selection.w = potW;
+      selection.h = potH;
     }
-    selection.x = potX;
-    selection.y = potY;
-    selection.w = potW;
-    selection.h = potH;
     break;
   case GAME_CONTEXT_SELECTED:
     break;
@@ -458,7 +450,7 @@ void Game::placeSubspawner() {
 }
 
 void Game::setObjective(ObjectiveType oType) {
-  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_PLACING) {
+  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_PLACING || context == GAME_CONTEXT_SELECTING) {
     Objective *o = new Objective(oType, 255, this, selection);
     objectives.push_back(o);
     context = GAME_CONTEXT_UNSELECTED;

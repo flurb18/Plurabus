@@ -36,7 +36,7 @@ async def serveFunction(websocket):
         await websocket.close()
         return
     print("Desired pair string: " + websocket.desiredPairedString)
-    websocket.foundPartner = asyncio.Event()
+    websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
     for waitingClient in SocketQueue:
         if (waitingClient.desiredPairedString == websocket.desiredPairedString):
@@ -45,10 +45,11 @@ async def serveFunction(websocket):
             websocket.player = 1
             waitingClient.player = 2
             SocketQueue.remove(waitingClient)
-            waitingClient.foundPartner.set()
-            websocket.foundPartner.set()
+            waitingClient.foundPartner = True
+            websocket.foundPartner = True
+            break
 
-    if (not websocket.foundPartner.is_set()):
+    if (not websocket.foundPartner):
         SocketQueue.append(websocket)
         try:
             ready = await websocket.recv()
@@ -56,6 +57,7 @@ async def serveFunction(websocket):
             SocketQueue.remove(websocket)
             return
         except Exception as e:
+            SocketQueue.remove(websocket)
             return
 
     else:

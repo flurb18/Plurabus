@@ -1,8 +1,19 @@
 <!DOCTYPE html>
 <?php
- if ($_POST) {
- $pairstr = $_POST['pstr'].$_POST['gameSize'];
+ $pstr = $_POST['pstr'];
  $size = $_POST['gameSize'];
+ if ($_POST) {
+ if (preg_match('/^$|[a-zA-Z0-9]+/', $pstr)) {
+ if (ctype_alnum($size)) {
+ if (preg_match('/[0-9]+/', $size)) {
+ $pairstr = $pstr.$size;
+ } else {
+ echo("size is not numeric");
+ }} else {
+ echo("size is not alphanumeric");
+ }} else {
+ echo("pstr is not alphanumeric");
+ }
  } else {
    echo("No post data found :(");       
  }
