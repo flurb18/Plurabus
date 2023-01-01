@@ -1,5 +1,5 @@
 CC=g++
-FLAGS=-I$(IDIR) -Wall
+FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_
 LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread
 EXECNAME=hivemind
 
