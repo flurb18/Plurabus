@@ -44,7 +44,8 @@ private:
   client m_client;
   client::connection_ptr con;
   websocketpp::lib::shared_ptr<websocketpp::lib::thread> m_thread;
-
+  websocketpp::connection_hdl m_hdl;
+  
 #endif
 
 public:

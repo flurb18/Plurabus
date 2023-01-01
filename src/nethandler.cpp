@@ -70,6 +70,7 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   
   websocketpp::lib::error_code ec;
   con = m_client.get_connection(uri, ec);
+  m_hdl = con->get_handle();
   if (ec) {
     printf("Initial connection error");
   }
@@ -120,10 +121,8 @@ void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, message_
 }
 
 void NetHandler::on_close(client *c, websocketpp::connection_hdl hdl) {
-  client::connection_ptr con = c->get_con_from_hdl(hdl);
   notifyClosed(con->get_remote_close_reason().c_str());
 }
-
 
 #endif
 
@@ -139,7 +138,7 @@ void NetHandler::sendText(const char *text) {
 #else
 
   websocketpp::lib::error_code ec;
-  m_client.send(con->get_hdl(), std::string(text), websocketpp::frame::opcode::text, ec);
+  m_client.send(m_hdl, std::string(text), websocketpp::frame::opcode::text, ec);
   if (ec) {
     std::cout << "Error sending message" << std::endl;
   }
@@ -160,7 +159,7 @@ void NetHandler::send(void *data, int numBytes) {
 #else
 
   websocketpp::lib::error_code ec;
-  m_client.send(con->get_hdl(), (const void *)data, numBytes, websocketpp::frame::opcode::binary, ec);
+  m_client.send(m_hdl, (const void *)data, numBytes, websocketpp::frame::opcode::binary, ec);
   if (ec) {
     std::cout << "> Error sending message" << std::endl;
   }
@@ -214,7 +213,7 @@ void NetHandler::closeConnection(const char *reason) {
 
 #else
 
-  m_client.close(con->get_hdl(),websocketpp::close::status::normal, std::string(reason));
+  m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
 
 #endif
 
