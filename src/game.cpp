@@ -24,7 +24,8 @@
 
 /* Constructor sets up map units, creates a friendly spawner */
 Game::Game(int sz, int psz, double scl, char *pstr):
-  
+
+  lock(false),
   numPlayerAgents(0),
   numPlayerTowers(0),
   context(GAME_CONTEXT_CONNECTING),
@@ -810,6 +811,7 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
 }
 
 void Game::receiveEvents(Events *events, int numAgentEvents) {
+  lock = true;
   for (int i = 0; i < numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
   }
@@ -819,6 +821,7 @@ void Game::receiveEvents(Events *events, int numAgentEvents) {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
+  lock = false;
 }
 
 void Game::addTowerZap(TowerID tid, int x, int y) {
@@ -1026,12 +1029,14 @@ void Game::mainLoop(void) {
   default:
     break;
   }
-  SDL_Event e;
-  if (SDL_PollEvent(&e) != 0) {
-    handleSDLEvent(&e);
+  if (!lock) {
+    SDL_Event e;
+    if (SDL_PollEvent(&e) != 0) {
+      handleSDLEvent(&e);
+    }
+    draw();
+    disp->update();
   }
-  draw();
-  disp->update();
 }
 
 Game::~Game() {

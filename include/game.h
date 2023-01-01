@@ -49,6 +49,7 @@ private:
   Menu *menu;
   Panel *panel;
   NetHandler *net;
+  bool lock;
   unsigned int numPlayerAgents;
   unsigned int numPlayerTowers;
   Context context;
