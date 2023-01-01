@@ -12,7 +12,7 @@
 #include <string>
 #include <map>
 
-typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+//typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
 typedef websocketpp::client<websocketpp::config::asio_client> client;
 
 #endif
@@ -55,7 +55,7 @@ public:
   typedef websocketpp::lib::shared_ptr<NetHandler> ptr;
   void on_open(client*, websocketpp::connection_hdl);
   void on_fail(client*, websocketpp::connection_hdl);
-  void on_message(client*, websocketpp::connection_hdl, message_ptr);
+  void on_message(client*, websocketpp::connection_hdl, client::message_ptr);
   void on_close(client*, websocketpp::connection_hdl);
 
 #endif

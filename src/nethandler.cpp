@@ -98,6 +98,8 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   
   m_client.connect(con);
 
+  m_thread.join();
+
 #endif
 
 }
@@ -112,7 +114,7 @@ void NetHandler::on_fail(client *c, websocketpp::connection_hdl hdl) {
   printf(":(");
 }
 
-void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, message_ptr data) {
+void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, client::message_ptr data) {
   if (data->get_opcode() == websocketpp::frame::opcode::text) {
     receive((void*)data->get_payload().data(), data->get_payload().size(), true);
   } else {

@@ -811,7 +811,6 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
 }
 
 void Game::receiveEvents(Events *events, int numAgentEvents) {
-  lock = true;
   for (int i = 0; i < numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
   }
@@ -821,7 +820,6 @@ void Game::receiveEvents(Events *events, int numAgentEvents) {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
-  lock = false;
 }
 
 void Game::addTowerZap(TowerID tid, int x, int y) {
@@ -869,6 +867,7 @@ void Game::resign()  {
 }
 
 void Game::receiveData(void* data, int numBytes) {
+  lock = true;
   Events *events = (Events*)data;
   int bytesInAgentEventArray = numBytes - (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) - (sizeof(TowerEvent) * MAX_TOWERS);
   int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
@@ -925,6 +924,7 @@ void Game::update() {
   net->send((void *)events, messageSize);
   checkSpawnersDestroyed();
   free(events);
+  lock = false;
 }
 
 void Game::handleSDLEvent(SDL_Event *e) {
