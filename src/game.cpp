@@ -1047,10 +1047,6 @@ void Game::mainLoop(void) {
   
 #endif
   
-  SDL_Event e;
-  if (SDL_PollEvent(&e) != 0) {
-    handleSDLEvent(&e);
-  }
   draw();
   disp->update();
 
@@ -1059,6 +1055,9 @@ void Game::mainLoop(void) {
   }
 
 #endif
+
+  SDL_Event e;
+  if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
 }
 
 Game::~Game() {
