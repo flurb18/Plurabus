@@ -872,7 +872,6 @@ void Game::receiveData(void* data, int numBytes) {
   int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * events->numAgentEvents);
   queuedEvents = (Events*)malloc(messageSize);
   memcpy((void*)queuedEvents, (const void*)data, messageSize);
-
   
 #endif
   

@@ -223,7 +223,9 @@ void NetHandler::closeConnection(const char *reason) {
 
 #else
 
+  m_client.stop_perpetual();
   m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
+  m_thread->join();
 
 #endif
 
@@ -249,23 +251,12 @@ bool NetHandler::readyForGame() {
 }
 
 NetHandler::~NetHandler() {
-
-#ifndef __EMSCRIPTEN__
-
-  m_client.stop_perpetual();
-
-#endif
-  
   if (ncon != NET_CONTEXT_CLOSED)
     closeConnection("Cleanup");
   
 #ifdef __EMSCRIPTEN__
 
   emscripten_websocket_delete(sock);
-
-#else
-
-  m_thread->join();
   
 #endif
 
