@@ -37,10 +37,8 @@ public:
 
 class Tower: public Building {
   friend class Game;
-private:
-  TowerID tid;
 public:
-  Tower(Game*, SpawnerID, TowerID, int, int);
+  Tower(Game*, SpawnerID, int, int);
   void update(TowerEvent*);
 };
 

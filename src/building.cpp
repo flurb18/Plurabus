@@ -29,9 +29,8 @@ bool Building::canUpdate() {
   return (updateCounter == 0 && ready);
 }
 
-Tower::Tower(Game *g, SpawnerID s, TowerID t, int x, int y):
-  Building(g, BUILDING_TYPE_TOWER, s, x, y, TOWER_SIZE, TOWER_SIZE, TOWER_MAX_HP, TOWER_UPDATE_TIME),
-  tid(t) {
+Tower::Tower(Game *g, SpawnerID s, int x, int y):
+  Building(g, BUILDING_TYPE_TOWER, s, x, y, TOWER_SIZE, TOWER_SIZE, TOWER_MAX_HP, TOWER_UPDATE_TIME) {
   for (MapUnit::iterator it = getIterator(); it.hasNext(); it++) {
     it->type = UNIT_TYPE_BUILDING;
     it->building = this;
@@ -45,8 +44,8 @@ void Tower::update(TowerEvent *tevent) {
     std::vector<AgentID> potentialIDs;
     for (auto it = game->agentDict.begin(); it != game->agentDict.end(); it++) {
       if (it->second->sid != sid) {
-	int dx = it->second->unit->x - (region.x + (region.w/2));
-	int dy = it->second->unit->y - (region.y + (region.h/2));
+	int dx = it->second->unit->x - (region.x + (TOWER_SIZE/2));
+	int dy = it->second->unit->y - (region.y + (TOWER_SIZE/2));
 	if ((dx*dx) + (dy*dy) < TOWER_AOE_RADIUS_SQUARED) {
 	  potentialIDs.push_back(it->first);
 	}
@@ -56,7 +55,8 @@ void Tower::update(TowerEvent *tevent) {
       tevent->destroyed = true;
       int choice = rand() % potentialIDs.size();
       tevent->id = potentialIDs.at(choice);
-      tevent->tid = tid;
+      tevent->x = region.x + (TOWER_SIZE/2);
+      tevent->y = region.y + (TOWER_SIZE/2);
     }
   }
 }

@@ -4,7 +4,6 @@
 #include "constants.h"
 
 typedef unsigned int AgentID;
-typedef unsigned int TowerID;
 
 typedef enum _SpawnerID {
   SPAWNER_ID_GREEN,
@@ -44,7 +43,7 @@ typedef struct SpawnerEvent {
 
 typedef struct TowerEvent {
   AgentID id;
-  TowerID tid;
+  int x, y;
   bool destroyed;
 } TowerEvent;
 

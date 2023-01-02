@@ -39,7 +39,6 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   placementH(0),
   zapCounter(1),
   newAgentID(1),
-  newTowerID(1),
   outside(this),
   selectedObjective(nullptr) {
 
@@ -167,8 +166,7 @@ bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW,
 
 bool Game::potentialSelectionCollidesWithTower(int potX, int potY, int potW, int potH) {
   SDL_Rect r= {potX, potY, potW, potH};
-  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
-    Tower *t = it->second;
+  for (Tower *t : towerList) {
     if (rectCollides(r, t->region)) return true;
   }
   return false;
@@ -404,8 +402,8 @@ void Game::clearScent() {
 
 void Game::placeTower() {
   int numPlayerTowers = 0;
-  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
-    if (it->second->sid == playerSpawnID) numPlayerTowers++;
+  for (Tower *t : towerList) {
+    if (t->sid == playerSpawnID) numPlayerTowers++;
   }
   for (Objective *o: objectives) {
     if (o->type == OBJECTIVE_TYPE_BUILD_TOWER && !o->started)
@@ -566,13 +564,13 @@ void Game::draw() {
 	break;
       }
     }
-    for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
-      setTeamDrawColor(it->second->sid);
-      if (it->second->hp < it->second->max_hp) {
-	disp->setDrawColorBrightness((double)it->second->hp / (double)it->second->max_hp);
+    for (Tower *t: towerList) {
+      setTeamDrawColor(t->sid);
+      if (t->hp < t->max_hp) {
+	disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
       }
-      int x = scaleInt(it->second->region.x-view.x);
-      int y = scaleInt(it->second->region.y-view.y);
+      int x = scaleInt(t->region.x-view.x);
+      int y = scaleInt(t->region.y-view.y);
       int s = scaleInt(TOWER_SIZE);
       disp->drawRectFilled(x, y+s/4, s, s/2);
       disp->drawRectFilled(x+s/4, y, s/2, s);
@@ -698,12 +696,10 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     break;
   case AGENT_ACTION_BUILDTOWER:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
-      newTowerID++;
-      Tower *tower = new Tower(this, a->sid, newTowerID, destuptr->x, destuptr->y);
+      Tower *tower = new Tower(this, a->sid, destuptr->x, destuptr->y);
       if (a->sid == playerSpawnID)
 	destuptr->objective->started = true;
-      tower->sid = a->sid;
-      towerDict[newTowerID] = tower;
+      towerList.push_back(tower);
     } else {
       destuptr->building->hp++;
     }
@@ -771,9 +767,18 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 	  it->building = nullptr;
 	}
 	if (build->type == BUILDING_TYPE_TOWER) {
-	  towerDict.erase(((Tower *)build)->tid);
+	  for (auto it = towerList.begin(); it != towerList.end(); it++) {
+	    Tower *t = *it;
+	    if (destuptr->x >= t->region.x &&
+		destuptr->x <= t->region.x + t->region.w - 1 &&
+		destuptr->y >= t->region.y &&
+		destuptr->y <= t->region.y + t->region.h - 1) {
+	      it = towerList.erase(it);
+	      delete build;
+	      break;
+	    }
+	  }
 	}
-	delete build;
       }
       a->die();
       delete a;
@@ -791,7 +796,8 @@ void Game::receiveTowerEvent(TowerEvent *tevent) {
     auto it = agentDict.find(tevent->id);
     if (it != agentDict.end()) {
       Agent *a = it->second;
-      addTowerZap(tevent->tid, a->unit->x, a->unit->y);
+      TowerZap t = {tevent->x, tevent->y, (int)a->unit->x, (int)a->unit->y};
+      towerZaps.push_back(t);
       a->die();
       delete a;
     }
@@ -820,14 +826,6 @@ void Game::receiveEvents(Events *events, int n) {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
-}
-
-void Game::addTowerZap(TowerID tid, int x, int y) {
-  Tower *tower = towerDict[tid];
-  int tx = tower->region.x + (tower->region.w/2);
-  int ty = tower->region.y + (tower->region.h/2);
-  TowerZap t = {tx, ty, x, y};
-  towerZaps.push_back(t);
 }
 
 AgentID Game::getNewAgentID() {
@@ -916,9 +914,9 @@ void Game::update() {
   }
   for (i = 0; i < MAX_TOWERS; i++) events->towerEvents[i].destroyed = false;
   i = 0;
-  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
-    if (it->second->sid == playerSpawnID) {
-      it->second->update(&events->towerEvents[i]);
+  for (Tower *t : towerList) {
+    if (t->sid == playerSpawnID) {
+      t->update(&events->towerEvents[i]);
       i++;
     }
   }
@@ -1046,7 +1044,6 @@ void Game::mainLoop(void) {
   if (!lock && context != GAME_CONTEXT_EXIT) {
     lock = true;
     update();
-  }
   
 #endif
   
@@ -1056,6 +1053,12 @@ void Game::mainLoop(void) {
   }
   draw();
   disp->update();
+
+#ifndef __EMSCRIPTEN__
+
+  }
+
+#endif
 }
 
 Game::~Game() {
@@ -1075,13 +1078,13 @@ Game::~Game() {
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     delete it->second;
   }
-  for (auto it = towerDict.begin(); it != towerDict.end(); it++) {
-    delete it->second;
-  }
+  for (Tower *t: towerList) delete t;
+  for (Subspawner *s: subspawnerList) delete s;
   for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
     SDL_DestroyTexture(it->second);
   }
-  towerDict.clear();
+  towerList.clear();
+  subspawnerList.clear();
   towerZaps.clear();
   objectiveInfoTextures.clear();
   agentDict.clear();

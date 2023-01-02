@@ -71,11 +71,10 @@ private:
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
   std::map<SpawnerID, Spawner*> spawnerDict;
-  std::map<TowerID, Tower*> towerDict;
+  std::deque<Tower*> towerList;
   std::deque<Subspawner*> subspawnerList;
   SpawnerID playerSpawnID;
   AgentID newAgentID;
-  TowerID newTowerID;
   BuildingType placingType;
   MapUnit outside;
   MapUnit* selectedUnit;
@@ -113,7 +112,6 @@ private:
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);
-  void addTowerZap(TowerID, int, int);
   void deleteSelectedObjective();
   void checkSpawnersDestroyed();
   void update();
