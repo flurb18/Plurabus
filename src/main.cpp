@@ -28,13 +28,18 @@ int main(int argc, char* argv[]) {
 		     argv[4]
 		     );
 
-  #ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+
   emscripten_set_main_loop_arg(mainloop, (void*)g, 0, 1);
-  #endif
-  #ifndef __EMSCRIPTEN__
+
+#else
+  
   while (g->getContext() != GAME_CONTEXT_EXIT) {
     mainloop((void*)g);
   }
-  #endif
+
+#endif
+
+  delete g;
   return 0;
 }

@@ -22,6 +22,7 @@ class Panel;
 
 /* Various game contexts */
 enum Context {
+  GAME_CONTET_DONE,
   GAME_CONTEXT_EXIT,
   GAME_CONTEXT_UNSELECTED,
   GAME_CONTEXT_SELECTING,

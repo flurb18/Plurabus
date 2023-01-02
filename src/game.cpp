@@ -845,7 +845,7 @@ void Game::checkSpawnersDestroyed() {
   }
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     if (it->second->isDestroyed()) {
-      context = GAME_CONTEXT_EXIT;
+      context = GAME_CONTEXT_DONE;
       std::string reason;
       switch (it->first) {
       case SPAWNER_ID_GREEN:
@@ -873,7 +873,7 @@ void Game::receiveData(void* data, int numBytes) {
 
 #ifdef __EMSCRIPTEN__
   
-  if (context != GAME_CONTEXT_EXIT) {
+  if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
     update();
   }
 
@@ -1041,7 +1041,7 @@ void Game::mainLoop(void) {
 
 #ifndef __EMSCRIPTEN__
 
-  if (!lock && context != GAME_CONTEXT_EXIT) {
+  if (!lock && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
     lock = true;
     update();
   
