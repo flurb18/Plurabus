@@ -50,6 +50,7 @@ private:
   Menu *menu;
   Panel *panel;
   NetHandler *net;
+  Events *queuedEvents;
   bool lock;
   unsigned int numPlayerAgents;
   unsigned int numPlayerTowers;
@@ -109,7 +110,7 @@ private:
   void draw();
   void handleSDLEvent(SDL_Event*);
   void receiveData(void*, int);
-  void receiveEvents(Events*, int);
+  void receiveEvents(Events*);
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);

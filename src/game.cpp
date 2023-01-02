@@ -25,6 +25,7 @@
 /* Constructor sets up map units, creates a friendly spawner */
 Game::Game(int sz, int psz, double scl, char *pstr):
 
+  queuedEvents(nullptr),
   lock(true),
   numPlayerAgents(0),
   numPlayerTowers(0),
@@ -809,7 +810,7 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
   }
 }
 
-void Game::receiveEvents(Events *events, int n) {
+void Game::receiveEvents(Events *events) {
   for (int i = 0; i < events->numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
   }
@@ -859,20 +860,19 @@ void Game::resign()  {
 
 void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
-  int bytesInAgentEventArray = numBytes - (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) - sizeof(int) - (sizeof(TowerEvent) * MAX_TOWERS);
-  int numEvents = bytesInAgentEventArray / sizeof(AgentEvent);
-  receiveEvents(events, numEvents);
-  checkSpawnersDestroyed();
 
 #ifdef __EMSCRIPTEN__
-  
-  if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
-    update();
-  }
+
+  receiveEvents(events);
+  checkSpawnersDestroyed();
+  if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) update();
 
 #else
 
-  lock = false;
+  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * events->numAgentEvents);
+  queuedEvents = (Events*)malloc(messageSize);
+  memcpy((void*)queuedEvents, (const void*)data, messageSize);
+
   
 #endif
   
@@ -923,7 +923,7 @@ void Game::update() {
   }
   spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
   events->numAgentEvents = numPlayerAgents;
-  receiveEvents(events, numPlayerAgents);
+  receiveEvents(events);
   net->send((void *)events, messageSize);
   checkSpawnersDestroyed();
   free(events);
@@ -1033,19 +1033,32 @@ void Game::mainLoop(void) {
 #ifdef __EMSCRIPTEN__
 
     draw();
-  
-#else
-  
-    if (!lock && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
-      lock = true;
-      update();
-      draw();
-    }
-  
-#endif
-
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
+
+#else
+    
+    if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
+      if (lock) {
+	if (queuedEvents == nullptr) {
+	  draw();
+	  SDL_Event e;
+	  if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
+	} else {
+	  receiveEvents(queuedEvents);
+	  free(queuedEvents);
+	  checkSpawnersDestroyed();
+	  queuedEvents = nullptr;
+	  lock = false;
+	}
+      } else {
+	lock = true;
+	update();
+      }
+    }
+    
+#endif
+    
   }
   disp->update();
 }
