@@ -506,134 +506,127 @@ void Game::draw() {
   disp->fillBlack();
   int lum;
   double lumprop;
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    disp->drawText("Connecting...",0,0);
-    break;
-  default:
-    MapUnit* first = mapUnitAt(view.x, view.y);
-    /* Iterate over view */
-    for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
-	 iter.hasNext(); iter++) {
-      int scaledX = scaleInt(iter->x - view.x);
-      int scaledY = scaleInt(iter->y - view.y);
-      int off;
-      double offProp;
-      switch (iter->type) {
-      case UNIT_TYPE_AGENT:
-	setTeamDrawColor(iter->agent->sid);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-	break;
-      case UNIT_TYPE_BUILDING:
-	break;
-      case UNIT_TYPE_DOOR:
-	setTeamDrawColor(iter->door->sid);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-	if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
-	  if (menu->getIfScentsShown()) {
-	    lum = (int)(255.0 * (double)iter->scent/255.0);
-	    disp->setDrawColor(lum, 0, lum);
-	  } else {
-	    disp->setDrawColorBlack();
-	  }
-	  offProp = (double)iter->door->hp/(double)MAX_DOOR_HEALTH;
-	  off = (int)(offProp*scale*1.0/4.0); 
-	  disp->drawRectFilled(scaledX + (int)(scale/2.0) - off, scaledY + (int)(scale/2.0) - off, 2*off, 2*off);
-	}
-	break;
-      case UNIT_TYPE_SPAWNER:
-	setTeamDrawColor(iter->spawner->sid);
-	lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
-	disp->setDrawColorBrightness(lumprop);
-	if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-	break;
-      case UNIT_TYPE_WALL:
-	lum = (int)(((double)iter->hp/(double)MAX_WALL_HEALTH)*100.0)+155;
-	disp->setDrawColor(lum,lum,lum);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-	break;
-      case UNIT_TYPE_EMPTY:
+  MapUnit* first = mapUnitAt(view.x, view.y);
+  /* Iterate over view */
+  for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
+       iter.hasNext(); iter++) {
+    int scaledX = scaleInt(iter->x - view.x);
+    int scaledY = scaleInt(iter->y - view.y);
+    int off;
+    double offProp;
+    switch (iter->type) {
+    case UNIT_TYPE_AGENT:
+      setTeamDrawColor(iter->agent->sid);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_BUILDING:
+      break;
+    case UNIT_TYPE_DOOR:
+      setTeamDrawColor(iter->door->sid);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
 	if (menu->getIfScentsShown()) {
 	  lum = (int)(255.0 * (double)iter->scent/255.0);
 	  disp->setDrawColor(lum, 0, lum);
-	  disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+	} else {
+	  disp->setDrawColorBlack();
 	}
-	break;
-      default:	
-	break;
+	offProp = (double)iter->door->hp/(double)MAX_DOOR_HEALTH;
+	off = (int)(offProp*scale*1.0/4.0); 
+	disp->drawRectFilled(scaledX + (int)(scale/2.0) - off, scaledY + (int)(scale/2.0) - off, 2*off, 2*off);
       }
-    }
-    for (Tower *t: towerList) {
-      setTeamDrawColor(t->sid);
-      if (t->hp < t->max_hp) {
-	disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
+      break;
+    case UNIT_TYPE_SPAWNER:
+      setTeamDrawColor(iter->spawner->sid);
+      lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
+      disp->setDrawColorBrightness(lumprop);
+      if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_WALL:
+      lum = (int)(((double)iter->hp/(double)MAX_WALL_HEALTH)*100.0)+155;
+      disp->setDrawColor(lum,lum,lum);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_EMPTY:
+      if (menu->getIfScentsShown()) {
+	lum = (int)(255.0 * (double)iter->scent/255.0);
+	disp->setDrawColor(lum, 0, lum);
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
       }
-      int x = scaleInt(t->region.x-view.x);
-      int y = scaleInt(t->region.y-view.y);
-      int s = scaleInt(TOWER_SIZE);
-      disp->drawRectFilled(x, y+s/4, s, s/2);
-      disp->drawRectFilled(x+s/4, y, s/2, s);
-      disp->drawLine(x, y+s/4, x+s/4, y);
-      disp->drawLine(x+s-s/4, y, x+s, y+s/4);
-      disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
-      disp->drawLine(x+s/4, y+s, x, y+s-s/4);
+      break;
+    default:	
+      break;
     }
-    for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
-      disp->setDrawColorWhite();
-      int x1 = scaleInt(it->x1 - view.x);
-      int y1 = scaleInt(it->y1 - view.y);
-      int x2 = scaleInt(it->x2 - view.x);
-      int y2 = scaleInt(it->y2 - view.y);
-      SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
-      for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
-	double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
-	int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
-	int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
-	if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
-	  tx += (rand() % 2*(int)scale) - (int)scale;
-	  ty += (rand() % 2*(int)scale) - (int)scale;
-	}
-	effectPoints[i] = { tx, ty };
-      }
-      disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
-      //      disp->drawLine(x1, y1, x2, y2);
-    }
-    if (context != GAME_CONTEXT_UNSELECTED) {
-      disp->setDrawColor(150,150,150);
-      int selectionScaledX = scaleInt(selection.x - view.x);
-      int selectionScaledY = scaleInt(selection.y - view.y);
-      disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
-    }
-    if (menu->getIfObjectivesShown()) {
-      for (Objective *o: objectives) {
-	disp->setDrawColor(100,100,100);
-	int scaledX = scaleInt(o->region.x - view.x);
-	int scaledY = scaleInt(o->region.y - view.y);
-	disp->drawRect(scaledX, scaledY, scaleInt(o->region.w), scaleInt(o->region.h));
-      }
-      if (selectedObjective) {
-	SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];
-	int objectiveInfoWidth;
-	int objectiveInfoHeight;
-	SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
-	int x = mouseX + 20;
-	int y = mouseY + 10;
-	if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
-	if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
-	disp->setDrawColorBlack();
-	disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
-	disp->setDrawColorWhite();
-	disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
-	disp->drawTexture(texture, x, y);
-      }
-    }
-    disp->setDrawColorWhite();
-    disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
-    panel->draw();
-    menu->draw(disp);
-    break;
   }
+  for (Tower *t: towerList) {
+    setTeamDrawColor(t->sid);
+    if (t->hp < t->max_hp) {
+      disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
+    }
+    int x = scaleInt(t->region.x-view.x);
+    int y = scaleInt(t->region.y-view.y);
+    int s = scaleInt(TOWER_SIZE);
+    disp->drawRectFilled(x, y+s/4, s, s/2);
+    disp->drawRectFilled(x+s/4, y, s/2, s);
+    disp->drawLine(x, y+s/4, x+s/4, y);
+    disp->drawLine(x+s-s/4, y, x+s, y+s/4);
+    disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
+    disp->drawLine(x+s/4, y+s, x, y+s-s/4);
+  }
+  for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
+    disp->setDrawColorWhite();
+    int x1 = scaleInt(it->x1 - view.x);
+    int y1 = scaleInt(it->y1 - view.y);
+    int x2 = scaleInt(it->x2 - view.x);
+    int y2 = scaleInt(it->y2 - view.y);
+    SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
+    for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
+      double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
+      int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
+      int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
+      if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
+	tx += (rand() % 2*(int)scale) - (int)scale;
+	ty += (rand() % 2*(int)scale) - (int)scale;
+      }
+      effectPoints[i] = { tx, ty };
+    }
+    disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
+    //      disp->drawLine(x1, y1, x2, y2);
+  }
+  if (context != GAME_CONTEXT_UNSELECTED) {
+    disp->setDrawColor(150,150,150);
+    int selectionScaledX = scaleInt(selection.x - view.x);
+    int selectionScaledY = scaleInt(selection.y - view.y);
+    disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
+  }
+  if (menu->getIfObjectivesShown()) {
+    for (Objective *o: objectives) {
+      disp->setDrawColor(100,100,100);
+      int scaledX = scaleInt(o->region.x - view.x);
+      int scaledY = scaleInt(o->region.y - view.y);
+      disp->drawRect(scaledX, scaledY, scaleInt(o->region.w), scaleInt(o->region.h));
+    }
+    if (selectedObjective) {
+      SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];
+      int objectiveInfoWidth;
+      int objectiveInfoHeight;
+      SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
+      int x = mouseX + 20;
+      int y = mouseY + 10;
+      if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
+      if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
+      disp->setDrawColorBlack();
+      disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
+      disp->setDrawColorWhite();
+      disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+      disp->drawTexture(texture, x, y);
+    }
+  }
+  disp->setDrawColorWhite();
+  disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
+  panel->draw();
+  menu->draw(disp);
 }
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
@@ -1029,35 +1022,32 @@ void Game::handleSDLEvent(SDL_Event *e) {
 
 /* Main loop of the game */
 void Game::mainLoop(void) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
+  if (context == GAME_CONTEXT_CONNECTING) {
+    disp->fillBlack();
+    disp->drawText("Connecting...",0,0);
     if (net->readyForGame()) {
       context = GAME_CONTEXT_UNSELECTED;
     }
-    break;
-  default:
-    break;
-  }
+  } else {
 
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
 
-  if (!lock && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
-    lock = true;
-    update();
+    draw();
+  
+#else
+  
+    if (!lock && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
+      lock = true;
+      update();
+      draw();
+    }
   
 #endif
-  
-  draw();
+
+    SDL_Event e;
+    if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
+  }
   disp->update();
-
-#ifndef __EMSCRIPTEN__
-
-  }
-
-#endif
-
-  SDL_Event e;
-  if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
 }
 
 Game::~Game() {
