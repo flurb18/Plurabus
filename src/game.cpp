@@ -92,7 +92,6 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
 }
 
-/* Public helper method */
 MapUnit* Game::mapUnitAt(int x, int y) {
   return mapUnits[y * gameSize + x];
 }

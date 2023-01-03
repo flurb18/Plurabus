@@ -32,7 +32,7 @@ WEBOBJ = $(patsubst %,$(WEBODIR)/%,$(_WEBOBJ))
 $(ODIR)/%.o: src/%.cpp $(DEPS)
 	$(CC) -c -o $@ $< $(FLAGS)
 
-norm $(EXECNAME): $(OBJ)
+local $(EXECNAME): $(OBJ)
 	$(CC) -o $(EXECNAME) $^ $(LINKFLAGS)
 
 $(WEBODIR)/%.o: src/%.cpp $(DEPS)
