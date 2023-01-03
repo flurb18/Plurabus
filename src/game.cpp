@@ -1043,12 +1043,26 @@ void Game::mainLoop(void) {
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
   } else {
+
+#ifdef __EMSCRIPTEN__
+    
     if (pthread_mutex_trylock(&threadLock) == 0) {
       draw();
       SDL_Event e;
       if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
       pthread_mutex_unlock(&threadLock);
     }
+
+#else
+
+    pthread_mutex_lock(&threadLock);
+    draw();
+    SDL_Event e;
+    if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
+    pthread_mutex_unlock(&threadLocK);
+
+#endif
+    
   }
   disp->update();
 }
