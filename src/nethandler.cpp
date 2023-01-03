@@ -58,6 +58,8 @@ context_ptr on_tls_init() {
 #endif
 
 NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
+  pthread_mutex_init(&netLock, NULL);
+  pthread_mutex_lock(&netLock);
   pairString = new char[strlen(pstr)];
   strcpy(pairString, pstr);
   std::string uri = "wss://10.8.0.1:31108";
@@ -84,7 +86,11 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 
   m_client.init_asio();
   m_client.set_tls_init_handler(bind(&on_tls_init));
- 
+
+  
+  m_client.start_perpetual();
+  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
+  
   websocketpp::lib::error_code ec;
   con = m_client.get_connection(uri, ec);
   m_hdl = con->get_handle();
@@ -111,8 +117,6 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 				  _1));
   
   m_client.connect(con);
-  m_client.start_perpetual();
-  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
   
 #endif
 
@@ -207,8 +211,10 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	game->playerSpawnID = SPAWNER_ID_RED;
 	game->panel->addText("You are the RED team.");
 	sendText("Set");
+	pthread_mutex_unlock(&netLock);
       } else if (strcmp((char *)data, "Go") == 0) {
 	ncon = NET_CONTEXT_PLAYING;
+	pthread_mutex_unlock(&netLock);
       }
     }
     break;

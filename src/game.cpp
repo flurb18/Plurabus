@@ -97,7 +97,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
   NetHandler *net = new NetHandler(game, game->pairString);
-  while (!net->readyForGame()) continue;
+  pthread_mutex_lock(&net->netLock);
   game->context = GAME_CONTEXT_UNSELECTED;
   if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
   while (game->context != GAME_CONTEXT_DONE) {
@@ -117,6 +117,7 @@ void *Game::net_thread(void *g) {
     game->checkSpawnersDestroyed(net);
     pthread_mutex_unlock(&game->threadLock);
   }
+  pthread_mutex_unlock(&net->netLock);
   delete net;
   return NULL;
 }

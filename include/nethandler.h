@@ -18,6 +18,8 @@ using websocketpp::lib::bind;
 
 #endif
 
+#include <pthread.h>
+
 /* Forward declarations */
 class Game;
 
@@ -31,10 +33,12 @@ enum NetContext	{
 };
 
 class NetHandler {
+  friend class Game;
 private:
   NetContext ncon;
   char *pairString;
   Game *game;
+  pthread_mutex_t netLock;
   
 #ifdef __EMSCRIPTEN__
 
