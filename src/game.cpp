@@ -25,8 +25,9 @@
 /* Constructor sets up map units, creates a friendly spawner */
 Game::Game(int sz, int psz, double scl, char *pstr):
 
-  queuedEvents(nullptr),
-  lock(true),
+  pairString(pstr),
+  readyToSend(false),
+  readyToReceive(false),
   numPlayerAgents(0),
   numPlayerTowers(0),
   context(GAME_CONTEXT_CONNECTING),
@@ -43,7 +44,6 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   outside(this),
   selectedObjective(nullptr) {
 
-  net = new NetHandler(this, pstr);
   gameDisplaySize = scaleInt(gameSize);
   /* mapUnits is a vector */
   mapUnits.reserve(gameSize * gameSize);
@@ -90,6 +90,39 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_DOOR] = disp->cacheTextWrapped("Objective - Build Door", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
+  pthread_mutex_init(&threadLock, NULL);
+  pthread_create(&thread, NULL, &Game::net_thread, this);
+}
+
+void *Game::net_thread(void *g) {
+  Game *game = (Game*)g;
+  NetHandler *net = new NetHandler(game, game->pairString);
+  while (!net->readyForGame()) continue;
+  game->context = GAME_CONTEXT_UNSELECTED;
+  if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
+  while (game->context != GAME_CONTEXT_DONE) {
+    pthread_mutex_lock(&game->threadLock);
+    if (game->readyToSend) {
+      game->receiveEvents(game->outgoingEvents);
+      net->send((void *)game->outgoingEvents, messageSize(game->outgoingEvents->numAgentEvents));
+      free(game->outgoingEvents);
+      game->readyToSend = false;
+    }
+    if (game->readyToReceive) {
+      game->receiveEvents(game->incomingEvents);
+      free(game->incomingEvents);
+      game->readyToReceive = false;
+      game->update();
+    }
+    game->checkSpawnersDestroyed(net);
+    pthread_mutex_unlock(&game->threadLock);
+  }
+  delete net;
+  return NULL;
+}
+
+int Game::messageSize(int n) {
+  return (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * n);
 }
 
 MapUnit* Game::mapUnitAt(int x, int y) {
@@ -825,7 +858,7 @@ AgentID Game::getNewAgentID() {
   return newAgentID++;
 }
 
-void Game::checkSpawnersDestroyed() {
+void Game::checkSpawnersDestroyed(NetHandler *net) {
   auto ssit = subspawnerList.begin();
   while (ssit != subspawnerList.end()) {
     if ((*ssit)->isDestroyed()) {
@@ -838,7 +871,6 @@ void Game::checkSpawnersDestroyed() {
   }
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     if (it->second->isDestroyed()) {
-      context = GAME_CONTEXT_DONE;
       std::string reason;
       switch (it->first) {
       case SPAWNER_ID_GREEN:
@@ -849,6 +881,7 @@ void Game::checkSpawnersDestroyed() {
 	break;
       }
       net->closeConnection(reason.c_str());
+      context = GAME_CONTEXT_DONE;
     }
   }
 }
@@ -859,27 +892,15 @@ void Game::resign()  {
 
 void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
-
-#ifdef __EMSCRIPTEN__
-
-  receiveEvents(events);
-  checkSpawnersDestroyed();
-  if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) update();
-
-#else
-
-  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * events->numAgentEvents);
-  queuedEvents = (Events*)malloc(messageSize);
-  memcpy((void*)queuedEvents, (const void*)data, messageSize);
-  
-#endif
-  
+  int s = messageSize(events->numAgentEvents);
+  incomingEvents = (Events*)malloc(s);
+  memcpy((void*)incomingEvents, (const void*)data, s);
+  readyToReceive = true;
 }
 
 /* Update errythang */
 void Game::update() {
-  int messageSize = (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) + sizeof(int) + (sizeof(AgentEvent) * numPlayerAgents);
-  Events *events = (Events*)malloc(messageSize);
+  outgoingEvents = (Events*)malloc(messageSize(numPlayerAgents));
   zapCounter = (zapCounter + 1) % ZAP_CLEAR_TIME;
   if (zapCounter == 0) towerZaps.clear();
   for (MapUnit* u: mapUnits) {
@@ -899,32 +920,29 @@ void Game::update() {
   int i = 0;
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
     if (it->second->sid == playerSpawnID) {
-      it->second->update(&events->agentEvents[i]);
+      it->second->update(&outgoingEvents->agentEvents[i]);
       i++;
     }
   }
-  for (i = 0; i < MAX_TOWERS; i++) events->towerEvents[i].destroyed = false;
+  for (i = 0; i < MAX_TOWERS; i++) outgoingEvents->towerEvents[i].destroyed = false;
   i = 0;
   for (Tower *t : towerList) {
     if (t->sid == playerSpawnID) {
-      t->update(&events->towerEvents[i]);
+      t->update(&outgoingEvents->towerEvents[i]);
       i++;
     }
   }
-  for (i = 0; i < MAX_SUBSPAWNERS+1; i++) events->spawnEvents[i].created = false;
+  for (i = 0; i < MAX_SUBSPAWNERS+1; i++) outgoingEvents->spawnEvents[i].created = false;
   i = 1;
   for (Subspawner *s: subspawnerList) {
     if (s->sid == playerSpawnID) {
-      s->update(&events->spawnEvents[i]);
+      s->update(&outgoingEvents->spawnEvents[i]);
       i++;
     }
   }
-  spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
-  events->numAgentEvents = numPlayerAgents;
-  receiveEvents(events);
-  net->send((void *)events, messageSize);
-  checkSpawnersDestroyed();
-  free(events);
+  spawnerDict[playerSpawnID]->update(&outgoingEvents->spawnEvents[0]);
+  outgoingEvents->numAgentEvents = numPlayerAgents;
+  readyToSend = true;
 }
 
 void Game::handleSDLEvent(SDL_Event *e) {
@@ -1023,40 +1041,12 @@ void Game::mainLoop(void) {
   if (context == GAME_CONTEXT_CONNECTING) {
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
-    if (net->readyForGame()) {
-      context = GAME_CONTEXT_UNSELECTED;
-    }
   } else {
-
-#ifdef __EMSCRIPTEN__
-
+    pthread_mutex_lock(&threadLock);
     draw();
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-
-#else
-    
-    if (context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_EXIT) {
-      if (lock) {
-	if (queuedEvents == nullptr) {
-	  draw();
-	  SDL_Event e;
-	  if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-	} else {
-	  receiveEvents(queuedEvents);
-	  free(queuedEvents);
-	  checkSpawnersDestroyed();
-	  queuedEvents = nullptr;
-	  lock = false;
-	}
-      } else {
-	lock = true;
-	update();
-      }
-    }
-    
-#endif
-    
+    pthread_mutex_unlock(&threadLock);
   }
   disp->update();
 }
@@ -1091,7 +1081,6 @@ Game::~Game() {
   spawnerDict.clear();
   mapUnits.clear();
   delete disp;
-  delete net;
   delete menu;
   delete panel;
 }

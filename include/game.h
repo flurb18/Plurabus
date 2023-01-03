@@ -4,6 +4,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <pthread.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rect.h>
 
@@ -49,9 +50,13 @@ class Game {
 private:
   Menu *menu;
   Panel *panel;
-  NetHandler *net;
-  Events *queuedEvents;
-  bool lock;
+  char *pairString;
+  pthread_t thread;
+  pthread_mutex_t threadLock;
+  Events *incomingEvents;
+  Events *outgoingEvents;
+  bool readyToSend;
+  bool readyToReceive;
   unsigned int numPlayerAgents;
   unsigned int numPlayerTowers;
   Context context;
@@ -115,7 +120,7 @@ private:
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);
   void deleteSelectedObjective();
-  void checkSpawnersDestroyed();
+  void checkSpawnersDestroyed(NetHandler*);
   void update();
 public:
   Display* disp;
@@ -131,6 +136,8 @@ public:
   void clearPanel();
   void zoomIn();
   void zoomOut();
+  static void *net_thread(void *);
+  static int messageSize(int);
   Game(int, int, double, char*);
   ~Game();
   void mainLoop();
