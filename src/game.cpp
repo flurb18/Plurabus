@@ -1059,7 +1059,7 @@ void Game::mainLoop(void) {
     draw();
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-    pthread_mutex_unlock(&threadLocK);
+    pthread_mutex_unlock(&threadLock);
 
 #endif
     
