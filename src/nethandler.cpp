@@ -41,7 +41,7 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
 NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   pairString = new char[strlen(pstr)];
   strcpy(pairString, pstr);
-  std::string uri = "ws://10.8.0.1:31108";
+  std::string uri = "wss://10.8.0.1:31108";
   
 #ifdef __EMSCRIPTEN__
   

@@ -4,6 +4,7 @@ import asyncio
 import os
 import signal
 import websockets
+import ssl
 
 SocketQueue = []
 
@@ -109,11 +110,14 @@ async def main():
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain('/etc/ssl/certs/selfsigned3.pem')
     async with websockets.serve(
             serveFunction,
-            host="",
+            host="10.8.0.1",
             port=31108,
-            reuse_port=True
+            reuse_port=True,
+            ssl=ssl_context
     ):
         await stop
         
