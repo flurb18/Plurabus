@@ -49,6 +49,7 @@ private:
   client m_client;
   client::connection_ptr con;
   websocketpp::lib::shared_ptr<websocketpp::lib::thread> m_thread;
+  pthread_t clientThread;
   websocketpp::connection_hdl m_hdl;
   
 #endif
@@ -62,6 +63,7 @@ public:
   void on_fail(client*, websocketpp::connection_hdl);
   void on_message(client*, websocketpp::connection_hdl, client::message_ptr);
   void on_close(client*, websocketpp::connection_hdl);
+  static void *client_thread(void *);
 
 #endif
 

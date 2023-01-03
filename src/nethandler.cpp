@@ -39,8 +39,6 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
 #else
 
 context_ptr on_tls_init() {
-  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);
-  /*
     // establishes a SSL connection
     context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
 
@@ -52,7 +50,7 @@ context_ptr on_tls_init() {
     } catch (std::exception &e) {
         std::cout << "Error in context pointer: " << e.what() << std::endl;
     }
-    return ctx;*/
+    return ctx;
 }
 
 #endif
@@ -113,8 +111,7 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 				  _1));
   
   m_client.connect(con);
-  m_client.start_perpetual();
-  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
+  pthread_create(&clientThread, NULL, &NetHandler::client_thread, this);
   
 #endif
 
@@ -140,6 +137,12 @@ void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, client::
 
 void NetHandler::on_close(client *c, websocketpp::connection_hdl hdl) {
   notifyClosed(con->get_remote_close_reason().c_str());
+}
+
+void *NetHandler::client_thread(void *n) {
+  NetHandler *net = (NetHandler*)n;
+  net->m_client.run();
+  return NULL;
 }
 
 #endif
@@ -232,9 +235,7 @@ void NetHandler::closeConnection(const char *reason) {
 
 #else
 
-  m_client.stop_perpetual();
   m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
-  m_thread->join();
 
 #endif
 
