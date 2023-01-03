@@ -1,6 +1,6 @@
 CC=g++
-FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_
-LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread -lboost_random -lpthread
+FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_ -pthread
+LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread -lboost_random -lssl -lcrypto
 EXECNAME=hivemind
 
 WEBCC=/usr/lib/emsdk/upstream/emscripten/emcc
