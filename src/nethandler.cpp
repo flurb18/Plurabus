@@ -36,6 +36,23 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
   return EM_TRUE;
 }
 
+#else
+
+context_ptr on_tls_init() {
+    // establishes a SSL connection
+    context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
+
+    try {
+        ctx->set_options(boost::asio::ssl::context::default_workarounds |
+                         boost::asio::ssl::context::no_sslv2 |
+                         boost::asio::ssl::context::no_sslv3 |
+                         boost::asio::ssl::context::single_dh_use);
+    } catch (std::exception &e) {
+        std::cout << "Error in context pointer: " << e.what() << std::endl;
+    }
+    return ctx;
+}
+
 #endif
 
 NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
@@ -59,15 +76,13 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   emscripten_websocket_set_onclose_callback(sock, this, onClose);
 
 #else
-
+  
   m_client.clear_access_channels(websocketpp::log::alevel::all);
   m_client.clear_error_channels(websocketpp::log::elevel::all);
 
   m_client.init_asio();
-  m_client.start_perpetual();
+  m_client.set_tls_init_handler(bind(&on_tls_init));
  
-  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
-  
   websocketpp::lib::error_code ec;
   con = m_client.get_connection(uri, ec);
   m_hdl = con->get_handle();
@@ -75,9 +90,6 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
     printf("Initial connection error");
   }
   NetHandler::ptr metadata_ptr(this);
-  using websocketpp::lib::placeholders::_1;
-  using websocketpp::lib::placeholders::_2;
-  using websocketpp::lib::bind; 
   con->set_open_handler(bind(&NetHandler::on_open,
 				 metadata_ptr,
 				 &m_client,
@@ -97,7 +109,9 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 				  _1));
   
   m_client.connect(con);
-
+  m_client.start_perpetual();
+  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
+  
 #endif
 
 }

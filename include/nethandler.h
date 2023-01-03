@@ -7,13 +7,14 @@
 
 #else
 
-#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
-#include <string>
-#include <map>
 
-//typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
-typedef websocketpp::client<websocketpp::config::asio_client> client;
+typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
+typedef std::shared_ptr<boost::asio::ssl::context> context_ptr;
+using websocketpp::lib::placeholders::_1;
+using websocketpp::lib::placeholders::_2;
+using websocketpp::lib::bind;
 
 #endif
 
