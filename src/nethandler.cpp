@@ -86,10 +86,6 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 
   m_client.init_asio();
   m_client.set_tls_init_handler(bind(&on_tls_init));
-
-  
-  m_client.start_perpetual();
-  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
   
   websocketpp::lib::error_code ec;
   con = m_client.get_connection(uri, ec);
@@ -117,6 +113,8 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 				  _1));
   
   m_client.connect(con);
+  m_client.start_perpetual();
+  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
   
 #endif
 
