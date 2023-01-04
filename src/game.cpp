@@ -28,6 +28,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   pairString(pstr),
   readyToSend(false),
   readyToReceive(false),
+  eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
   numPlayerAgents(0),
   numPlayerTowers(0),
   context(GAME_CONTEXT_CONNECTING),
@@ -43,7 +44,8 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   newAgentID(1),
   outside(this),
   selectedObjective(nullptr) {
-
+  
+  eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
   /* mapUnits is a vector */
   mapUnits.reserve(gameSize * gameSize);
@@ -102,15 +104,14 @@ void *Game::net_thread(void *g) {
   if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
   while (game->context != GAME_CONTEXT_DONE) {
     pthread_mutex_lock(&game->threadLock);
+    Events *events = (Events*)game->eventsBuffer;
     if (game->readyToSend) {
-      game->receiveEvents(game->outgoingEvents);
-      net->send((void *)game->outgoingEvents, messageSize(game->outgoingEvents->numAgentEvents));
-      free(game->outgoingEvents);
+      game->receiveEvents(events);
+      net->send(game->eventsBuffer, messageSize(events->numAgentEvents));
       game->readyToSend = false;
     }
     if (game->readyToReceive) {
-      game->receiveEvents(game->incomingEvents);
-      free(game->incomingEvents);
+      game->receiveEvents(events);
       game->readyToReceive = false;
       game->update();
     }
@@ -891,17 +892,26 @@ void Game::resign()  {
 
 }
 
+void Game::sizeEventsBuffer(int s) {
+  bool resize = (s > eventsBufferCapacity);
+  while (s > eventsBufferCapacity) eventsBufferCapacity *= 2;
+  if (resize) {
+    free(eventsBuffer);
+    eventsBuffer = malloc(messageSize(eventsBufferCapacity));
+  }
+}
+
 void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
-  int s = messageSize(events->numAgentEvents);
-  incomingEvents = (Events*)malloc(s);
-  memcpy((void*)incomingEvents, (const void*)data, s);
+  sizeEventsBuffer(events->numAgentEvents);
+  memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
   readyToReceive = true;
 }
 
 /* Update errythang */
 void Game::update() {
-  outgoingEvents = (Events*)malloc(messageSize(numPlayerAgents));
+  sizeEventsBuffer(numPlayerAgents);
+  Events *events = (Events*)eventsBuffer;
   zapCounter = (zapCounter + 1) % ZAP_CLEAR_TIME;
   if (zapCounter == 0) towerZaps.clear();
   for (MapUnit* u: mapUnits) {
@@ -921,28 +931,28 @@ void Game::update() {
   int i = 0;
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
     if (it->second->sid == playerSpawnID) {
-      it->second->update(&outgoingEvents->agentEvents[i]);
+      it->second->update(&events->agentEvents[i]);
       i++;
     }
   }
-  for (i = 0; i < MAX_TOWERS; i++) outgoingEvents->towerEvents[i].destroyed = false;
+  for (i = 0; i < MAX_TOWERS; i++) events->towerEvents[i].destroyed = false;
   i = 0;
   for (Tower *t : towerList) {
     if (t->sid == playerSpawnID) {
-      t->update(&outgoingEvents->towerEvents[i]);
+      t->update(&events->towerEvents[i]);
       i++;
     }
   }
-  for (i = 0; i < MAX_SUBSPAWNERS+1; i++) outgoingEvents->spawnEvents[i].created = false;
+  for (i = 0; i < MAX_SUBSPAWNERS+1; i++) events->spawnEvents[i].created = false;
   i = 1;
   for (Subspawner *s: subspawnerList) {
     if (s->sid == playerSpawnID) {
-      s->update(&outgoingEvents->spawnEvents[i]);
+      s->update(&events->spawnEvents[i]);
       i++;
     }
   }
-  spawnerDict[playerSpawnID]->update(&outgoingEvents->spawnEvents[0]);
-  outgoingEvents->numAgentEvents = numPlayerAgents;
+  spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
+  events->numAgentEvents = numPlayerAgents;
   readyToSend = true;
 }
 
@@ -1084,4 +1094,5 @@ Game::~Game() {
   delete disp;
   delete menu;
   delete panel;
+  free(eventsBuffer);
 }

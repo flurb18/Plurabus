@@ -25,6 +25,7 @@ const int SUBSPAWNER_UNIT_COST = 10;
 const int SUBSPAWNER_UPDATE_TIME = 10;
 const int ZAP_CLEAR_TIME = 10;
 const int ZAP_EFFECTS_SUBDIVISION = 20;
+const int INIT_EVENT_BUFFER_SIZE = 16;
 extern const char *TITLE;
 
 #endif

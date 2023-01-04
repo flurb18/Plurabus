@@ -53,10 +53,10 @@ private:
   char *pairString;
   pthread_t netThread;
   pthread_mutex_t threadLock;
-  Events *incomingEvents;
-  Events *outgoingEvents;
+  void *eventsBuffer;
   bool readyToSend;
   bool readyToReceive;
+  unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
   unsigned int numPlayerTowers;
   Context context;
@@ -114,6 +114,7 @@ private:
   void setTeamDrawColor(SpawnerID);
   void draw();
   void handleSDLEvent(SDL_Event*);
+  void sizeEventsBuffer(int);
   void receiveData(void*, int);
   void receiveEvents(Events*);
   void receiveAgentEvent(AgentEvent*);
