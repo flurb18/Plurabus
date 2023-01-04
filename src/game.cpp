@@ -91,7 +91,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
   pthread_mutex_init(&threadLock, NULL);
-  pthread_create(&thread, NULL, &Game::net_thread, this);
+  pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
 void *Game::net_thread(void *g) {
@@ -1043,26 +1043,11 @@ void Game::mainLoop(void) {
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
   } else {
-
-#ifdef __EMSCRIPTEN__
-    
-    if (pthread_mutex_trylock(&threadLock) == 0) {
-      draw();
-      SDL_Event e;
-      if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-      pthread_mutex_unlock(&threadLock);
-    }
-
-#else
-
     pthread_mutex_lock(&threadLock);
     draw();
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-    pthread_mutex_unlock(&threadLock);
-
-#endif
-    
+    pthread_mutex_unlock(&threadLock);    
   }
   disp->update();
 }

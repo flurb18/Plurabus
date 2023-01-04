@@ -51,7 +51,7 @@ private:
   Menu *menu;
   Panel *panel;
   char *pairString;
-  pthread_t thread;
+  pthread_t netThread;
   pthread_mutex_t threadLock;
   Events *incomingEvents;
   Events *outgoingEvents;
