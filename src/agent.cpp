@@ -111,12 +111,9 @@ void Agent::update(AgentEvent *aevent) {
 	  }
 	  break;
 	case UNIT_TYPE_SPAWNER:
-	  if (m->spawner->getSpawnID() != sid) {
-	    aevent->dir = dirRef[i];
-	    aevent->action = AGENT_ACTION_ATTACK;
-	    m->mark();
-	    return;
-	  }
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_ATTACK;
+	  m->mark();
 	  break;
 	case UNIT_TYPE_DOOR:
 	  if (m->door->sid != sid) {

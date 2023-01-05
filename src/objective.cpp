@@ -129,11 +129,9 @@ void Objective::update() {
 	}
 	break;
       case UNIT_TYPE_SPAWNER:
-	if (m->spawner->getSpawnID() != game->getPlayerSpawnID()) {
-	  done = false;
-	  m->objective = this;
-	  m->setEmptyNeighborScents(strength);
-	}
+	done = false;
+	m->objective = this;
+	m->setEmptyNeighborScents(strength);
 	break;
       case UNIT_TYPE_DOOR:
 	if (m->door->sid != game->getPlayerSpawnID()) {
