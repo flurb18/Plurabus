@@ -34,7 +34,7 @@ public:
   void drawRect(int, int, int, int);
   void drawRect(SDL_Rect*);
   void drawRectFilled(int, int, int, int);
-  void drawCircleFilled(int, int, int);
+  void drawCircle(int, int, int);
   void drawSurface(SDL_Surface*, int, int, int, int);
   void drawTexture(SDL_Texture*, int, int);
   void drawTexture(SDL_Texture*, int, int, int, int);
@@ -43,6 +43,7 @@ public:
   SDL_Texture *cacheTextWrapped(const char*, int);
   SDL_Texture *cacheSurface(SDL_Surface*);
   SDL_Texture *cacheImage(const char*);
+  SDL_Texture *cacheImageColored(const char*, int, int, int);
   void drawTextWrapped(const char*, int, int, int);
   void drawText(const char*, int, int);
   void sizeText(const char*, int*, int*);

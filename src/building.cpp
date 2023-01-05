@@ -117,3 +117,21 @@ bool Subspawner::canSpawnAgent(int *retx, int *rety) {
   }
 }
 
+Bomb::Bomb(Game* g, SpawnerID s, int x, int y):
+  Building(g, BUILDING_TYPE_BOMB, s, x, y, BOMB_SIZE, BOMB_SIZE, MAX_BOMB_HEALTH, 1) {
+
+  for (MapUnit::iterator it = getIterator(); it.hasNext(); it++) {
+    it->type = UNIT_TYPE_BUILDING;
+    it->building = this;
+  }
+}
+
+void Bomb::update(BombEvent* bevent) {
+  bevent->detonated = false;
+  if (hp == max_hp) ready = true;
+  if (ready) {
+    bevent->x = region.x + (TOWER_SIZE/2);
+    bevent->y = region.y + (TOWER_SIZE/2);
+    bevent->detonated = true;
+  }
+}

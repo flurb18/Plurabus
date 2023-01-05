@@ -8,7 +8,6 @@
 Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
   type(t), strength(s),  done(false), game(g), region(r) {
   switch(type) {
-    started = true;
   case OBJECTIVE_TYPE_BUILD_WALL:
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
       SDL_Rect sub = { region.x + i, region.y + i, region.w - (2*i), region.h - (2*i) };
@@ -26,6 +25,9 @@ Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
       subObjectives.emplace_front(this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub);
     }
     iter = subObjectives.begin();
+    break;
+  case OBJECTIVE_TYPE_BUILD_BOMB:
+    started = false;
     break;
   default:
     started = true;
@@ -46,16 +48,13 @@ MapUnit::iterator Objective::getIterator() {
 bool Objective::isDone() {
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    return (iter == subObjectives.end());
-  case OBJECTIVE_TYPE_BUILD_WALL_SUB:
-    return done;
-  case OBJECTIVE_TYPE_BUILD_DOOR:
-    return done;
-  case OBJECTIVE_TYPE_BUILD_TOWER:
-    return done;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
     return (iter == subObjectives.end());
+  case OBJECTIVE_TYPE_BUILD_WALL_SUB:
+  case OBJECTIVE_TYPE_BUILD_DOOR:
+  case OBJECTIVE_TYPE_BUILD_TOWER:
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB:
+  case OBJECTIVE_TYPE_BUILD_BOMB:
     return done;
   default:
     return false;
@@ -186,6 +185,28 @@ void Objective::update() {
     }
     break;
   case OBJECTIVE_TYPE_BUILD_TOWER:
+    done = true;
+    empty = false;
+    for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
+      if (empty) {
+	m->setScent(0);
+      }
+      if (m->building == nullptr && !empty) {
+	empty = true;
+	done = false;
+	m->objective = this;
+	m->setScent(strength);
+      }
+      if (!empty) {
+	if (m->building->hp < m->building->max_hp) {
+	  m->objective = this;
+	  m->setEmptyNeighborScents(strength);
+	  done = false;
+	}
+      }
+    }
+    break;
+  case OBJECTIVE_TYPE_BUILD_BOMB:
     done = true;
     empty = false;
     for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {

@@ -66,6 +66,16 @@ void Agent::update(AgentEvent *aevent) {
 	  return;
 	}
 	break;
+      case OBJECTIVE_TYPE_BUILD_BOMB:
+	if (m->objective->regionIsEmpty() || (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid)) {
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_BUILDBOMB;
+	  for (MapUnit::iterator it = m->objective->getIterator(); it.hasNext(); it++) {
+	    it->mark();
+	  }
+	  return;
+	}
+	break;
       case OBJECTIVE_TYPE_BUILD_DOOR:
 	switch(m->type) {
 	case UNIT_TYPE_WALL:

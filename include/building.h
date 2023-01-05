@@ -8,7 +8,8 @@
 
 typedef enum BuildingType {
   BUILDING_TYPE_TOWER,
-  BUILDING_TYPE_SUBSPAWNER
+  BUILDING_TYPE_SUBSPAWNER,
+  BUILDING_TYPE_BOMB
 } BuildingType;
 
 class Game;
@@ -50,6 +51,14 @@ private:
 public:
   Subspawner(Game*, SpawnerID, int, int);
   void update(SpawnerEvent*);
+};
+
+class Bomb: public Building {
+  friend class Game;
+private:
+public:
+  Bomb(Game*, SpawnerID, int, int);
+  void update(BombEvent*);
 };
 
 #endif

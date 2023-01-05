@@ -37,8 +37,12 @@ typedef struct MarkedCoord {
 } MarkedCoord;
 
 typedef struct TowerZap {
-  int x1, y1, x2, y2;
+  int x1, y1, x2, y2, counter;
 } TowerZap;
+
+typedef struct BombEffect {
+  int x, y, counter;
+} BombEffect;
 
 class Game {
   friend class NetHandler;
@@ -58,7 +62,6 @@ private:
   bool readyToReceive;
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
-  unsigned int numPlayerTowers;
   Context context;
   double initScale;
   double scale;
@@ -71,15 +74,19 @@ private:
   int zapCounter;
   SDL_Rect selection;
   SDL_Rect view;
+  SDL_Texture* bombTextureGreen;
+  SDL_Texture* bombTextureRed;
   std::map<ObjectiveType, SDL_Texture*> objectiveInfoTextures;
   std::vector<MapUnit*> mapUnits;
-  std::vector<MarkedCoord> markedCoords;
-  std::vector<TowerZap> towerZaps;
+  std::deque<MarkedCoord> markedCoords;
+  std::deque<TowerZap> towerZaps;
+  std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
   std::map<SpawnerID, Spawner*> spawnerDict;
   std::deque<Tower*> towerList;
   std::deque<Subspawner*> subspawnerList;
+  std::deque<Bomb*> bombList;
   SpawnerID playerSpawnID;
   AgentID newAgentID;
   BuildingType placingType;
@@ -91,6 +98,7 @@ private:
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
   bool potentialSelectionCollidesWithTower(int, int, int, int);
   bool potentialSelectionCollidesWithSpawner(int, int, int, int);
+  bool potentialSelectionCollidesWithBomb(int, int, int, int);
   void mouseMoved(int, int);
   void leftMouseDown(int, int);
   void leftMouseUp(int, int);
@@ -108,6 +116,7 @@ private:
   void goTo();
   void placeTower();
   void placeSubspawner();
+  void placeBomb();
   void setObjective(ObjectiveType);
   void clearScent();
   void resign();
@@ -120,6 +129,7 @@ private:
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);
+  void receiveBombEvent(BombEvent*);
   void deleteSelectedObjective();
   void checkSpawnersDestroyed(NetHandler*);
   void update();

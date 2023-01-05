@@ -140,7 +140,7 @@ void Display::drawRectFilled(int x, int y, int w, int h) {
 }
 
 /* Midpoint Circle Algorithm */
-void Display::drawCircleFilled(int x, int y, int r) {
+void Display::drawCircle(int x, int y, int r) {
   int diam = 2*r;
   int i = r-1;
   int j = 0;
@@ -182,6 +182,41 @@ SDL_Texture *Display::cacheSurface(SDL_Surface *surface) {
 
 SDL_Texture *Display::cacheImage(const char *file) {
   SDL_Surface *surface = IMG_Load(file);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
+  SDL_FreeSurface(surface);
+  return texture;
+}
+
+// changes white in file to specified color
+SDL_Texture *Display::cacheImageColored(const char* file, int r, int g, int b) {
+  SDL_Surface *surface = IMG_Load(file);
+  SDL_PixelFormat *fmt = surface->format;
+  int bpp = fmt->BytesPerPixel;
+  switch (bpp) {
+  case 1:
+    for (int i = 0; i < surface->w * surface->h; i++) {
+      Uint8 *pixptr = (Uint8*)surface->pixels;
+      if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
+        pixptr[i] = SDL_MapRGB(fmt, r, g, b);
+    }
+    break;
+  case 2:
+    for (int i = 0; i < surface->w * surface->h; i++) {
+      Uint16 *pixptr = (Uint16*)surface->pixels;
+      if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
+        pixptr[i] = SDL_MapRGB(fmt, r, g, b);
+    }
+    break;
+  case 4:
+    for (int i = 0; i < surface->w * surface->h; i++) {
+      Uint32 *pixptr = (Uint32*)surface->pixels;
+      if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
+        pixptr[i] = SDL_MapRGB(fmt, r, g, b);
+    }
+    break;
+  default:
+    break;
+  }
   SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_FreeSurface(surface);
   return texture;
