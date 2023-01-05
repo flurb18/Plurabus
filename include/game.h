@@ -88,6 +88,7 @@ private:
   std::deque<Subspawner*> subspawnerList;
   std::deque<Bomb*> bombList;
   SpawnerID playerSpawnID;
+  SpawnerID winnerSpawnID;
   AgentID newAgentID;
   BuildingType placingType;
   MapUnit outside;
@@ -131,7 +132,7 @@ private:
   void receiveSpawnerEvent(SpawnerEvent*);
   void receiveBombEvent(BombEvent*);
   void deleteSelectedObjective();
-  void checkSpawnersDestroyed(NetHandler*);
+  void checkSpawnersDestroyed();
   void update();
 public:
   Display* disp;

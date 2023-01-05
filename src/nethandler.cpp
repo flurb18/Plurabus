@@ -238,7 +238,7 @@ void NetHandler::closeConnection(const char *reason) {
   m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
 
 #endif
-
+  game->context = GAME_CONTEXT_DONE;
   ncon = NET_CONTEXT_CLOSED;
 }
 
@@ -254,6 +254,7 @@ void NetHandler::notifyClosed(const char *reason) {
     game->panel->addText("Connection closed - unspecified reason");
   }
   ncon = NET_CONTEXT_CLOSED;
+  game->context = GAME_CONTEXT_DONE;
 }
 
 bool NetHandler::readyForGame() {
@@ -270,5 +271,6 @@ NetHandler::~NetHandler() {
   
 #endif
 
+  pthread_mutex_destroy(&netLock);
 }
 

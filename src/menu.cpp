@@ -88,6 +88,7 @@ Menu::Menu(Game *g): game(g) {
   barsSubMenu.strings.push_back("Door");
   barsSubMenu.strings.push_back("Tower");
   barsSubMenu.strings.push_back("Subspawner");
+  barsSubMenu.strings.push_back("Bomb");
   barsSubMenu.strings.push_back("Go To");
   barsSubMenu.strings.push_back("Attack");
   barsSubMenu.strings.push_back("Clear Scent");
@@ -95,6 +96,7 @@ Menu::Menu(Game *g): game(g) {
   barsSubMenu.funcs.push_back(&Game::buildDoor);
   barsSubMenu.funcs.push_back(&Game::placeTower);
   barsSubMenu.funcs.push_back(&Game::placeSubspawner);
+  barsSubMenu.funcs.push_back(&Game::placeBomb);
   barsSubMenu.funcs.push_back(&Game::goTo);
   barsSubMenu.funcs.push_back(&Game::attack);
   barsSubMenu.funcs.push_back(&Game::clearScent);

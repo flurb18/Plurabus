@@ -104,7 +104,8 @@ void *Game::net_thread(void *g) {
   pthread_mutex_lock(&net->netLock);
   game->context = GAME_CONTEXT_UNSELECTED;
   if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
-  while (game->context != GAME_CONTEXT_DONE) {
+  bool done = false;
+  while (!done) {
     pthread_mutex_lock(&game->threadLock);
     Events *events = (Events*)game->eventsBuffer;
     if (game->readyToSend) {
@@ -117,9 +118,20 @@ void *Game::net_thread(void *g) {
       game->readyToReceive = false;
       game->update();
     }
-    game->checkSpawnersDestroyed(net);
+    game->checkSpawnersDestroyed();
+    done = (game->context == GAME_CONTEXT_DONE);
     pthread_mutex_unlock(&game->threadLock);
   }
+  std::string winText;
+  switch (game->winnerSpawnID) {
+  case SPAWNER_ID_RED:
+    winText = "RED team wins!";
+    break;
+  case SPAWNER_ID_GREEN:
+    winText = "GREEN team wins!";
+    break;
+  }
+  net->closeConnection(winText.c_str());
   pthread_mutex_unlock(&net->netLock);
   delete net;
   return NULL;
@@ -955,7 +967,11 @@ void Game::receiveBombEvent(BombEvent *bevent) {
   if (bevent->detonated) {
     BombEffect be = {bevent->x, bevent->y, 0};
     bombEffects.push_back(be);
-    MapUnit *first = mapUnitAt(bevent->x - BOMB_AOE_RADIUS, bevent->y - BOMB_AOE_RADIUS);
+    int startx = bevent->x - BOMB_AOE_RADIUS;
+    int starty = bevent->y - BOMB_AOE_RADIUS;
+    if (startx < 0) startx = 0;
+    if (starty < 0) starty = 0;
+    MapUnit *first = mapUnitAt(startx, starty);
     for (MapUnit::iterator m = first->getIterator(BOMB_AOE_RADIUS * 2, BOMB_AOE_RADIUS * 2);
 	 m.hasNext(); m++) {
       int dx = m->x - bevent->x;
@@ -1044,7 +1060,7 @@ AgentID Game::getNewAgentID() {
   return newAgentID++;
 }
 
-void Game::checkSpawnersDestroyed(NetHandler *net) {
+void Game::checkSpawnersDestroyed() {
   auto ssit = subspawnerList.begin();
   while (ssit != subspawnerList.end()) {
     if ((*ssit)->isDestroyed()) {
@@ -1057,16 +1073,14 @@ void Game::checkSpawnersDestroyed(NetHandler *net) {
   }
   for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
     if (it->second->isDestroyed()) {
-      std::string reason;
       switch (it->first) {
       case SPAWNER_ID_GREEN:
-	reason = "RED team wins!";
+        winnerSpawnID = SPAWNER_ID_RED;
 	break;
       case SPAWNER_ID_RED:
-	reason = "GREEN team wins!";
+	winnerSpawnID = SPAWNER_ID_GREEN;
 	break;
       }
-      net->closeConnection(reason.c_str());
       context = GAME_CONTEXT_DONE;
     }
   }
@@ -1274,6 +1288,10 @@ void Game::mainLoop(void) {
 }
 
 Game::~Game() {
+  if (context != GAME_CONTEXT_EXIT && context != GAME_CONTEXT_DONE) {
+    context = GAME_CONTEXT_DONE;
+    pthread_join(netThread, NULL);
+  }
   /* Reset inter-mapunit links, so we don't have bad pointer segfaults on deletion */
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
@@ -1311,4 +1329,5 @@ Game::~Game() {
   delete menu;
   delete panel;
   free(eventsBuffer);
+  pthread_mutex_destroy(&threadLock);
 }
