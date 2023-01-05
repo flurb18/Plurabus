@@ -1080,6 +1080,8 @@ void Game::checkSpawnersDestroyed() {
 	winnerSpawnID = SPAWNER_ID_GREEN;
 	break;
       }
+      towerZaps.clear();
+      bombEffects.clear();
       context = GAME_CONTEXT_DONE;
     }
   }

@@ -30,7 +30,7 @@ bool Building::canUpdate() {
 }
 
 Tower::Tower(Game *g, SpawnerID s, int x, int y):
-  Building(g, BUILDING_TYPE_TOWER, s, x, y, TOWER_SIZE, TOWER_SIZE, TOWER_MAX_HP, TOWER_UPDATE_TIME) {
+  Building(g, BUILDING_TYPE_TOWER, s, x, y, TOWER_SIZE, TOWER_SIZE, MAX_TOWER_HEALTH, TOWER_UPDATE_TIME) {
   for (MapUnit::iterator it = getIterator(); it.hasNext(); it++) {
     it->type = UNIT_TYPE_BUILDING;
     it->building = this;

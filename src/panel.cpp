@@ -37,9 +37,10 @@ void Panel::basicInfoText() {
     addText("Influence your agents indirectly by setting objectives for them to complete on the map.");
     addText("Select regions of the map by clicking and dragging with the mouse.");
     addText("Once a region is selected, designate that region with an objective for your agents. See 'Controls' for details.");
-    addText("You can also build towers that destroy enemy agents and subspawners.");
+    addText("You can also build towers that destroy enemy agents, subspawners that spawn continuously at a slower rate than your base spawner, and bombs which detonate and take out a large area around them.");
     addText("You can toggle viewing set objectives in the view menu, accessible by clicking on the eye icon. You can also toggle viewing scents here.");
     addText("Whenever an agent completes an objective such as attacking something or building a wall, that agent dies. Set objectives wisely - don't waste agents!");
+    addText("You cannot overlap objectives.");
     addText("Win the game by destroying your opponent's base spawner completely.");
   }
   basicInfoAdded = true;
@@ -56,18 +57,31 @@ void Panel::controlsText() {
     addText("'g'- Designate that your agents should go to the region.");
     addText("'c' - Clear all scents in the region.");
     addText("To build a tower, press 't' and then click the mouse where you want to build it. The area a tower is built on must be completely empty before construction starts.");
-    addText("Similarly press 's' and then click to build a subspawner.");
+    addText("Press 's' and then click to build a subspawner.");
+    addText("Press 'b' and then click to build a bomb.");
   }
   controlsAdded = true;
 }
 
 void Panel::costsText() {
   if (!costsAdded) {
-    addText("Building a wall takes only one agent, but destroying a wall takes 10.");
-    addText("Building and destroying doors takes 20 agents, and doors must be built on top of preexisting walls.");
-    addText("Building and destroying towers takes 100 agents.");
-    addText("Subspawners cost 250 agents to build: 10 agents for each spawn unit in a 5x5 square.");
-    addText("Spawner units only take one unit to destroy - protect them carefully.");
+    std::string wallHealth = std::to_string(MAX_WALL_HEALTH);
+    std::string doorHealth = std::to_string(MAX_DOOR_HEALTH);
+    std::string towerHealth = std::to_string(MAX_TOWER_HEALTH);
+    std::string subspawnerCost = std::to_string(SUBSPAWNER_SIZE * SUBSPAWNER_SIZE * SUBSPAWNER_UNIT_COST);
+    std::string subspawnerUnitCost = std::to_string(SUBSPAWNER_UNIT_COST);
+    std::string subspawnerSize = std::to_string(SUBSPAWNER_SIZE);
+    std::string bombHealth = std::to_string(MAX_BOMB_HEALTH);
+    std::string wallinfo = "Building a wall takes only one agent, but destroying a wall takes "+wallHealth+".";
+    std::string doorinfo = "Building and destroying doors takes "+doorHealth+" agents, and doors must be built on top of preexisting walls.";
+    std::string towerinfo = "Building and destroying towers takes "+towerHealth+" agents.";
+    std::string subspawnerinfo = "Subspawners cost "+subspawnerCost+" agents to build: "+subspawnerUnitCost+" agents for each spawn unit in a square with side length "+subspawnerSize+". Spawner units only take one unit to destroy - protect them carefully.";
+    std::string bombinfo = "Bombs take "+bombHealth+" units to activate.";
+    addText(wallinfo.c_str());
+    addText(doorinfo.c_str());
+    addText(towerinfo.c_str());
+    addText(subspawnerinfo.c_str());
+    addText(bombinfo.c_str());
   }
   costsAdded = true;
 }
