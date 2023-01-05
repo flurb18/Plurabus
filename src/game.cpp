@@ -202,8 +202,14 @@ bool Game::rectCollidesOneWay(int x1, int y1, int w1, int h1, int x2, int y2, in
 }
 
 bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
-  return (rectCollidesOneWay(r1.x, r1.y, r1.w, r1.h, r2.x, r2.y, r2.w, r2.h) ||
-	  rectCollidesOneWay(r2.x, r2.y, r2.w, r2.h, r1.x, r1.y, r1.w, r1.h));
+  //  return (rectCollidesOneWay(r1.x, r1.y, r1.w, r1.h, r2.x, r2.y, r2.w, r2.h) ||
+  //	  rectCollidesOneWay(r2.x, r2.y, r2.w, r2.h, r1.x, r1.y, r1.w, r1.h));
+  return (
+	  r1.x < r2.x + r2.w &&
+	  r1.x + r1.w > r2.x &&
+	  r1.y < r2.y + r2.h &&
+	  r1.y + r1.h > r2.y
+	  );
 }
 
 bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
@@ -547,26 +553,19 @@ void Game::setObjective(ObjectiveType oType) {
 void Game::deleteSelectedObjective() {
   if (menu->getIfObjectivesShown()) {
     if (selectedObjective) {
-      if ((selectedObjective->type != OBJECTIVE_TYPE_BUILD_TOWER &&
-	   selectedObjective->type != OBJECTIVE_TYPE_BUILD_BOMB &&
-	   selectedObjective->type != OBJECTIVE_TYPE_BUILD_SUBSPAWNER) ||
-	  selectedObjective->started == false) { 
-	for (auto it = objectives.begin(); it != objectives.end(); it++) {
-	  if (*it == selectedObjective) {
-	    objectives.erase(it);
-	    break;
-	  }
+      for (auto it = objectives.begin(); it != objectives.end(); it++) {
+	if (*it == selectedObjective) {
+	  objectives.erase(it);
+	  break;
 	}
-	MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
-	for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
-	     it.hasNext(); it++) {
-	  it->objective = nullptr;
-	}
-	delete selectedObjective;
-	selectedObjective = nullptr;
-      } else {
-	panel->addText("You cannot cancel a building that has begun construction.");
       }
+      MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
+      for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
+	   it.hasNext(); it++) {
+	it->objective = nullptr;
+      }
+      delete selectedObjective;
+      selectedObjective = nullptr;
     }
   }
 }

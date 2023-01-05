@@ -127,12 +127,10 @@ void Agent::update(AgentEvent *aevent) {
 	  }
 	  break;
 	case UNIT_TYPE_BUILDING:
-	  if(m->building->sid != sid) {
-	    aevent->dir = dirRef[i];
-	    aevent->action = AGENT_ACTION_ATTACK;
-	    m->mark();
-	    return;
-	  }
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_ATTACK;
+	  m->mark();
+	  return;
 	  break;
 	default:
 	  break;

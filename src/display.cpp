@@ -44,7 +44,7 @@ Display::Display(int gameSize, int mSize, int pSize, int fontSize) :
   }
   render = SDL_CreateRenderer(window, -1, 0);
   //fontFile = "/usr/share/fonts/TTF/DejaVuSansMono.ttf";
-  fontFile = "assets/Roboto-Regular.ttf";
+  fontFile = "assets/NotoSansMono-Regular.ttf";
   font = TTF_OpenFont(fontFile, fontSize);
   if (font == nullptr) {
     std::cerr << "Font could not be loaded!\n";

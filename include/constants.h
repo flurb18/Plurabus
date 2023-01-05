@@ -27,7 +27,7 @@ const int ZAP_EFFECTS_SUBDIVISION = 20;
 const int INIT_EVENT_BUFFER_SIZE = 16;
 const int MAX_BOMBS = 1;
 const int MAX_BOMB_HEALTH = 200;
-const int BOMB_AOE_RADIUS = 20;
+const int BOMB_AOE_RADIUS = 16;
 const int BOMB_SIZE = 5;
 const int BOMB_CLEAR_TIME = 3;
 extern const char *TITLE;
