@@ -907,7 +907,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 		destuptr->y >= t->region.y &&
 		destuptr->y <= t->region.y + t->region.h - 1) {
 	      it = towerList.erase(it);
-	      delete build;
+	      delete t;
 	      break;
 	    }
 	  }
@@ -920,7 +920,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 		destuptr->y >= b->region.y &&
 		destuptr->y <= b->region.y + b->region.h - 1) {
 	      it = bombList.erase(it);
-	      delete build;
+	      delete b;
 	      break;
 	    }
 	  }

@@ -148,11 +148,9 @@ void Objective::update() {
 	m->setEmptyNeighborScents(strength);
 	break;
       case UNIT_TYPE_BUILDING:
-	if (m->building->sid != game->getPlayerSpawnID()) {
-	  done = false;
-	  m->objective = this;
-	  m->setEmptyNeighborScents(strength);
-	}
+	done = false;
+	m->objective = this;
+	m->setEmptyNeighborScents(strength);
 	break;
       default:
 	break;
