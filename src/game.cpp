@@ -117,6 +117,7 @@ void *Game::net_thread(void *g) {
       game->receiveEvents(events);
       game->readyToReceive = false;
       game->update();
+      emscripten_sleep(40);
     }
     game->checkSpawnersDestroyed();
     done = (game->context == GAME_CONTEXT_DONE);
@@ -133,7 +134,6 @@ void *Game::net_thread(void *g) {
   }
   net->closeConnection(winText.c_str());
   pthread_mutex_unlock(&net->netLock);
-  delete net;
   return NULL;
 }
 
@@ -537,10 +537,15 @@ void Game::placeBomb() {
 }
 
 void Game::setObjective(ObjectiveType oType) {
-  bool placingOverride = (context == GAME_CONTEXT_PLACING &&
-		   (oType == OBJECTIVE_TYPE_BUILD_TOWER ||
-		    oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER ||
-		    oType == OBJECTIVE_TYPE_BUILD_BOMB));
+  bool placingOverride = false;
+  if (context == GAME_CONTEXT_PLACING) {
+    if (oType == OBJECTIVE_TYPE_BUILD_TOWER && selection.w == TOWER_SIZE && selection.h == TOWER_SIZE)
+      placingOverride = true;
+    if (oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && selection.w == SUBSPAWNER_SIZE && selection.h == SUBSPAWNER_SIZE)
+      placingOverride = true;
+    if (oType == OBJECTIVE_TYPE_BUILD_BOMB && selection.w == BOMB_SIZE && selection.h == BOMB_SIZE)
+      placingOverride = true;
+  }
   if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_SELECTING || placingOverride) {
     Objective *o = new Objective(oType, 255, this, selection);
     objectives.push_back(o);
@@ -727,12 +732,42 @@ void Game::draw() {
     int selectionScaledY = scaleInt(selection.y - view.y);
     disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
   }
+  if (context == GAME_CONTEXT_PLACING) {
+    ObjectiveType oType;
+    switch (placingType) {
+    case BUILDING_TYPE_TOWER:
+      oType = OBJECTIVE_TYPE_BUILD_TOWER;
+      break;
+    case BUILDING_TYPE_SUBSPAWNER:
+      oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
+      break;
+    case BUILDING_TYPE_BOMB:
+      oType = OBJECTIVE_TYPE_BUILD_BOMB;
+      break;
+    }
+    SDL_Texture *texture = objectiveInfoTextures[oType];
+    int objectiveInfoWidth;
+    int objectiveInfoHeight;
+    SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
+    int x = mouseX + 20;
+    int y = mouseY + 10;
+    if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
+    if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
+    disp->setDrawColorWhite();
+    disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+    disp->drawTexture(texture, x, y);
+  }
   if (menu->getIfObjectivesShown()) {
     for (Objective *o: objectives) {
-      disp->setDrawColor(100,100,100);
+      disp->setDrawColor(255,255,0);
       int scaledX = scaleInt(o->region.x - view.x);
       int scaledY = scaleInt(o->region.y - view.y);
-      disp->drawRect(scaledX, scaledY, scaleInt(o->region.w), scaleInt(o->region.h));
+      int scaledW = scaleInt(o->region.w);
+      int scaledH = scaleInt(o->region.h);
+      disp->drawRect(scaledX, scaledY, scaledW, scaledH);
+      disp->drawRect(scaledX-1, scaledY-1, scaledW+2, scaledH+2);
     }
     if (selectedObjective) {
       SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];

@@ -114,7 +114,7 @@ void Agent::update(AgentEvent *aevent) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_ATTACK;
 	  m->mark();
-	  break;
+	  return;
 	case UNIT_TYPE_DOOR:
 	  if (m->door->sid != sid) {
 	    aevent->dir = dirRef[i];
