@@ -52,6 +52,7 @@ class Game {
   friend class Menu;
   friend class Building;
   friend class Tower;
+  friend struct Objective;
 private:
   Menu *menu;
   Panel *panel;
@@ -96,7 +97,6 @@ private:
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
-  bool rectCollidesOneWay(int,int,int,int,int,int,int,int);
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
   bool potentialSelectionCollidesWithTower(int, int, int, int);

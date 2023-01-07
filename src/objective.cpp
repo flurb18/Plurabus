@@ -61,15 +61,16 @@ bool Objective::isDone() {
   }
 }
 
-bool Objective::regionIsEmpty() {
+bool Objective::regionIsReadyForBuilding() {
   for (MapUnit::iterator it = getIterator(); it.hasNext(); it++) {
-    if (it->type != UNIT_TYPE_EMPTY) return false;
+    if (!((it->type == UNIT_TYPE_EMPTY) ||
+	  (it->type == UNIT_TYPE_AGENT && it->agent->sid == game->playerSpawnID)))
+      return false;
   }
   return true;
 }
 
 void Objective::update() {
-  bool empty;
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     if (iter != subObjectives.end()) {
@@ -182,45 +183,39 @@ void Objective::update() {
     break;
   case OBJECTIVE_TYPE_BUILD_TOWER:
     done = true;
-    empty = false;
+    if (!started) {
+      MapUnit *center = game->mapUnitAt(region.x+region.w/2, region.y+region.h/2);
+      if (center->type == UNIT_TYPE_EMPTY) {
+	center->setScent(strength);
+	center->objective = this;
+      }
+      done = false;
+      break;
+    }
     for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
-      if (empty) {
-	m->setScent(0);
-      }
-      if (m->building == nullptr && !empty) {
-	empty = true;
-	done = false;
+      if (m->building->hp < m->building->max_hp) {
 	m->objective = this;
-	m->setScent(strength);
-      }
-      if (!empty) {
-	if (m->building->hp < m->building->max_hp) {
-	  m->objective = this;
-	  m->setEmptyNeighborScents(strength);
-	  done = false;
-	}
+	m->setEmptyNeighborScents(strength);
+	done = false;
       }
     }
     break;
   case OBJECTIVE_TYPE_BUILD_BOMB:
     done = true;
-    empty = false;
+    if (!started) {
+      MapUnit *center = game->mapUnitAt(region.x+region.w/2, region.y+region.h/2);
+      if (center->type == UNIT_TYPE_EMPTY) {
+	center->setScent(strength);
+	center->objective = this;
+      }
+      done = false;
+      break;
+    }
     for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
-      if (empty) {
-	m->setScent(0);
-      }
-      if (m->building == nullptr && !empty) {
-	empty = true;
-	done = false;
+      if (m->building->hp < m->building->max_hp) {
 	m->objective = this;
-	m->setScent(strength);
-      }
-      if (!empty) {
-	if (m->building->hp < m->building->max_hp) {
-	  m->objective = this;
-	  m->setEmptyNeighborScents(strength);
-	  done = false;
-	}
+	m->setEmptyNeighborScents(strength);
+	done = false;
       }
     }
     break;

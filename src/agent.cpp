@@ -57,7 +57,7 @@ void Agent::update(AgentEvent *aevent) {
 	}
 	break;
       case OBJECTIVE_TYPE_BUILD_TOWER:
-	if (m->objective->regionIsEmpty() || (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid)) {
+	if (m->type == UNIT_TYPE_EMPTY && m->objective->regionIsReadyForBuilding()) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_BUILDTOWER;
 	  for (MapUnit::iterator it = m->objective->getIterator(); it.hasNext(); it++) {
@@ -65,14 +65,26 @@ void Agent::update(AgentEvent *aevent) {
 	  }
 	  return;
 	}
+	if  (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid) {
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_BUILDTOWER;
+	  m->mark();
+	  return;
+	}
 	break;
       case OBJECTIVE_TYPE_BUILD_BOMB:
-	if (m->objective->regionIsEmpty() || (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid)) {
+	if (m->type == UNIT_TYPE_EMPTY && m->objective->regionIsReadyForBuilding()) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_BUILDBOMB;
 	  for (MapUnit::iterator it = m->objective->getIterator(); it.hasNext(); it++) {
 	    it->mark();
 	  }
+	  return;
+	}
+	if  (m->type == UNIT_TYPE_BUILDING && m->building->sid == sid) {
+	  aevent->dir = dirRef[i];
+	  aevent->action = AGENT_ACTION_BUILDBOMB;
+	  m->mark();
 	  return;
 	}
 	break;

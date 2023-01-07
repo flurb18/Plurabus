@@ -12,6 +12,7 @@ class Agent {
   friend class Game;
   friend class Building;
   friend class Tower;
+  friend struct Objective;
 private:
   AgentID id;
   SpawnerID sid;

@@ -30,6 +30,7 @@ protected:
   int max_hp;
   int updateCounter;
   int updateTime;
+  MapUnit *center;
 public:
   MapUnit::iterator getIterator();
   bool canUpdate();

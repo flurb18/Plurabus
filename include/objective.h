@@ -35,7 +35,7 @@ struct Objective {
   Objective(Objective*, ObjectiveType, int, Game*, SDL_Rect);
   MapUnit::iterator getIterator();
   bool isDone();
-  bool regionIsEmpty();
+  bool regionIsReadyForBuilding();
   void update();
   ~Objective();
 };

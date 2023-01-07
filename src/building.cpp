@@ -17,6 +17,7 @@ Building::Building(Game *g, BuildingType t, SpawnerID s, int x, int y, int w, in
   updateTime(updt) {
 
   region = { x, y, w, h };
+  center = game->mapUnitAt(x+w/2, y+h/2);
 }
 
 MapUnit::iterator Building::getIterator() {
@@ -39,13 +40,14 @@ Tower::Tower(Game *g, SpawnerID s, int x, int y):
 
 void Tower::update(TowerEvent *tevent) {
   tevent->destroyed = false;
+  if (hp > max_hp) hp = max_hp;
   if (hp == max_hp) ready = true;
   if (canUpdate()) {
     std::vector<AgentID> potentialIDs;
     for (auto it = game->agentDict.begin(); it != game->agentDict.end(); it++) {
       if (it->second->sid != sid) {
-	int dx = it->second->unit->x - (region.x + (TOWER_SIZE/2));
-	int dy = it->second->unit->y - (region.y + (TOWER_SIZE/2));
+	int dx = it->second->unit->x - center->x;
+	int dy = it->second->unit->y - center->y;
 	if ((dx*dx) + (dy*dy) < TOWER_AOE_RADIUS_SQUARED) {
 	  potentialIDs.push_back(it->first);
 	}
@@ -55,8 +57,8 @@ void Tower::update(TowerEvent *tevent) {
       tevent->destroyed = true;
       int choice = rand() % potentialIDs.size();
       tevent->id = potentialIDs.at(choice);
-      tevent->x = region.x + (TOWER_SIZE/2);
-      tevent->y = region.y + (TOWER_SIZE/2);
+      tevent->x = center->x;
+      tevent->y = center->y;
     }
   }
 }
@@ -128,10 +130,11 @@ Bomb::Bomb(Game* g, SpawnerID s, int x, int y):
 
 void Bomb::update(BombEvent* bevent) {
   bevent->detonated = false;
+  if (hp > max_hp) hp = max_hp;
   if (hp == max_hp) ready = true;
   if (ready) {
-    bevent->x = region.x + (TOWER_SIZE/2);
-    bevent->y = region.y + (TOWER_SIZE/2);
+    bevent->x = center->x;
+    bevent->y = center->y;
     bevent->detonated = true;
   }
 }

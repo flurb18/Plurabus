@@ -221,21 +221,7 @@ SpawnerID Game::getPlayerSpawnID() {
   return playerSpawnID;
 }
 
-bool Game::rectCollidesOneWay(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2) {
-  if (x1 >= x2 && x1 <= x2 + w2 - 1) {
-    if (y1 >= y2 && y1 <= y2 + h2 - 1) return true;
-    if (y1 + h1 - 1 >= y2 && y1 + h1 - 1 <= y2 + h2 - 1) return true;
-  }
-  if (x1 + w1 - 1 >= x2 && x1 + w1 - 1 <= x2 + w2 - 1) {
-    if (y1 >= y2 && y1 <= y2 + h2 - 1) return true;
-    if (y1 + h1 - 1 >= y2 && y1 + h1 - 1 <= y2 + h2 - 1) return true;
-  }
-  return false;
-}
-
 bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
-  //  return (rectCollidesOneWay(r1.x, r1.y, r1.w, r1.h, r2.x, r2.y, r2.w, r2.h) ||
-  //	  rectCollidesOneWay(r2.x, r2.y, r2.w, r2.h, r1.x, r1.y, r1.w, r1.h));
   return (
 	  r1.x < r2.x + r2.w &&
 	  r1.x + r1.w > r2.x &&
@@ -731,11 +717,27 @@ void Game::draw() {
       break;
     }
   }
+  for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
+    disp->setDrawColorWhite();
+    int x1 = scaleInt(it->x1 - view.x);
+    int y1 = scaleInt(it->y1 - view.y);
+    int x2 = scaleInt(it->x2 - view.x);
+    int y2 = scaleInt(it->y2 - view.y);
+    SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
+    for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
+      double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
+      int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
+      int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
+      if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
+	tx += (rand() % 2*(int)scale) - (int)scale;
+	ty += (rand() % 2*(int)scale) - (int)scale;
+      }
+      effectPoints[i] = { tx, ty };
+    }
+    disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
+  }
   for (Tower *t: towerList) {
     setTeamDrawColor(t->sid);
-    if (t->hp < t->max_hp) {
-      disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
-    }
     int x = scaleInt(t->region.x-view.x);
     int y = scaleInt(t->region.y-view.y);
     int s = scaleInt(TOWER_SIZE);
@@ -745,6 +747,21 @@ void Game::draw() {
     disp->drawLine(x+s-s/4, y, x+s, y+s/4);
     disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
     disp->drawLine(x+s/4, y+s, x, y+s-s/4);
+    disp->setDrawColorBlack();
+    for (int i = 1; i < s/4; i++) {
+      disp->drawCircle(x+s/2,y+s/2,i);
+    }
+    SDL_Point centerPoints[ZAP_CENTER_EFFECTS_NUM];
+    for (int i = 0; i < ZAP_CENTER_EFFECTS_NUM; i++) {
+      int tx = x + s/2 + (rand() % (s/3)) - s/6;
+      int ty = y + s/2 + (rand() % (s/3)) - s/6;
+      centerPoints[i] = { tx, ty };
+    }
+    disp->setDrawColorWhite();
+    if (t->hp < t->max_hp) {
+      disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
+    }
+    disp->drawLines(centerPoints, ZAP_CENTER_EFFECTS_NUM);
   }
   for (Bomb *b: bombList) {
     SDL_Texture *texture;
@@ -765,26 +782,7 @@ void Game::draw() {
     disp->drawRectFilled(x, y+s-rectHeight, s, rectHeight);
     disp->drawTexture(texture, x, y, s, s);
   }
-  for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
-    disp->setDrawColorWhite();
-    int x1 = scaleInt(it->x1 - view.x);
-    int y1 = scaleInt(it->y1 - view.y);
-    int x2 = scaleInt(it->x2 - view.x);
-    int y2 = scaleInt(it->y2 - view.y);
-    SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
-    for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
-      double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
-      int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
-      int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
-      if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
-	tx += (rand() % 2*(int)scale) - (int)scale;
-	ty += (rand() % 2*(int)scale) - (int)scale;
-      }
-      effectPoints[i] = { tx, ty };
-    }
-    disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
-    //      disp->drawLine(x1, y1, x2, y2);
-  }
+  
   for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
     int x = scaleInt(it->x - view.x);
     int y = scaleInt(it->y - view.y);
@@ -863,10 +861,16 @@ void Game::draw() {
 }
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
+  auto it = agentDict.find(aevent->id);
+  if (it == agentDict.end()) return;
   Agent *a = agentDict[aevent->id];
+  Agent *b;
+  int x, y, count;
+  SpawnerID s;
   Building *build;
   MapUnit *startuptr = a->unit;
   MapUnit *destuptr;
+  MapUnit *first;
   switch (aevent->dir) {
   case AGENT_DIRECTION_LEFT:
     destuptr = startuptr->left;
@@ -922,27 +926,57 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     break;
   case AGENT_ACTION_BUILDTOWER:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
-      Tower *tower = new Tower(this, a->sid, destuptr->x, destuptr->y);
-      if (a->sid == playerSpawnID)
+      x = destuptr->x - TOWER_SIZE/2;
+      y = destuptr->y - TOWER_SIZE/2;
+      first = mapUnitAt(x, y);
+      count = 0;
+      s = a->sid;
+      for (MapUnit::iterator it = first->getIterator(TOWER_SIZE, TOWER_SIZE); it.hasNext(); it++) {
+	if (it->type == UNIT_TYPE_AGENT) {
+	  b = it->agent;
+	  b->die();
+	  delete b;
+	  count++;
+	}
+      }
+      if (count > MAX_TOWER_HEALTH) count = MAX_TOWER_HEALTH;
+      Tower *tower = new Tower(this, s, x, y);
+      tower->hp = count;
+      if (s == playerSpawnID)
 	destuptr->objective->started = true;
       towerList.push_back(tower);
     } else {
       destuptr->building->hp++;
+      a->die();
+      delete a;
     }
-    a->die();
-    delete a;
     break;
   case AGENT_ACTION_BUILDBOMB:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
-      Bomb *bomb = new Bomb(this, a->sid, destuptr->x, destuptr->y);
-      if (a->sid == playerSpawnID)
+      x = destuptr->x - BOMB_SIZE/2;
+      y = destuptr->y - BOMB_SIZE/2;
+      first = mapUnitAt(x, y);
+      count = 0;
+      s = a->sid;
+      for (MapUnit::iterator it = first->getIterator(BOMB_SIZE, BOMB_SIZE); it.hasNext(); it++) {
+	if (it->type == UNIT_TYPE_AGENT) {
+	  b = it->agent;
+	  b->die();
+	  delete b;
+	  count++;
+	}
+      }
+      if (count > MAX_BOMB_HEALTH) count = MAX_BOMB_HEALTH;
+      Bomb *bomb = new Bomb(this, s, x, y);
+      bomb->hp = count;
+      if (s == playerSpawnID)
 	destuptr->objective->started = true;
       bombList.push_back(bomb);
     } else {
       destuptr->building->hp++;
+      a->die();
+      delete a;
     }
-    a->die();
-    delete a;
     break;
   case AGENT_ACTION_BUILDSUBSPAWNER:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
@@ -1000,7 +1034,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     case UNIT_TYPE_BUILDING:
       build = destuptr->building;
       build->hp--;
-      if (build->hp == 0) {
+      if (build->hp <= 0) {
 	for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
 	  it->type = UNIT_TYPE_EMPTY;
 	  it->building = nullptr;
