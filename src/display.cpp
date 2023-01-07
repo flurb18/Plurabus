@@ -244,6 +244,18 @@ void Display::drawText(const char *text, int x, int y) {
   SDL_DestroyTexture(texture);
 }
 
+void Display::drawTextSizedColored(const char *text, int x, int y, int size, int r, int g, int b) {
+  SDL_Color c = {(Uint8)r, (Uint8)g, (Uint8)b};
+  TTF_Font *sizefont = TTF_OpenFont(fontFile, size);
+  SDL_Surface *surface = TTF_RenderText_Blended(sizefont, text, c);
+  TTF_CloseFont(sizefont);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
+  SDL_Rect rect = {x, y, surface->w, surface->h};
+  SDL_FreeSurface(surface);
+  SDL_RenderCopy(render, texture, nullptr, &rect);
+  SDL_DestroyTexture(texture);
+}
+
 void Display::drawSurface(SDL_Surface *surface, int x, int y, int w, int h) {
   SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_Rect rect = { x, y, w, h };
@@ -276,6 +288,12 @@ void Display::sizeText(const char *text, int *w, int *h) {
   TTF_SizeText(font, text, w, h);
 }
 
+void Display::sizeTextSized(const char *text, int size, int *w, int *h) {
+  TTF_Font *sizefont = TTF_OpenFont(fontFile, size);
+  TTF_SizeText(sizefont, text, w, h);
+  TTF_CloseFont(sizefont);
+}
+
 void Display::sizeTextWrapped(const char *text, int wrap, int *w, int *h) {
   SDL_Color white = {255,255,255};
   SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
@@ -296,6 +314,7 @@ void Display::wait(int t) {
 
 /* Destroy all SDL and TTF stuff */
 Display::~Display() {
+  TTF_CloseFont(font);
   TTF_Quit();
   SDL_DestroyRenderer(render);
   SDL_DestroyWindow(window);

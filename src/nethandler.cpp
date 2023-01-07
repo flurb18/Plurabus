@@ -230,14 +230,11 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 void NetHandler::closeConnection(const char *reason) {
 
 #ifdef __EMSCRIPTEN__
-
   emscripten_websocket_close(sock, 1000, reason);
-
 #else
-
   m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
-
 #endif
+  
   game->context = GAME_CONTEXT_DONE;
   ncon = NET_CONTEXT_CLOSED;
 }

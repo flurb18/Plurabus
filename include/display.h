@@ -46,7 +46,9 @@ public:
   SDL_Texture *cacheImageColored(const char*, int, int, int);
   void drawTextWrapped(const char*, int, int, int);
   void drawText(const char*, int, int);
+  void drawTextSizedColored(const char*, int, int, int, int, int, int);
   void sizeText(const char*, int*, int*);
+  void sizeTextSized(const char*, int, int*, int*);
   void sizeTextWrapped(const char*, int, int*, int*);
   void update();
   void wait(int);

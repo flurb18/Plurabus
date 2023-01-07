@@ -2,6 +2,8 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#include <chrono>
 #endif
 
 #include <SDL2/SDL_events.h>
@@ -33,6 +35,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   context(GAME_CONTEXT_CONNECTING),
   initScale(scl),
   scale(scl),
+  startupCounter(4),
   gameSize(sz),
   panelSize(psz),
   mouseX(0),
@@ -95,15 +98,45 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   bombTextureGreen = disp->cacheImageColored("assets/img/bomb.png", 0, 255, 0);
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
   pthread_mutex_init(&threadLock, NULL);
+  pthread_mutex_lock(&threadLock);
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
+
+#ifdef __EMSCRIPTEN__
+
+EM_JS(void, start_timer, (int time), {
+  Module.timer = false;
+  setTimeout(function() {
+    Module.timer = true;
+  }, time);
+});
+
+EM_JS(bool, check_timer, (), {
+  return Module.timer;
+});
+
+#else
+
+std::chrono::time_point<std::chrono::steady_clock> startTime;
+int timerTime;
+
+void start_timer(int time) {
+  timerTime = time;
+  startTime = std::chrono::steady_clock::now();
+}
+
+bool check_timer() {
+  int ms = std::chrono::duration_cast<std::chrono::milisecond>(std::chrono::steady_clock::now() - startTime).count();
+  return (ms >= timerTime);
+}
+
+#endif
 
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
   NetHandler *net = new NetHandler(game, game->pairString);
   pthread_mutex_lock(&net->netLock);
-  game->context = GAME_CONTEXT_UNSELECTED;
-  if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
+  game->context = GAME_CONTEXT_STARTUPTIMER;
   bool done = false;
   while (!done) {
     pthread_mutex_lock(&game->threadLock);
@@ -117,7 +150,6 @@ void *Game::net_thread(void *g) {
       game->receiveEvents(events);
       game->readyToReceive = false;
       game->update();
-      emscripten_sleep(40);
     }
     game->checkSpawnersDestroyed();
     done = (game->context == GAME_CONTEXT_DONE);
@@ -600,6 +632,45 @@ void Game::setTeamDrawColor(SpawnerID sid) {
     disp->setDrawColor(255,0,0);
     break;
   }
+}
+
+void Game::drawStartupScreen() {
+  disp->fillBlack();
+  std::string startupInfoL1 = "You are the";
+  std::string startupInfoL2;
+  std::string startupInfoL3 = "team";
+  std::string startupInfoL4 = std::to_string(startupCounter);
+  int r, g;
+  int b = 0;
+  switch (playerSpawnID) {
+  case SPAWNER_ID_GREEN:
+    startupInfoL2 = "GREEN";
+    r = 0;
+    g = 255;
+    break;
+  case SPAWNER_ID_RED:
+    startupInfoL2 = "RED";
+    r = 255;
+    g = 0;
+    break;
+  }
+  int w1, h1, w2, h2, w3, h3, w4, h4;
+  disp->sizeTextSized(startupInfoL1.c_str(), STARTUP_FONT_SIZE, &w1, &h1);
+  disp->sizeTextSized(startupInfoL2.c_str(), STARTUP_FONT_SIZE, &w2, &h2);
+  disp->sizeTextSized(startupInfoL3.c_str(), STARTUP_FONT_SIZE, &w3, &h3);
+  disp->sizeTextSized(startupInfoL4.c_str(), STARTUP_FONT_SIZE, &w4, &h4);
+  int xOff = disp->getWidth() / 2 - w1/2;
+  int yOff = disp->getHeight() / 3;
+  disp->drawTextSizedColored(startupInfoL1.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
+  xOff = disp->getWidth()/2 - w2/2;
+  yOff += h1;
+  disp->drawTextSizedColored(startupInfoL2.c_str(), xOff, yOff, STARTUP_FONT_SIZE, r, g, b);
+  xOff = disp->getWidth()/2 - w3/2;
+  yOff += h2;
+  disp->drawTextSizedColored(startupInfoL3.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
+  xOff = disp->getWidth()/2 - w4/2;
+  yOff += h3;
+  disp->drawTextSizedColored(startupInfoL4.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
 }
 
 /* Draw the current game screen based on context */
@@ -1310,15 +1381,35 @@ void Game::handleSDLEvent(SDL_Event *e) {
 
 /* Main loop of the game */
 void Game::mainLoop(void) {
-  if (context == GAME_CONTEXT_CONNECTING) {
+  switch (context) {
+  case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
-  } else {
+    break;
+  case GAME_CONTEXT_STARTUPTIMER:
+    if (startupCounter == 4) {
+      startupCounter--;
+      start_timer(1000);
+    }
+    if (check_timer()) {
+      if (startupCounter == 1) {
+	context = GAME_CONTEXT_UNSELECTED;
+	if (playerSpawnID == SPAWNER_ID_GREEN) update();
+	pthread_mutex_unlock(&threadLock);
+      } else {
+	startupCounter--;
+	start_timer(1000);
+      }
+    }
+    drawStartupScreen();
+    break;
+  default:
     pthread_mutex_lock(&threadLock);
     draw();
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-    pthread_mutex_unlock(&threadLock);    
+    pthread_mutex_unlock(&threadLock);
+    break;
   }
   disp->update();
 }

@@ -4,6 +4,7 @@
 const int MENU_ITEMS_IN_VIEW = 6;
 const int SPAWNER_SIZE = 8;
 const int SPAWNER_PADDING = 10;
+const int STARTUP_FONT_SIZE = 20;
 const int FONT_SIZE = 14;
 const int PANEL_PADDING = 10;
 const int MAX_WALL_HEALTH = 10;
@@ -30,6 +31,7 @@ const int MAX_BOMB_HEALTH = 200;
 const int BOMB_AOE_RADIUS = 16;
 const int BOMB_SIZE = 5;
 const int BOMB_CLEAR_TIME = 4;
+const int FRAME_DELAY = 10; // ms
 extern const char *TITLE;
 
 #endif

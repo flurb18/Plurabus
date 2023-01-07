@@ -29,7 +29,8 @@ enum Context {
   GAME_CONTEXT_SELECTING,
   GAME_CONTEXT_SELECTED,
   GAME_CONTEXT_PLACING,
-  GAME_CONTEXT_CONNECTING
+  GAME_CONTEXT_CONNECTING,
+  GAME_CONTEXT_STARTUPTIMER
 };
 
 typedef struct MarkedCoord {
@@ -65,6 +66,7 @@ private:
   Context context;
   double initScale;
   double scale;
+  int startupCounter;
   int gameSize;
   int gameDisplaySize;
   int menuSize;
@@ -123,6 +125,7 @@ private:
   void resign();
   void setTeamDrawColor(SpawnerID);
   void draw();
+  void drawStartupScreen();
   void handleSDLEvent(SDL_Event*);
   void sizeEventsBuffer(int);
   void receiveData(void*, int);
