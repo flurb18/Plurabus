@@ -12,11 +12,12 @@
 Panel::Panel(Display *d, int pad): basicInfoAdded(false), controlsAdded(false), costsAdded(false), 
 				   padding(pad), disp(d) {
   width = disp->getWidth() - disp->getGameDisplaySize();
-  height = disp->getHeight() - PANEL_TITLE_HEIGHT - (2*PANEL_VERTICAL_PADDING);
+  bannerHeight = width / 3;
+  height = disp->getHeight() - bannerHeight;
   wrap = width - (2*padding);
   offset = 0;
   textHeight = 0;
-  bannerHeight = width / 3;
+
   bannerTexture = disp->cacheImage("assets/img/banner.png");
   newlineTexture = disp->cacheTextWrapped(">", 0);
 }
@@ -103,7 +104,7 @@ void Panel::draw() {
   disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, disp->getHeight());
   disp->setDrawColorWhite();
   disp->drawRect(disp->getGameDisplaySize(), 0, width, disp->getHeight());
-  int y = bannerHeight + PANEL_VERTICAL_PADDING + offset;
+  int y = bannerHeight + offset;
   for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
     int textureHeight;
     SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
