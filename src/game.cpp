@@ -126,7 +126,7 @@ void start_timer(int time) {
 }
 
 bool check_timer() {
-  int ms = std::chrono::duration_cast<std::chrono::milisecond>(std::chrono::steady_clock::now() - startTime).count();
+  int ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
   return (ms >= timerTime);
 }
 
