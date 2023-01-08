@@ -103,36 +103,6 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
-#ifdef __EMSCRIPTEN__
-
-EM_JS(void, start_timer, (int time), {
-  Module.timer = false;
-  setTimeout(function() {
-    Module.timer = true;
-  }, time);
-});
-
-EM_JS(bool, check_timer, (), {
-  return Module.timer;
-});
-
-#else
-
-std::chrono::time_point<std::chrono::steady_clock> startTime;
-int timerTime;
-
-void start_timer(int time) {
-  timerTime = time;
-  startTime = std::chrono::steady_clock::now();
-}
-
-bool check_timer() {
-  int ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
-  return (ms >= timerTime);
-}
-
-#endif
-
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
   NetHandler *net = new NetHandler(game, game->pairString);
@@ -1429,21 +1399,22 @@ void Game::mainLoop(void) {
     disp->drawText("Connecting...",0,0);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
-    if (startupCounter == 4) {
-      startupCounter--;
-      start_timer(1000);
-    }
-    if (check_timer()) {
-      if (startupCounter == 1) {
-	context = GAME_CONTEXT_UNSELECTED;
-	if (playerSpawnID == SPAWNER_ID_GREEN) update();
-	pthread_mutex_unlock(&threadLock);
-      } else {
-	startupCounter--;
-	start_timer(1000);
-      }
+    startupCounter--;
+    if (startupCounter == 0) {
+      context = GAME_CONTEXT_UNSELECTED;
+      if (playerSpawnID == SPAWNER_ID_GREEN) update();
+      pthread_mutex_unlock(&threadLock);
+      break;
     }
     drawStartupScreen();
+    disp->update();
+    
+#ifdef __EMSCRIPTEN__
+    emscripten_sleep(1000);
+#else
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+#endif
+    
     break;
   default:
     pthread_mutex_lock(&threadLock);
