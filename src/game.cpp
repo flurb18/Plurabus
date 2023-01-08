@@ -4,6 +4,7 @@
 #include <emscripten.h>
 #else
 #include <chrono>
+#include <thread>
 #endif
 
 #include <SDL2/SDL_events.h>
@@ -154,6 +155,13 @@ void *Game::net_thread(void *g) {
     game->checkSpawnersDestroyed();
     done = (game->context == GAME_CONTEXT_DONE);
     pthread_mutex_unlock(&game->threadLock);
+    
+#ifdef __EMSCRIPTEN__
+    emscripten_sleep(FRAME_DELAY);
+#else
+    std::this_thread::sleep_for(std::chrono::milliseconds(FRAME_DELAY));
+#endif
+    
   }
   std::string winText;
   switch (game->winnerSpawnID) {
