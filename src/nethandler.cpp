@@ -215,12 +215,17 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	pthread_mutex_unlock(&netLock);
       } else if (strcmp((char *)data, "Go") == 0) {
 	ncon = NET_CONTEXT_PLAYING;
+	sendText("Start");
 	pthread_mutex_unlock(&netLock);
       }
     }
     break;
   case NET_CONTEXT_PLAYING:
-    game->receiveData(data, numBytes);
+    if (isText) {
+      game->secondsRemaining--;
+    } else {
+      game->receiveData(data, numBytes);
+    }
     break;
   default:
     break;

@@ -75,6 +75,7 @@ private:
   int mouseX, mouseY;
   int placementW, placementH;
   int zapCounter;
+  int secondsRemaining;
   SDL_Rect selection;
   SDL_Rect view;
   SDL_Texture* bombTextureGreen;

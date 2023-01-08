@@ -12,7 +12,7 @@ async def trySend(socket, data):
     try:
         await socket.send(data)
         return True
-    except ConnectionClosed:
+    except websockets.exceptions.ConnectionClosed:
         print("Host "+str(socket.remote_address[0])+" connection closed")
         return False
     except Exception as e:
@@ -22,13 +22,22 @@ async def tryRecv(socket):
     try:
         data = await socket.recv()
         return data
-    except ConnectionClosed:
+    except websockets.exceptions.ConnectionClosed:
         print("Host "+str(socket.remote_address[0])+" connection closed")
         return False
     except Exception as e:
         print("Host "+str(socket.remote_address[0])+" Recv failed")
         return False
 
+async def timerLoop(websocket):
+    while (True):
+        await asyncio.sleep(1)
+        try:
+            await websocket.send("a");
+            await websocket.pairedClient.send("a");
+        except websockets.exceptions.ConnectionClosed:
+            return
+    
 async def serveFunction(websocket):
     print("Incoming connection, host " + str(websocket.remote_address[0]) +
           " port " + str(websocket.remote_address[1]))
@@ -77,10 +86,12 @@ async def serveFunction(websocket):
     await websocket.pairedClient.readyForGame.wait()
     if (websocket.player == 2):
         await websocket.wait_closed()
+        return
         
     if (websocket.player == 1):
         await trySend(websocket, "Go")
-        
+        start = await tryRecv(websocket)
+        asyncio.ensure_future(timerLoop(websocket))
         async for data in websocket:
             try:
                 await websocket.pairedClient.send(data)

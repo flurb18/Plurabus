@@ -1,6 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+const int GAME_TIME_SECONDS = 300;
+const int STARTUP_TIME_SECONDS = 3;
 const int MENU_ITEMS_IN_VIEW = 6;
 const int SPAWNER_SIZE = 8;
 const int SPAWNER_PADDING = 10;

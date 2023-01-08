@@ -36,7 +36,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   context(GAME_CONTEXT_CONNECTING),
   initScale(scl),
   scale(scl),
-  startupCounter(4),
+  startupCounter(STARTUP_TIME_SECONDS),
   gameSize(sz),
   panelSize(psz),
   mouseX(0),
@@ -44,6 +44,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   placementW(0),
   placementH(0),
   zapCounter(1),
+  secondsRemaining(GAME_TIME_SECONDS+STARTUP_TIME_SECONDS),
   newAgentID(1),
   outside(this),
   selectedObjective(nullptr) {
@@ -834,6 +835,16 @@ void Game::draw() {
   }
   disp->setDrawColorWhite();
   disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
+  int m = secondsRemaining / 60;
+  int s = secondsRemaining % 60;
+  std::string mText = std::to_string(m);
+  if (m < 10) mText = "0" + mText;
+  std::string sText = std::to_string(s);
+  if (s < 10) sText = "0" + sText;
+  std::string timeText = mText + ":" + sText;
+  int ttw, tth;
+  disp->sizeText(timeText.c_str(), &ttw, &tth);
+  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, 0);
   panel->draw();
   menu->draw(disp);
 }
@@ -1399,7 +1410,7 @@ void Game::mainLoop(void) {
     disp->drawText("Connecting...",0,0);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
-    startupCounter--;
+    startupCounter = secondsRemaining - GAME_TIME_SECONDS;
     if (startupCounter == 0) {
       context = GAME_CONTEXT_UNSELECTED;
       if (playerSpawnID == SPAWNER_ID_GREEN) update();
@@ -1407,21 +1418,13 @@ void Game::mainLoop(void) {
       break;
     }
     drawStartupScreen();
-    disp->update();
-    
-#ifdef __EMSCRIPTEN__
-    emscripten_sleep(1000);
-#else
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-#endif
-    
     break;
   default:
     pthread_mutex_lock(&threadLock);
     draw();
+    pthread_mutex_unlock(&threadLock);
     SDL_Event e;
     if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
-    pthread_mutex_unlock(&threadLock);
     break;
   }
   disp->update();
