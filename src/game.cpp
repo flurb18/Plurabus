@@ -79,7 +79,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   selection = {0, 0, 1, 1};
   menuSize = gameDisplaySize / MENU_ITEMS_IN_VIEW;
   disp = new Display(gameDisplaySize, menuSize, panelSize, FONT_SIZE);
-  panel = new Panel(disp, PANEL_PADDING);
+  panel = new Panel(disp);
   std::string welcomeText = "Welcome to " + std::string(TITLE) + "!";
   panel->addText(welcomeText.c_str());
   view = {0,0,gameSize,gameSize};

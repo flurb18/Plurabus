@@ -9,12 +9,11 @@
 #include "constants.h"
 #include "display.h"
 
-Panel::Panel(Display *d, int pad): basicInfoAdded(false), controlsAdded(false), costsAdded(false), 
-				   padding(pad), disp(d) {
+Panel::Panel(Display *d): basicInfoAdded(false), controlsAdded(false), costsAdded(false), disp(d) {
   width = disp->getWidth() - disp->getGameDisplaySize();
   bannerHeight = width / 3;
   height = disp->getHeight() - bannerHeight;
-  wrap = width - (2*padding);
+  wrap = width - (2*PANEL_PADDING);
   offset = 0;
   textHeight = 0;
 
@@ -38,10 +37,10 @@ void Panel::basicInfoText() {
     addText("Influence your agents indirectly by setting objectives for them to complete on the map.");
     addText("Select regions of the map by clicking and dragging with the mouse.");
     addText("Once a region is selected, designate that region with an objective for your agents. See 'Controls' for details.");
+    addText("You cannot overlap objectives.");
     addText("You can also build towers that destroy enemy agents, subspawners that spawn continuously at a slower rate than your base spawner, and bombs which detonate and take out a large area around them.");
     addText("You can toggle viewing set objectives in the view menu, accessible by clicking on the eye icon. You can also toggle viewing scents here.");
     addText("Whenever an agent completes an objective such as attacking something or building a wall, that agent dies. Set objectives wisely - don't waste agents!");
-    addText("You cannot overlap objectives.");
     addText("Win the game by destroying your opponent's base spawner completely.");
   }
   basicInfoAdded = true;
@@ -50,7 +49,6 @@ void Panel::basicInfoText() {
 void Panel::controlsText() {
   if (!controlsAdded) {
     addText("All actions that can be done with keybinds can be done through the triple bars menu as well.");
-    addText("Hover over a set objective, which appears as a grey rectangle, and press backspace/delete to remove that objective.");
     addText("Once a region is selected, press:");
     addText("'w' - Designate walls to be built in the region.");
     addText("'d' - Designate doors to be built over any walls in the region.");
@@ -60,6 +58,7 @@ void Panel::controlsText() {
     addText("To build a tower, press 't' and then click the mouse where you want to build it. The area a tower is built on must be completely empty before construction starts.");
     addText("Press 's' and then click to build a subspawner.");
     addText("Press 'b' and then click to build a bomb.");
+    addText("Hover over a set objective, which appears as a yellow rectangle, and press backspace/delete to remove that objective.");
   }
   controlsAdded = true;
 }
@@ -109,7 +108,7 @@ void Panel::draw() {
     int textureHeight;
     SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
     disp->drawTexture(newlineTexture, disp->getGameDisplaySize(), y);
-    disp->drawTexture(*it, disp->getGameDisplaySize() + padding, y);
+    disp->drawTexture(*it, disp->getGameDisplaySize() + PANEL_PADDING, y);
     y += textureHeight;
   }
   disp->setDrawColorBlack();

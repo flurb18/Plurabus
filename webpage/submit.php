@@ -32,10 +32,10 @@
 
     <script>
       var gameSize = parseInt('<?php echo $size; ?>');
-      var gamePanelSize = 240;
+      var gamePanelSize = 300;
       var gameWindowPadding = 10;
       var scale = 1;
-      while (scale*(gameSize) + gamePanelSize < window.innerWidth && scale*(gameSize*7/6) < window.innerHeight) {
+      while (scale*(gameSize) + gamePanelSize < window.innerWidth - gameWindowPadding && scale*(gameSize*7/6) < window.innerHeight - gameWindowPadding) {
 	  scale++;
       }
       scale--;

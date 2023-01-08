@@ -13,7 +13,6 @@ private:
   bool controlsAdded;
   bool costsAdded;
   int width, height;
-  int padding;
   int wrap;
   int offset;
   int textHeight;
@@ -31,7 +30,7 @@ public:
   void draw();
   void scrollUp();
   void scrollDown();
-  Panel(Display*, int);
+  Panel(Display*);
   ~Panel();
 };
 
