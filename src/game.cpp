@@ -36,7 +36,6 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   context(GAME_CONTEXT_CONNECTING),
   initScale(scl),
   scale(scl),
-  startupCounter(STARTUP_TIME_SECONDS),
   gameSize(sz),
   panelSize(psz),
   mouseX(0),
@@ -100,7 +99,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   bombTextureGreen = disp->cacheImageColored("assets/img/bomb.png", 0, 255, 0);
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
   pthread_mutex_init(&threadLock, NULL);
-  pthread_mutex_lock(&threadLock);
+  pthread_cond_init(&startupCond, NULL);
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
@@ -109,6 +108,12 @@ void *Game::net_thread(void *g) {
   NetHandler *net = new NetHandler(game, game->pairString);
   pthread_mutex_lock(&net->netLock);
   game->context = GAME_CONTEXT_STARTUPTIMER;
+  pthread_mutex_lock(&game->threadLock);
+  while (game->secondsRemaining - GAME_TIME_SECONDS > 0)
+    pthread_cond_wait(&game->startupCond, &game->threadLock);
+  pthread_mutex_unlock(&game->threadLock);
+  game->context = GAME_CONTEXT_UNSELECTED;
+  if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
   bool done = false;
   while (!done) {
     pthread_mutex_lock(&game->threadLock);
@@ -604,7 +609,7 @@ void Game::drawStartupScreen() {
   std::string startupInfoL1 = "You are the";
   std::string startupInfoL2;
   std::string startupInfoL3 = "team";
-  std::string startupInfoL4 = std::to_string(startupCounter);
+  std::string startupInfoL4 = std::to_string(secondsRemaining - GAME_TIME_SECONDS);
   int r, g;
   int b = 0;
   switch (playerSpawnID) {
@@ -1410,14 +1415,9 @@ void Game::mainLoop(void) {
     disp->drawText("Connecting...",0,0);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
-    startupCounter = secondsRemaining - GAME_TIME_SECONDS;
-    if (startupCounter == 0) {
-      context = GAME_CONTEXT_UNSELECTED;
-      if (playerSpawnID == SPAWNER_ID_GREEN) update();
-      pthread_mutex_unlock(&threadLock);
-      break;
-    }
+    pthread_mutex_lock(&threadLock);
     drawStartupScreen();
+    pthread_mutex_unlock(&threadLock);
     break;
   default:
     pthread_mutex_lock(&threadLock);

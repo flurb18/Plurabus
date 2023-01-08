@@ -59,6 +59,7 @@ private:
   char *pairString;
   pthread_t netThread;
   pthread_mutex_t threadLock;
+  pthread_cond_t startupCond;
   void *eventsBuffer;
   bool readyToSend;
   bool readyToReceive;
@@ -67,7 +68,6 @@ private:
   Context context;
   double initScale;
   double scale;
-  int startupCounter;
   int gameSize;
   int gameDisplaySize;
   int menuSize;

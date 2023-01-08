@@ -32,7 +32,7 @@ const int MAX_BOMB_HEALTH = 200;
 const int BOMB_AOE_RADIUS = 20;
 const int BOMB_SIZE = 5;
 const int BOMB_CLEAR_TIME = 4;
-const int FRAME_DELAY = 10; // ms
+const int FRAME_DELAY = 4; // ms
 extern const char *TITLE;
 
 #endif

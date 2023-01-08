@@ -222,7 +222,12 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
+      pthread_mutex_lock(&game->threadLock);
       game->secondsRemaining--;
+      if (game->context == GAME_CONTEXT_STARTUPTIMER) {
+	pthread_cond_signal(&game->startupCond);
+      }
+      pthread_mutex_unlock(&game->threadLock);
     } else {
       game->receiveData(data, numBytes);
     }
