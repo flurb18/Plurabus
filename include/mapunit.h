@@ -44,7 +44,6 @@ struct MapUnit {
   // Should be less than 0.25
   double diffusion;
   Agent* agent;
-  Spawner *spawner;
   Game* game;
   Door *door;
   Building *building;

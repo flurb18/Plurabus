@@ -6,7 +6,6 @@
 #include "door.h"
 #include "game.h"
 #include "mapunit.h"
-#include "spawner.h"
 
 Agent::Agent(Game* g, MapUnit* m,  AgentID i, SpawnerID s):
   id(i), sid(s), game(g), unit(m)  {}

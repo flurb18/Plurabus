@@ -23,7 +23,6 @@
 #include "menu.h"
 #include "nethandler.h"
 #include "panel.h"
-#include "spawner.h"
 
 /* Constructor sets up map units, creates a friendly spawner */
 Game::Game(int sz, int psz, double scl, char *pstr):
@@ -85,10 +84,12 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   view = {0,0,gameSize,gameSize};
   selectedUnit = mapUnitAt(0,0);
   menu = new Menu(this);
-  MapUnit *redspawn = mapUnitAt(SPAWNER_PADDING, SPAWNER_PADDING);
-  MapUnit *greenspawn = mapUnitAt(gameSize - SPAWNER_SIZE - SPAWNER_PADDING, gameSize - SPAWNER_SIZE - SPAWNER_PADDING);
-  spawnerDict.insert(std::make_pair(SPAWNER_ID_GREEN, new Spawner(this, greenspawn, SPAWNER_ID_GREEN, SPAWNER_SIZE, 1)));
-  spawnerDict.insert(std::make_pair(SPAWNER_ID_RED, new Spawner(this, redspawn, SPAWNER_ID_RED, SPAWNER_SIZE, 1)));
+  int rpos = SPAWNER_PADDING;
+  int gpos = gameSize - SPAWNER_PADDING - SPAWNER_SIZE;
+  Spawner *redspawn = new Spawner(this, SPAWNER_ID_RED, rpos, rpos);
+  Spawner *greenspawn = new Spawner(this, SPAWNER_ID_GREEN, gpos, gpos);
+  buildingLists[BUILDING_TYPE_SPAWNER].push_back(redspawn);
+  buildingLists[BUILDING_TYPE_SPAWNER].push_back(greenspawn);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_ATTACK] = disp->cacheTextWrapped("Objective - Attack", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
@@ -214,39 +215,20 @@ bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
 	  );
 }
 
+bool Game::potentialSelectionCollidesWithBuilding(int potX, int potY, int potW, int potH) {
+  SDL_Rect r = { potX, potY, potW, potH };
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *build: it->second) {
+      if (rectCollides(r, build->region)) return true;
+    }
+  }
+  return false;
+}
+
 bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
   SDL_Rect r = {potX, potY, potW, potH};
   for (Objective *o: objectives) {
     if (rectCollides(r, o->region)) return true;
-  }
-  return false;
-}
-
-bool Game::potentialSelectionCollidesWithTower(int potX, int potY, int potW, int potH) {
-  SDL_Rect r= {potX, potY, potW, potH};
-  for (Tower *t : towerList) {
-    if (rectCollides(r, t->region)) return true;
-  }
-  return false;
-}
-
-bool Game::potentialSelectionCollidesWithSpawner(int potX, int potY, int potW, int potH) {
-  SDL_Rect r = {potX, potY, potW, potH};
-  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
-    Spawner *s = it->second;
-    SDL_Rect rs = {(int)s->topLeft->x, (int)s->topLeft->y, s->size, s->size};
-    if (rectCollides(r, rs)) return true;
-  }
-  for (Subspawner *s: subspawnerList) {
-    if (rectCollides(r, s->region)) return true;
-  }
-  return false;
-}
-
-bool Game::potentialSelectionCollidesWithBomb(int potX, int potY, int potW, int potH) {
-  SDL_Rect r= {potX, potY, potW, potH};
-  for (Bomb *b : bombList) {
-    if (rectCollides(r, b->region)) return true;
   }
   return false;
 }
@@ -302,9 +284,7 @@ void Game::mouseMoved(int x, int y) {
     if (potX < 1) potX = 1;
     if (potY < 1) potY = 1;
     if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
-	!potentialSelectionCollidesWithTower(potX, potY, potW, potH) &&
-	!potentialSelectionCollidesWithSpawner(potX, potY, potW, potH) &&
-	!potentialSelectionCollidesWithBomb(potX, potY, potW, potH)) {
+	!potentialSelectionCollidesWithBuilding(potX, potY, potW, potH)) {
       selection.x = potX;
       selection.y = potY;
       selection.w = potW;
@@ -385,6 +365,8 @@ void Game::leftMouseDown(int x, int y) {
 	break;
       case BUILDING_TYPE_BOMB:
 	setObjective(OBJECTIVE_TYPE_BUILD_BOMB);
+	break;
+      default:
 	break;
       }
       context = GAME_CONTEXT_UNSELECTED;
@@ -472,70 +454,62 @@ void Game::clearScent() {
   }
 }
 
-void Game::placeTower() {
-  int numPlayerTowers = 0;
-  for (Tower *t : towerList) {
-    if (t->sid == playerSpawnID) numPlayerTowers++;
+void Game::placeBuilding(BuildingType type) {
+  int numPlayerBuilds = 0;
+  int maxBuilds;
+  int s;
+  ObjectiveType oType;
+  std::string errorEnd;
+  switch (type) {
+  case BUILDING_TYPE_TOWER:
+    maxBuilds = MAX_TOWERS;
+    s = TOWER_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_TOWER;
+    errorEnd = " towers";
+    break;
+  case BUILDING_TYPE_BOMB:
+    maxBuilds = MAX_BOMBS;
+    s = BOMB_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_BOMB;
+    errorEnd = " bombs";
+    break;
+  case BUILDING_TYPE_SUBSPAWNER:
+    maxBuilds = MAX_SUBSPAWNERS;
+    s = SUBSPAWNER_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
+    errorEnd = " subspawners";
+    break;
+  default:
+    return;
+  }
+  for (Building *b: buildingLists[type]) {
+    if (b->sid == playerSpawnID) numPlayerBuilds++;
   }
   for (Objective *o: objectives) {
-    if (o->type == OBJECTIVE_TYPE_BUILD_TOWER && !o->started)
-      numPlayerTowers++;
+    if (o->type == oType && !o->started) numPlayerBuilds++;
   }
-  if (numPlayerTowers < MAX_TOWERS) {
-    placementW = TOWER_SIZE;
-    placementH = TOWER_SIZE;
-    placingType = BUILDING_TYPE_TOWER;
+  if (numPlayerBuilds < maxBuilds) {
+    placementW = s;
+    placementH = s;
+    placingType = type;
     context = GAME_CONTEXT_PLACING;
     mouseMoved(mouseX, mouseY);
   } else {
-    std::string tooManyTowersString = "You can only build "+std::to_string(MAX_TOWERS)+" towers.";
-    panel->addText(tooManyTowersString.c_str());
+    std::string tooMany = "You can only build "+std::to_string(maxBuilds)+errorEnd+" at a time.";
+    panel->addText(tooMany.c_str());
   }
+}
+
+void Game::placeTower() {
+  placeBuilding(BUILDING_TYPE_TOWER);
 }
 
 void Game::placeSubspawner() {
-  int numPlayerSubspawners = 0;
-  for (Subspawner *s: subspawnerList) {
-    if (s->sid == playerSpawnID) numPlayerSubspawners++;
-  }
-  for (Objective *o: objectives) {
-    if (o->type == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && !o->started)
-      numPlayerSubspawners++;
-  }
-  if (numPlayerSubspawners < MAX_SUBSPAWNERS) {
-    placementW = SUBSPAWNER_SIZE;
-    placementH = SUBSPAWNER_SIZE;
-    placingType = BUILDING_TYPE_SUBSPAWNER;
-    context = GAME_CONTEXT_PLACING;
-    mouseMoved(mouseX, mouseY);
-  } else {
-    std::string tooManySubspawnersString = "You can only build "+std::to_string(MAX_SUBSPAWNERS)+" subspawners.";
-    panel->addText(tooManySubspawnersString.c_str());
-  }
+  placeBuilding(BUILDING_TYPE_SUBSPAWNER);
 }
 
 void Game::placeBomb() {
-  int numPlayerBombs = 0;
-  for (Bomb *b: bombList) {
-    if (b->sid == playerSpawnID) numPlayerBombs++;
-  }
-  for (Objective *o: objectives) {
-    if (o->type == OBJECTIVE_TYPE_BUILD_BOMB && !o->started)
-      numPlayerBombs++;
-  }
-  if (numPlayerBombs < MAX_BOMBS) {
-    placementW = BOMB_SIZE;
-    placementH = BOMB_SIZE;
-    placingType = BUILDING_TYPE_BOMB;
-    context = GAME_CONTEXT_PLACING;
-    mouseMoved(mouseX, mouseY);
-  } else {
-    std::string append;
-    if (MAX_BOMBS == 1) append = " bomb";
-    else append = " bombs";
-    std::string tooManyBombsString = "You can only build "+std::to_string(MAX_BOMBS)+append+" at a time.";
-    panel->addText(tooManyBombsString.c_str());
-  }
+  placeBuilding(BUILDING_TYPE_BOMB);
 }
 
 void Game::setObjective(ObjectiveType oType) {
@@ -679,7 +653,7 @@ void Game::draw() {
       }
       break;
     case UNIT_TYPE_SPAWNER:
-      setTeamDrawColor(iter->spawner->sid);
+      setTeamDrawColor(iter->building->sid);
       lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
       disp->setDrawColorBrightness(lumprop);
       if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
@@ -720,7 +694,8 @@ void Game::draw() {
     }
     disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
   }
-  for (Tower *t: towerList) {
+  for (Building *build: buildingLists[BUILDING_TYPE_TOWER]) {
+    Tower *t = (Tower*)build;
     setTeamDrawColor(t->sid);
     int x = scaleInt(t->region.x-view.x);
     int y = scaleInt(t->region.y-view.y);
@@ -747,7 +722,8 @@ void Game::draw() {
     }
     disp->drawLines(centerPoints, ZAP_CENTER_EFFECTS_NUM);
   }
-  for (Bomb *b: bombList) {
+  for (Building *build: buildingLists[BUILDING_TYPE_BOMB]) {
+    Bomb *b = (Bomb*)build;
     SDL_Texture *texture;
     switch (b->sid) {
     case SPAWNER_ID_GREEN:
@@ -766,7 +742,6 @@ void Game::draw() {
     disp->drawRectFilled(x, y+s-rectHeight, s, rectHeight);
     disp->drawTexture(texture, x, y, s, s);
   }
-  
   for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
     int x = scaleInt(it->x - view.x);
     int y = scaleInt(it->y - view.y);
@@ -797,6 +772,9 @@ void Game::draw() {
     case BUILDING_TYPE_BOMB:
       oType = OBJECTIVE_TYPE_BUILD_BOMB;
       break;
+    default:
+      oType = OBJECTIVE_TYPE_BUILD_TOWER;
+      break;
     }
     SDL_Texture *texture = objectiveInfoTextures[oType];
     int objectiveInfoWidth;
@@ -811,6 +789,14 @@ void Game::draw() {
     disp->setDrawColorWhite();
     disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
     disp->drawTexture(texture, x, y);
+  }
+  if (menu->getIfBuildingsOutlined()) {
+    disp->setDrawColorWhite();
+    for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+      for (Building *build : it->second) {
+	disp->drawRect(scaleInt(build->region.x-view.x), scaleInt(build->region.y-view.y), scaleInt(build->region.w), scaleInt(build->region.h));
+      }
+    }
   }
   if (menu->getIfObjectivesShown()) {
     for (Objective *o: objectives) {
@@ -938,7 +924,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       tower->hp = count;
       if (s == playerSpawnID)
 	destuptr->objective->started = true;
-      towerList.push_back(tower);
+      buildingLists[BUILDING_TYPE_TOWER].push_back(tower);
     } else {
       destuptr->building->hp++;
       a->die();
@@ -965,7 +951,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       bomb->hp = count;
       if (s == playerSpawnID)
 	destuptr->objective->started = true;
-      bombList.push_back(bomb);
+      buildingLists[BUILDING_TYPE_BOMB].push_back(bomb);
     } else {
       destuptr->building->hp++;
       a->die();
@@ -975,14 +961,13 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
   case AGENT_ACTION_BUILDSUBSPAWNER:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
       destuptr->hp = 1;
-      destuptr->spawner = spawnerDict[a->sid];
       destuptr->type = UNIT_TYPE_SPAWNER;
       if (destuptr->building == nullptr) {
 	Subspawner *subspawner =
 	  new Subspawner(this, a->sid, destuptr->x-SUBSPAWNER_SIZE/2, destuptr->y-SUBSPAWNER_SIZE/2);
 	if (a->sid == playerSpawnID)
 	  destuptr->objective->super->started = true;
-	subspawnerList.push_back(subspawner);
+	 buildingLists[BUILDING_TYPE_SUBSPAWNER].push_back(subspawner);
       }
     } else {
       destuptr->hp++;
@@ -995,7 +980,6 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     switch (destuptr->type) {
     case UNIT_TYPE_SPAWNER:
       destuptr->type = UNIT_TYPE_EMPTY;
-      destuptr->spawner = nullptr;
       a->die();
       delete a;
       break;
@@ -1033,30 +1017,15 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 	  it->type = UNIT_TYPE_EMPTY;
 	  it->building = nullptr;
 	}
-	if (build->type == BUILDING_TYPE_TOWER) {
-	  for (auto it = towerList.begin(); it != towerList.end(); it++) {
-	    Tower *t = *it;
-	    if (destuptr->x >= t->region.x &&
-		destuptr->x <= t->region.x + t->region.w - 1 &&
-		destuptr->y >= t->region.y &&
-		destuptr->y <= t->region.y + t->region.h - 1) {
-	      it = towerList.erase(it);
-	      delete t;
-	      break;
-	    }
-	  }
-	}
-	if (build->type == BUILDING_TYPE_BOMB) {
-	  for (auto it = bombList.begin(); it != bombList.end(); it++) {
-	    Bomb *b = *it;
-	    if (destuptr->x >= b->region.x &&
-		destuptr->x <= b->region.x + b->region.w - 1 &&
-		destuptr->y >= b->region.y &&
-		destuptr->y <= b->region.y + b->region.h - 1) {
-	      it = bombList.erase(it);
-	      delete b;
-	      break;
-	    }
+	for (auto it = buildingLists[build->type].begin(); it != buildingLists[build->type].end(); it++) {
+	  Building *b = *it;
+	  if (destuptr->x >= b->region.x &&
+	      destuptr->x <= b->region.x + b->region.w - 1 &&
+	      destuptr->y >= b->region.y &&
+	      destuptr->y <= b->region.y + b->region.h - 1) {
+	    it = buildingLists[build->type].erase(it);
+	    delete b;
+	    break;
 	  }
 	}
       }
@@ -1119,7 +1088,6 @@ void Game::receiveBombEvent(BombEvent *bevent) {
 	  delete a;
 	  break;
 	case UNIT_TYPE_SPAWNER:
-	  m->spawner = nullptr;
 	  break;
 	case UNIT_TYPE_DOOR:
 	  delete m->door;
@@ -1136,33 +1104,16 @@ void Game::receiveBombEvent(BombEvent *bevent) {
 	    it->type = UNIT_TYPE_EMPTY;
 	    it->building = nullptr;
 	  }
-	  if (build->type == BUILDING_TYPE_TOWER) {
-	    for (auto it = towerList.begin(); it != towerList.end(); it++) {
-	      Tower *t = *it;
-	      if (m->x >= t->region.x &&
-		  m->x <= t->region.x + t->region.w - 1 &&
-		  m->y >= t->region.y &&
-		  m->y <= t->region.y + t->region.h - 1) {
-		it = towerList.erase(it);
-		delete build;
-		break;
-	      }
+	  for (auto it = buildingLists[build->type].begin(); it != buildingLists[build->type].end(); it++) {
+	    Building *b = *it;
+	    if (m->x >= b->region.x &&
+		m->x <= b->region.x + b->region.w - 1 &&
+		m->y >= b->region.y &&
+		m->y <= b->region.y + b->region.h - 1) {
+	      buildingLists[build->type].erase(it);
+	      delete build;
+	      break;
 	    }
-	    break;
-	  }
-	  if (build->type == BUILDING_TYPE_BOMB) {
-	    for (auto it = bombList.begin(); it != bombList.end(); it++) {
-	      Bomb *b = *it;
-	      if (m->x >= b->region.x &&
-		  m->x <= b->region.x + b->region.w - 1 &&
-		  m->y >= b->region.y &&
-		  m->y <= b->region.y + b->region.h - 1) {
-		it = bombList.erase(it);
-		delete build;
-		break;
-	      }
-	    }
-	    break;
 	  }
 	  break;
 	default:
@@ -1194,19 +1145,20 @@ AgentID Game::getNewAgentID() {
 }
 
 void Game::checkSpawnersDestroyed() {
-  auto ssit = subspawnerList.begin();
-  while (ssit != subspawnerList.end()) {
-    if ((*ssit)->isDestroyed()) {
+  auto ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].begin();
+  while (ssit != buildingLists[BUILDING_TYPE_SUBSPAWNER].end()) {
+    if (((Subspawner*)(*ssit))->isDestroyed()) {
       for (MapUnit::iterator m = (*ssit)->getIterator(); m.hasNext(); m++) {
 	m->building = nullptr;
       }
       delete (*ssit);
-      ssit = subspawnerList.erase(ssit);
+      ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].erase(ssit);
     } else ssit++;
   }
-  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
-    if (it->second->isDestroyed()) {
-      switch (it->first) {
+  for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
+    Spawner *s = (Spawner*)build;
+    if (s->isDestroyed()) {
+      switch (s->sid) {
       case SPAWNER_ID_GREEN:
         winnerSpawnID = SPAWNER_ID_RED;
 	break;
@@ -1285,30 +1237,33 @@ void Game::update() {
     }
   }
   for (i = 0; i < MAX_TOWERS; i++) events->towerEvents[i].destroyed = false;
-  i = 0;
-  for (Tower *t : towerList) {
-    if (t->sid == playerSpawnID) {
-      t->update(&events->towerEvents[i]);
-      i++;
-    }
-  }
   for (i = 0; i < MAX_BOMBS; i++) events->bombEvents[i].detonated = false;
-  i = 0;
-  for (Bomb *b: bombList) {
-    if (b->sid == playerSpawnID) {
-      b->update(&events->bombEvents[i]);
-      i++;
-    }
-  }
   for (i = 0; i < MAX_SUBSPAWNERS+1; i++) events->spawnEvents[i].created = false;
-  i = 1;
-  for (Subspawner *s: subspawnerList) {
-    if (s->sid == playerSpawnID) {
-      s->update(&events->spawnEvents[i]);
-      i++;
+  int bombI = 0;
+  int towerI = 0;
+  int subspawnerI = 1;
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *build: it->second) {
+      if (build->sid == playerSpawnID) {
+	switch (build->type) {
+	case BUILDING_TYPE_BOMB:
+	  ((Bomb*)build)->update(&events->bombEvents[bombI]);
+	  bombI++;
+	  break;
+	case BUILDING_TYPE_TOWER:
+	  ((Tower*)build)->update(&events->towerEvents[towerI]);
+	  towerI++;
+	  break;
+	case BUILDING_TYPE_SUBSPAWNER:
+	  ((Subspawner*)build)->update(&events->spawnEvents[subspawnerI]);
+	  subspawnerI++;
+	  break;
+	case BUILDING_TYPE_SPAWNER:
+	  ((Spawner*)build)->update(&events->spawnEvents[0]);
+	}
+      }
     }
   }
-  spawnerDict[playerSpawnID]->update(&events->spawnEvents[0]);
   events->numAgentEvents = numPlayerAgents;
   readyToSend = true;
 }
@@ -1448,25 +1403,21 @@ Game::~Game() {
   for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
     delete it->second;
   }
-  for (auto it = spawnerDict.begin(); it != spawnerDict.end(); it++) {
-    delete it->second;
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *b : it->second) {
+      delete b;
+    }
+    it->second.clear();
   }
-  for (Tower *t: towerList) delete t;
-  for (Bomb *b: bombList) delete b;
-  for (Subspawner *s: subspawnerList) delete s;
   for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
     SDL_DestroyTexture(it->second);
   }
-  towerList.clear();
-  bombList.clear();
-  subspawnerList.clear();
   towerZaps.clear();
   bombEffects.clear();
   SDL_DestroyTexture(bombTextureGreen);
   SDL_DestroyTexture(bombTextureRed);
   objectiveInfoTextures.clear();
   agentDict.clear();
-  spawnerDict.clear();
   mapUnits.clear();
   delete disp;
   delete menu;

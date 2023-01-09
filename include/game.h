@@ -87,10 +87,7 @@ private:
   std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
-  std::map<SpawnerID, Spawner*> spawnerDict;
-  std::deque<Tower*> towerList;
-  std::deque<Subspawner*> subspawnerList;
-  std::deque<Bomb*> bombList;
+  std::map<BuildingType, std::deque<Building*>> buildingLists;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;
   AgentID newAgentID;
@@ -100,9 +97,7 @@ private:
   Objective *selectedObjective;
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
-  bool potentialSelectionCollidesWithTower(int, int, int, int);
-  bool potentialSelectionCollidesWithSpawner(int, int, int, int);
-  bool potentialSelectionCollidesWithBomb(int, int, int, int);
+  bool potentialSelectionCollidesWithBuilding(int, int, int, int);
   void mouseMoved(int, int);
   void leftMouseDown(int, int);
   void leftMouseUp(int, int);
@@ -118,6 +113,7 @@ private:
   void buildWall();
   void buildDoor();
   void goTo();
+  void placeBuilding(BuildingType);
   void placeTower();
   void placeSubspawner();
   void placeBomb();

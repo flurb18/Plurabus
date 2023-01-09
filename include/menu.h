@@ -57,6 +57,7 @@ public:
   void draw(Display*);
   bool getIfScentsShown();
   bool getIfObjectivesShown();
+  bool getIfBuildingsOutlined();
   Menu(Game*);
   ~Menu();
 };

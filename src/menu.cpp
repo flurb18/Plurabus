@@ -106,8 +106,10 @@ Menu::Menu(Game *g): game(g) {
   int viewSubIdx = 3;
   viewSubMenu.strings.push_back("Show Objectives");
   viewSubMenu.strings.push_back("Show Scents");
+  viewSubMenu.strings.push_back("Outline Buildings");
   viewSubMenu.isToggleSubMenu = true;
   viewSubMenu.toggleFlags.push_back(true);
+  viewSubMenu.toggleFlags.push_back(false);
   viewSubMenu.toggleFlags.push_back(false);
   viewSubMenu.size(game->disp, viewSubIdx);
   SubMenu infoSubMenu;
@@ -144,6 +146,10 @@ bool Menu::getIfScentsShown() {
 
 bool Menu::getIfObjectivesShown() {
   return items.at(3)->subMenu.toggleFlags.at(0);
+}
+
+bool Menu::getIfBuildingsOutlined() {
+  return items.at(3)->subMenu.toggleFlags.at(2);
 }
 
 void Menu::hideAllSubMenus() {

@@ -3,7 +3,6 @@
 #include "constants.h"
 #include "door.h"
 #include "game.h"
-#include "spawner.h"
 
 Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
   type(t), strength(s),  done(false), game(g), region(r) {

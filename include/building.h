@@ -8,6 +8,7 @@
 
 typedef enum BuildingType {
   BUILDING_TYPE_TOWER,
+  BUILDING_TYPE_SPAWNER,
   BUILDING_TYPE_SUBSPAWNER,
   BUILDING_TYPE_BOMB
 } BuildingType;
@@ -42,6 +43,16 @@ class Tower: public Building {
 public:
   Tower(Game*, SpawnerID, int, int);
   void update(TowerEvent*);
+};
+
+class Spawner: public Building {
+  friend class Game;
+private:
+  bool isDestroyed();
+  bool canSpawnAgent(int*, int*);
+public:
+  Spawner(Game*, SpawnerID, int, int);
+  void update(SpawnerEvent*);
 };
 
 class Subspawner: public Building {

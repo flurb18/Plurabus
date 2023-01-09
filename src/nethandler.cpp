@@ -13,7 +13,6 @@
 
 #include "game.h"
 #include "panel.h"
-#include "spawner.h"
 
 
 #ifdef __EMSCRIPTEN__
