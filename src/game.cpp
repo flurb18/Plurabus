@@ -2,15 +2,10 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#else
-#include <chrono>
-#include <thread>
 #endif
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_rect.h>
-#include <iostream>
-#include <cstdlib>
 #include <stdlib.h>
 #include <string>
 #include <random>
@@ -180,14 +175,7 @@ void *Game::net_thread(void *g) {
     }
     game->checkSpawnersDestroyed();
     done = (game->context == GAME_CONTEXT_DONE);
-    pthread_mutex_unlock(&game->threadLock);
-    
-#ifdef __EMSCRIPTEN__
-    emscripten_sleep(FRAME_DELAY);
-#else
-    std::this_thread::sleep_for(std::chrono::milliseconds(FRAME_DELAY));
-#endif
-    
+    pthread_mutex_unlock(&game->threadLock);    
   }
   std::string winText;
   switch (game->winnerSpawnID) {

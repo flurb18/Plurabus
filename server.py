@@ -7,6 +7,7 @@ import websockets
 import ssl
 
 SocketQueue = []
+FRAME_DELAY = 0.004
 
 async def trySend(socket, data):
     try:
@@ -93,6 +94,7 @@ async def serveFunction(websocket):
         start = await tryRecv(websocket)
         asyncio.ensure_future(timerLoop(websocket))
         async for data in websocket:
+            await asyncio.sleep(FRAME_DELAY)
             try:
                 await websocket.pairedClient.send(data)
             except websockets.exceptions.ConnectionClosed:
