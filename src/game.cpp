@@ -24,7 +24,20 @@
 #include "nethandler.h"
 #include "panel.h"
 
-/* Constructor sets up map units, creates a friendly spawner */
+/*------------------CONTENTS----------------------*/
+/*------------------------------------------------*/
+/*-----1. Constructor / Destructor----------------*/
+/*-----2. Main net loop---------------------------*/
+/*-----3. Event buffer functions------------------*/
+/*-----4. Objective functions---------------------*/
+/*-----5. Interface functions---------------------*/
+/*-----6. Display functions-----------------------*/
+/*-----7. Helper functions & one-liners-----------*/
+/*-----8. Main event loop-------------------------*/
+/*------------------------------------------------*/
+
+/*---------Constructor / Destructor----------------*/
+
 Game::Game(int sz, int psz, double scl, char *pstr):
 
   pairString(pstr),
@@ -49,18 +62,12 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
-  /* mapUnits is a vector */
   mapUnits.reserve(gameSize * gameSize);
-  /* Units are created in the x direction; it fills the top row with map units
-  from left to right, then the next row and so on
-  SDL window x and y start at 0 at top left and increase right and
-  down respectively*/
   for (int i = 0; i < gameSize; i++) {
     for (int j = 0; j < gameSize; j++) {
       mapUnits.push_back(new MapUnit(this, j, i));
     }
   }
-  /* Interlink the map units so they all know their adjacent units */
   for (int i = 0; i < gameSize; i++) {
     for (int j = 0; j < gameSize; j++) {
       int index = i * gameSize + j;
@@ -103,6 +110,48 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   pthread_cond_init(&startupCond, NULL);
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
+
+Game::~Game() {
+  if (context != GAME_CONTEXT_EXIT && context != GAME_CONTEXT_DONE) {
+    context = GAME_CONTEXT_DONE;
+    pthread_join(netThread, NULL);
+  }
+  for (MapUnit* u : mapUnits) {
+    u->left = nullptr;
+    u->right = nullptr;
+    u->down = nullptr;
+    u->up = nullptr;
+  }
+  for (unsigned int i = 0; i < mapUnits.size(); i++) {
+    delete mapUnits[i];
+  }
+  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+    delete it->second;
+  }
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *b : it->second) {
+      delete b;
+    }
+    it->second.clear();
+  }
+  for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
+    SDL_DestroyTexture(it->second);
+  }
+  towerZaps.clear();
+  bombEffects.clear();
+  SDL_DestroyTexture(bombTextureGreen);
+  SDL_DestroyTexture(bombTextureRed);
+  objectiveInfoTextures.clear();
+  agentDict.clear();
+  mapUnits.clear();
+  delete disp;
+  delete menu;
+  delete panel;
+  free(eventsBuffer);
+  pthread_mutex_destroy(&threadLock);
+}
+
+/*-------------------Main net loop------------------------*/
 
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
@@ -154,690 +203,71 @@ void *Game::net_thread(void *g) {
   return NULL;
 }
 
+void Game::checkSpawnersDestroyed() {
+  auto ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].begin();
+  while (ssit != buildingLists[BUILDING_TYPE_SUBSPAWNER].end()) {
+    if (((Subspawner*)(*ssit))->isDestroyed()) {
+      for (MapUnit::iterator m = (*ssit)->getIterator(); m.hasNext(); m++) {
+	m->building = nullptr;
+      }
+      delete (*ssit);
+      ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].erase(ssit);
+    } else ssit++;
+  }
+  for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
+    Spawner *s = (Spawner*)build;
+    if (s->isDestroyed()) {
+      switch (s->sid) {
+      case SPAWNER_ID_GREEN:
+        winnerSpawnID = SPAWNER_ID_RED;
+	break;
+      case SPAWNER_ID_RED:
+	winnerSpawnID = SPAWNER_ID_GREEN;
+	break;
+      }
+      towerZaps.clear();
+      bombEffects.clear();
+      context = GAME_CONTEXT_DONE;
+    }
+  }
+}
+
+/*--------------Event buffer functions-------------*/
+
 int Game::messageSize(int n) {
   return (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) +
     (sizeof(BombEvent) * MAX_BOMBS) + sizeof(int) + (sizeof(AgentEvent) * n);
 }
 
-MapUnit* Game::mapUnitAt(int x, int y) {
-  return mapUnits[y * gameSize + x];
-}
-
-void Game::zoomIn() {
-  if (scale == MAX_SCALE) return;
-  scale += 1.0;
-  adjustViewToScale();
-}
-
-void Game::zoomOut() {
-  if (scale == initScale) return;
-  scale -= 1.0;
-  adjustViewToScale();
-}
-
-void Game::adjustViewToScale() {
-  view.w = (int)((double)gameDisplaySize / scale);
-  view.h = (int)((double)gameDisplaySize / scale);
-  view.x = selectedUnit->x - view.w/2;
-  view.y = selectedUnit->y - view.h/2;
-  if (view.x < 0) view.x = 0;
-  if (view.y < 0) view.y = 0;
-  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
-  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
-  if (context == GAME_CONTEXT_UNSELECTED) {
-    selectedUnit = mapUnitAt(view.x + view.w/2, view.y + view.h/2);
-  }
-  mouseMoved(mouseX, mouseY);
-}
-
-int Game::scaleInt(int toScale) {
-  return (int)(scale * ((double)toScale));
-}
-
-Context Game::getContext() {
-  return context;
-}
-
-int Game::getSize() {
-  return gameSize;
-}
-
-SpawnerID Game::getPlayerSpawnID() {
-  return playerSpawnID;
-}
-
-bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
-  return (
-	  r1.x < r2.x + r2.w &&
-	  r1.x + r1.w > r2.x &&
-	  r1.y < r2.y + r2.h &&
-	  r1.y + r1.h > r2.y
-	  );
-}
-
-bool Game::potentialSelectionCollidesWithBuilding(int potX, int potY, int potW, int potH) {
-  SDL_Rect r = { potX, potY, potW, potH };
-  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
-    for (Building *build: it->second) {
-      if (rectCollides(r, build->region)) return true;
-    }
-  }
-  return false;
-}
-
-bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
-  SDL_Rect r = {potX, potY, potW, potH};
-  for (Objective *o: objectives) {
-    if (rectCollides(r, o->region)) return true;
-  }
-  return false;
-}
-
-/* Handle a mouse moved to (x,y) */
-void Game::mouseMoved(int x, int y) {
-  if (y >= gameDisplaySize || x >= gameDisplaySize) {
-    selectedObjective = nullptr;
-    return;
-  }
-  mouseX = x;
-  mouseY = y;
-  int mouseUnitX = (int)((double)x / scale) + view.x;
-  int mouseUnitY = (int)((double)y / scale) + view.y;
-  if (menu->getIfObjectivesShown()) {
-    if (selectedObjective) {
-      if (mouseUnitX < selectedObjective->region.x ||
-	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w - 1 ||
-	  mouseUnitY < selectedObjective->region.y ||
-	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h - 1) {
-	selectedObjective = nullptr;
-      }
-    } else {
-      for (Objective *o: objectives) {
-	if (mouseUnitX >= o->region.x &&
-	    mouseUnitX <= o->region.x + o->region.w - 1 &&
-	    mouseUnitY >= o->region.y &&
-	    mouseUnitY <= o->region.y + o->region.h - 1) {
-	  selectedObjective = o;
-	}
-      }
-    }
-  }
-  int potX = selection.x;
-  int potY = selection.y;
-  int potW = selection.w;
-  int potH = selection.h;
-  switch(context) {
-  case GAME_CONTEXT_UNSELECTED:
-    selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
-    selection.x = mouseUnitX;
-    selection.y = mouseUnitY;
-    selection.w = 1;
-    selection.h = 1;
-    break;
-  case GAME_CONTEXT_PLACING:
-    potX = mouseUnitX - (placementW/2);
-    potY = mouseUnitY - (placementH/2);
-    potW = placementW;
-    potH = placementH;
-    if (potX + potW > gameSize - 1) potX = gameSize - potW - 1;
-    if (potY + potH > gameSize - 1) potY = gameSize - potH - 1;
-    if (potX < 1) potX = 1;
-    if (potY < 1) potY = 1;
-    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
-	!potentialSelectionCollidesWithBuilding(potX, potY, potW, potH)) {
-      selection.x = potX;
-      selection.y = potY;
-      selection.w = potW;
-      selection.h = potH;
-    }
-    break;
-  case GAME_CONTEXT_SELECTING:
-    if (mouseUnitX > (int)selectedUnit->x) {
-      potW = mouseUnitX - selectedUnit->x + 1;
-    } else {
-      potX = mouseUnitX;
-      potW = selectedUnit->x - mouseUnitX;
-    }
-    if (mouseUnitY > (int)selectedUnit->y) {
-      potH = mouseUnitY - selectedUnit->y + 1;
-    } else {
-      potY = mouseUnitY;
-      potH = selectedUnit->y - mouseUnitY;
-    }
-    if (potW <= 0) potW = 1;
-    if (potH <= 0) potH = 1;
-    if (potX + potW > gameSize) potW = gameSize - potX;
-    if (potY + potH > gameSize) potH = gameSize - potY;
-    if (potX < 0) potX = 0;
-    if (potY < 0) potY = 0;
-    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
-      selection.x = potX;
-      selection.y = potY;
-      selection.w = potW;
-      selection.h = potH;
-    }
-    break;
-  case GAME_CONTEXT_SELECTED:
-    break;
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    break;
+void Game::sizeEventsBuffer(int s) {
+  bool resize = (s > eventsBufferCapacity);
+  while (s > eventsBufferCapacity) eventsBufferCapacity *= 2;
+  if (resize) {
+    free(eventsBuffer);
+    eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   }
 }
 
-/* Handle a left mouse down at (x,y) */
-void Game::leftMouseDown(int x, int y) {
-  if (context == GAME_CONTEXT_CONNECTING) return;
-  if (x >= gameDisplaySize) return;
-  if (y >= gameDisplaySize) {
-    int idx = (x / menuSize);
-    (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
-    return;
-  } else {
-    for (MenuItem *it: menu->items) {
-      if (it->subMenuShown) {
-	if (x > it->subMenu.x &&
-	    x < it->subMenu.x + it->subMenu.w &&
-	    y > it->subMenu.y &&
-	    y < it->subMenu.y + it->subMenu.h) {
-	  int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
-	  if (it->subMenu.isToggleSubMenu) {
-	    it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
-	  } else {
-	    (this->*(it->subMenu.funcs.at(idy)))();
-	    menu->hideAllSubMenus();
-	  }
-	  return;
-	}
-      }
-    }   
-    switch(context) {
-    case GAME_CONTEXT_CONNECTING:
-      break;
-    case GAME_CONTEXT_PLACING:
-      switch (placingType) {
-      case BUILDING_TYPE_TOWER:
-	setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
-	break;
-      case BUILDING_TYPE_SUBSPAWNER:
-	setObjective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER);
-	break;
-      case BUILDING_TYPE_BOMB:
-	setObjective(OBJECTIVE_TYPE_BUILD_BOMB);
-	break;
-      default:
-	break;
-      }
-      context = GAME_CONTEXT_UNSELECTED;
-      break;
-    default:
-      mouseMoved(x,y);
-      if (selectedObjective == nullptr) {
-	context = GAME_CONTEXT_UNSELECTED;
-	mouseMoved(x,y);
-	context = GAME_CONTEXT_SELECTING;
-      }
-      break;
-    }
+void Game::receiveData(void* data, int numBytes) {
+  Events *events = (Events*)data;
+  sizeEventsBuffer(events->numAgentEvents);
+  memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
+  readyToReceive = true;
+}
+
+void Game::receiveEvents(Events *events) {
+  for (int i = 0; i < events->numAgentEvents; i++) {
+    receiveAgentEvent(&events->agentEvents[i]);
   }
-}
-
-/* Handle a left mouse up at (x,y) */
-void Game::leftMouseUp(int x, int y) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    if (context == GAME_CONTEXT_SELECTING) context = GAME_CONTEXT_SELECTED;
-    break;
+  for (int i = 0; i < MAX_TOWERS; i++) {
+    receiveTowerEvent(&events->towerEvents[i]);
   }
-}
-
-/* Handle a right mouse click at (x,y) */
-void Game::rightMouseDown(int x, int y) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    context = GAME_CONTEXT_UNSELECTED;
-    menu->hideAllSubMenus();
-    break;
+  for (int i = 0; i < MAX_BOMBS; i++) {
+    receiveBombEvent(&events->bombEvents[i]);
   }
-}
-
-void Game::panViewLeft() {
-  view.x -= view.w/4;
-  if (view.x < 0) view.x = 0;
-}
-
-void Game::panViewRight() {
-  view.x += view.w/4;
-  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
-}
-
-void Game::panViewUp() {
-  view.y -= view.h/4;
-  if (view.y < 0) view.y = 0;
-}
-
-void Game::panViewDown() {
-  view.y += view.h/4;
-  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
-}
-
-/* Get MapUnit iterator of the MapUnits in the current selected region */
-MapUnit::iterator Game::getSelectionIterator() {
-  MapUnit* first = mapUnitAt(selection.x + view.x, selection.y + view.y);
-  return first->getIterator(selection.w, selection.h);
-}
-
-void Game::buildWall() {
-  setObjective(OBJECTIVE_TYPE_BUILD_WALL);
-}
-
-void Game::goTo() {
-  setObjective(OBJECTIVE_TYPE_GOTO);
-}
-
-void Game::buildDoor() {
-  setObjective(OBJECTIVE_TYPE_BUILD_DOOR);
-}
-
-void Game::attack() {
-  setObjective(OBJECTIVE_TYPE_ATTACK);
-}
-
-void Game::clearScent() {
-  for (auto it = getSelectionIterator(); it.hasNext(); it++) {
-    it->clearScent();
+  for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
+    receiveSpawnerEvent(&events->spawnEvents[i]);
   }
-}
-
-void Game::placeBuilding(BuildingType type) {
-  int numPlayerBuilds = 0;
-  int maxBuilds;
-  int s;
-  ObjectiveType oType;
-  std::string errorEnd;
-  switch (type) {
-  case BUILDING_TYPE_TOWER:
-    maxBuilds = MAX_TOWERS;
-    s = TOWER_SIZE;
-    oType = OBJECTIVE_TYPE_BUILD_TOWER;
-    errorEnd = " towers";
-    break;
-  case BUILDING_TYPE_BOMB:
-    maxBuilds = MAX_BOMBS;
-    s = BOMB_SIZE;
-    oType = OBJECTIVE_TYPE_BUILD_BOMB;
-    errorEnd = " bombs";
-    break;
-  case BUILDING_TYPE_SUBSPAWNER:
-    maxBuilds = MAX_SUBSPAWNERS;
-    s = SUBSPAWNER_SIZE;
-    oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
-    errorEnd = " subspawners";
-    break;
-  default:
-    return;
-  }
-  for (Building *b: buildingLists[type]) {
-    if (b->sid == playerSpawnID) numPlayerBuilds++;
-  }
-  for (Objective *o: objectives) {
-    if (o->type == oType && !o->started) numPlayerBuilds++;
-  }
-  if (numPlayerBuilds < maxBuilds) {
-    placementW = s;
-    placementH = s;
-    placingType = type;
-    context = GAME_CONTEXT_PLACING;
-    mouseMoved(mouseX, mouseY);
-  } else {
-    std::string tooMany = "You can only build "+std::to_string(maxBuilds)+errorEnd+" at a time.";
-    panel->addText(tooMany.c_str());
-  }
-}
-
-void Game::placeTower() {
-  placeBuilding(BUILDING_TYPE_TOWER);
-}
-
-void Game::placeSubspawner() {
-  placeBuilding(BUILDING_TYPE_SUBSPAWNER);
-}
-
-void Game::placeBomb() {
-  placeBuilding(BUILDING_TYPE_BOMB);
-}
-
-void Game::setObjective(ObjectiveType oType) {
-  bool placingOverride = false;
-  if (context == GAME_CONTEXT_PLACING) {
-    if (oType == OBJECTIVE_TYPE_BUILD_TOWER && selection.w == TOWER_SIZE && selection.h == TOWER_SIZE)
-      placingOverride = true;
-    if (oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && selection.w == SUBSPAWNER_SIZE && selection.h == SUBSPAWNER_SIZE)
-      placingOverride = true;
-    if (oType == OBJECTIVE_TYPE_BUILD_BOMB && selection.w == BOMB_SIZE && selection.h == BOMB_SIZE)
-      placingOverride = true;
-  }
-  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_SELECTING || placingOverride) {
-    Objective *o = new Objective(oType, 255, this, selection);
-    objectives.push_back(o);
-    context = GAME_CONTEXT_UNSELECTED;
-  } else {
-    panel->addText("You must select a region to designate.");
-  }
-}
-
-void Game::deleteSelectedObjective() {
-  if (menu->getIfObjectivesShown()) {
-    if (selectedObjective) {
-      for (auto it = objectives.begin(); it != objectives.end(); it++) {
-	if (*it == selectedObjective) {
-	  objectives.erase(it);
-	  break;
-	}
-      }
-      MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
-      for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
-	   it.hasNext(); it++) {
-	it->objective = nullptr;
-      }
-      delete selectedObjective;
-      selectedObjective = nullptr;
-    }
-  }
-}
-
-void Game::showControls() {
-  panel->controlsText();
-}
-
-void Game::showBasicInfo() {
-  panel->basicInfoText();
-}
-
-void Game::showCosts() {
-  panel->costsText();
-}
-
-void Game::clearPanel() {
-  panel->clearText();
-}
-
-void Game::setTeamDrawColor(SpawnerID sid) {
-  switch (sid) {
-  case SPAWNER_ID_GREEN:
-    disp->setDrawColor(0,255,0);
-    break;
-  case SPAWNER_ID_RED:
-    disp->setDrawColor(255,0,0);
-    break;
-  }
-}
-
-void Game::drawStartupScreen() {
-  disp->fillBlack();
-  std::string startupInfoL1 = "You are the";
-  std::string startupInfoL2;
-  std::string startupInfoL3 = "team";
-  std::string startupInfoL4 = std::to_string(secondsRemaining - GAME_TIME_SECONDS);
-  int r, g;
-  int b = 0;
-  switch (playerSpawnID) {
-  case SPAWNER_ID_GREEN:
-    startupInfoL2 = "GREEN";
-    r = 0;
-    g = 255;
-    break;
-  case SPAWNER_ID_RED:
-    startupInfoL2 = "RED";
-    r = 255;
-    g = 0;
-    break;
-  }
-  int w1, h1, w2, h2, w3, h3, w4, h4;
-  disp->sizeTextSized(startupInfoL1.c_str(), STARTUP_FONT_SIZE, &w1, &h1);
-  disp->sizeTextSized(startupInfoL2.c_str(), STARTUP_FONT_SIZE, &w2, &h2);
-  disp->sizeTextSized(startupInfoL3.c_str(), STARTUP_FONT_SIZE, &w3, &h3);
-  disp->sizeTextSized(startupInfoL4.c_str(), STARTUP_FONT_SIZE, &w4, &h4);
-  int xOff = disp->getWidth() / 2 - w1/2;
-  int yOff = disp->getHeight() / 3;
-  disp->drawTextSizedColored(startupInfoL1.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
-  xOff = disp->getWidth()/2 - w2/2;
-  yOff += h1;
-  disp->drawTextSizedColored(startupInfoL2.c_str(), xOff, yOff, STARTUP_FONT_SIZE, r, g, b);
-  xOff = disp->getWidth()/2 - w3/2;
-  yOff += h2;
-  disp->drawTextSizedColored(startupInfoL3.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
-  xOff = disp->getWidth()/2 - w4/2;
-  yOff += h3;
-  disp->drawTextSizedColored(startupInfoL4.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
-}
-
-/* Draw the current game screen based on context */
-void Game::draw() {
-  disp->fillBlack();
-  int lum;
-  double lumprop;
-  MapUnit* first = mapUnitAt(view.x, view.y);
-  /* Iterate over view */
-  for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
-       iter.hasNext(); iter++) {
-    int scaledX = scaleInt(iter->x - view.x);
-    int scaledY = scaleInt(iter->y - view.y);
-    int off;
-    double offProp;
-    switch (iter->type) {
-    case UNIT_TYPE_AGENT:
-      setTeamDrawColor(iter->agent->sid);
-      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-      break;
-    case UNIT_TYPE_BUILDING:
-      break;
-    case UNIT_TYPE_DOOR:
-      setTeamDrawColor(iter->door->sid);
-      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-      if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
-	if (menu->getIfScentsShown()) {
-	  lum = (int)(255.0 * (double)iter->scent/255.0);
-	  disp->setDrawColor(lum, 0, lum);
-	} else {
-	  disp->setDrawColorBlack();
-	}
-	offProp = (double)iter->door->hp/(double)MAX_DOOR_HEALTH;
-	off = (int)(offProp*scale*1.0/4.0); 
-	disp->drawRectFilled(scaledX + (int)(scale/2.0) - off, scaledY + (int)(scale/2.0) - off, 2*off, 2*off);
-      }
-      break;
-    case UNIT_TYPE_SPAWNER:
-      setTeamDrawColor(iter->building->sid);
-      lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
-      disp->setDrawColorBrightness(lumprop);
-      if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
-      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-      break;
-    case UNIT_TYPE_WALL:
-      lum = (int)(((double)iter->hp/(double)MAX_WALL_HEALTH)*100.0)+155;
-      disp->setDrawColor(lum,lum,lum);
-      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-      break;
-    case UNIT_TYPE_EMPTY:
-      if (menu->getIfScentsShown()) {
-	lum = (int)(255.0 * (double)iter->scent/255.0);
-	disp->setDrawColor(lum, 0, lum);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
-      }
-      break;
-    default:	
-      break;
-    }
-  }
-  for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
-    disp->setDrawColorWhite();
-    int x1 = scaleInt(it->x1 - view.x);
-    int y1 = scaleInt(it->y1 - view.y);
-    int x2 = scaleInt(it->x2 - view.x);
-    int y2 = scaleInt(it->y2 - view.y);
-    SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
-    for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
-      double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
-      int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
-      int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
-      if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
-	tx += (rand() % 2*(int)scale) - (int)scale;
-	ty += (rand() % 2*(int)scale) - (int)scale;
-      }
-      effectPoints[i] = { tx, ty };
-    }
-    disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
-  }
-  for (Building *build: buildingLists[BUILDING_TYPE_TOWER]) {
-    Tower *t = (Tower*)build;
-    setTeamDrawColor(t->sid);
-    int x = scaleInt(t->region.x-view.x);
-    int y = scaleInt(t->region.y-view.y);
-    int s = scaleInt(TOWER_SIZE);
-    disp->drawRectFilled(x, y+s/4, s, s/2);
-    disp->drawRectFilled(x+s/4, y, s/2, s);
-    disp->drawLine(x, y+s/4, x+s/4, y);
-    disp->drawLine(x+s-s/4, y, x+s, y+s/4);
-    disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
-    disp->drawLine(x+s/4, y+s, x, y+s-s/4);
-    disp->setDrawColorBlack();
-    for (int i = 1; i < s/4; i++) {
-      disp->drawCircle(x+s/2,y+s/2,i);
-    }
-    SDL_Point centerPoints[ZAP_CENTER_EFFECTS_NUM];
-    for (int i = 0; i < ZAP_CENTER_EFFECTS_NUM; i++) {
-      int tx = x + s/2 + (rand() % (s/3)) - s/6;
-      int ty = y + s/2 + (rand() % (s/3)) - s/6;
-      centerPoints[i] = { tx, ty };
-    }
-    disp->setDrawColorWhite();
-    if (t->hp < t->max_hp) {
-      disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
-    }
-    disp->drawLines(centerPoints, ZAP_CENTER_EFFECTS_NUM);
-  }
-  for (Building *build: buildingLists[BUILDING_TYPE_BOMB]) {
-    Bomb *b = (Bomb*)build;
-    SDL_Texture *texture;
-    switch (b->sid) {
-    case SPAWNER_ID_GREEN:
-      texture = bombTextureGreen;
-      break;
-    case SPAWNER_ID_RED:
-      texture = bombTextureRed;
-      break;
-    }
-    double completion = (double)b->hp / (double)b->max_hp;
-    int x = scaleInt(b->region.x - view.x);
-    int y = scaleInt(b->region.y - view.y);
-    int s = scaleInt(BOMB_SIZE);
-    int rectHeight = (int)((double)s*completion);
-    disp->setDrawColorWhite();
-    disp->drawRectFilled(x, y+s-rectHeight, s, rectHeight);
-    disp->drawTexture(texture, x, y, s, s);
-  }
-  for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
-    int x = scaleInt(it->x - view.x);
-    int y = scaleInt(it->y - view.y);
-    int maxRad = scaleInt(BOMB_AOE_RADIUS);
-    int r = rand() % 255;
-    int g = rand() % 255;
-    int b = rand() % 255;
-    disp->setDrawColor(r, g, b);
-    for (int i = 1; i <= maxRad; i++) {
-      disp->drawCircle(x, y, i);
-    }
-  }
-  if (context != GAME_CONTEXT_UNSELECTED) {
-    disp->setDrawColor(150,150,150);
-    int selectionScaledX = scaleInt(selection.x - view.x);
-    int selectionScaledY = scaleInt(selection.y - view.y);
-    disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
-  }
-  if (context == GAME_CONTEXT_PLACING) {
-    ObjectiveType oType;
-    switch (placingType) {
-    case BUILDING_TYPE_TOWER:
-      oType = OBJECTIVE_TYPE_BUILD_TOWER;
-      break;
-    case BUILDING_TYPE_SUBSPAWNER:
-      oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
-      break;
-    case BUILDING_TYPE_BOMB:
-      oType = OBJECTIVE_TYPE_BUILD_BOMB;
-      break;
-    default:
-      oType = OBJECTIVE_TYPE_BUILD_TOWER;
-      break;
-    }
-    SDL_Texture *texture = objectiveInfoTextures[oType];
-    int objectiveInfoWidth;
-    int objectiveInfoHeight;
-    SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
-    int x = mouseX + 20;
-    int y = mouseY + 10;
-    if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
-    if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
-    disp->setDrawColorBlack();
-    disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
-    disp->setDrawColorWhite();
-    disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
-    disp->drawTexture(texture, x, y);
-  }
-  if (menu->getIfBuildingsOutlined()) {
-    disp->setDrawColorWhite();
-    for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
-      for (Building *build : it->second) {
-	disp->drawRect(scaleInt(build->region.x-view.x), scaleInt(build->region.y-view.y), scaleInt(build->region.w), scaleInt(build->region.h));
-      }
-    }
-  }
-  if (menu->getIfObjectivesShown()) {
-    for (Objective *o: objectives) {
-      disp->setDrawColor(255,255,0);
-      int scaledX = scaleInt(o->region.x - view.x);
-      int scaledY = scaleInt(o->region.y - view.y);
-      int scaledW = scaleInt(o->region.w);
-      int scaledH = scaleInt(o->region.h);
-      disp->drawRect(scaledX, scaledY, scaledW, scaledH);
-      disp->drawRect(scaledX-1, scaledY-1, scaledW+2, scaledH+2);
-    }
-    if (selectedObjective) {
-      SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];
-      int objectiveInfoWidth;
-      int objectiveInfoHeight;
-      SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
-      int x = mouseX + 20;
-      int y = mouseY + 10;
-      if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
-      if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
-      disp->setDrawColorBlack();
-      disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
-      disp->setDrawColorWhite();
-      disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
-      disp->drawTexture(texture, x, y);
-    }
-  }
-  disp->setDrawColorWhite();
-  disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
-  int m = secondsRemaining / 60;
-  int s = secondsRemaining % 60;
-  std::string mText = std::to_string(m);
-  if (m < 10) mText = "0" + mText;
-  std::string sText = std::to_string(s);
-  if (s < 10) sText = "0" + sText;
-  std::string timeText = mText + ":" + sText;
-  int ttw, tth;
-  disp->sizeText(timeText.c_str(), &ttw, &tth);
-  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, 0);
-  panel->draw();
-  menu->draw(disp);
 }
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
@@ -1125,75 +555,6 @@ void Game::receiveBombEvent(BombEvent *bevent) {
   }
 }
 
-void Game::receiveEvents(Events *events) {
-  for (int i = 0; i < events->numAgentEvents; i++) {
-    receiveAgentEvent(&events->agentEvents[i]);
-  }
-  for (int i = 0; i < MAX_TOWERS; i++) {
-    receiveTowerEvent(&events->towerEvents[i]);
-  }
-  for (int i = 0; i < MAX_BOMBS; i++) {
-    receiveBombEvent(&events->bombEvents[i]);
-  }
-  for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
-    receiveSpawnerEvent(&events->spawnEvents[i]);
-  }
-}
-
-AgentID Game::getNewAgentID() {
-  return newAgentID++;
-}
-
-void Game::checkSpawnersDestroyed() {
-  auto ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].begin();
-  while (ssit != buildingLists[BUILDING_TYPE_SUBSPAWNER].end()) {
-    if (((Subspawner*)(*ssit))->isDestroyed()) {
-      for (MapUnit::iterator m = (*ssit)->getIterator(); m.hasNext(); m++) {
-	m->building = nullptr;
-      }
-      delete (*ssit);
-      ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].erase(ssit);
-    } else ssit++;
-  }
-  for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
-    Spawner *s = (Spawner*)build;
-    if (s->isDestroyed()) {
-      switch (s->sid) {
-      case SPAWNER_ID_GREEN:
-        winnerSpawnID = SPAWNER_ID_RED;
-	break;
-      case SPAWNER_ID_RED:
-	winnerSpawnID = SPAWNER_ID_GREEN;
-	break;
-      }
-      towerZaps.clear();
-      bombEffects.clear();
-      context = GAME_CONTEXT_DONE;
-    }
-  }
-}
-
-void Game::resign()  {
-
-}
-
-void Game::sizeEventsBuffer(int s) {
-  bool resize = (s > eventsBufferCapacity);
-  while (s > eventsBufferCapacity) eventsBufferCapacity *= 2;
-  if (resize) {
-    free(eventsBuffer);
-    eventsBuffer = malloc(messageSize(eventsBufferCapacity));
-  }
-}
-
-void Game::receiveData(void* data, int numBytes) {
-  Events *events = (Events*)data;
-  sizeEventsBuffer(events->numAgentEvents);
-  memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
-  readyToReceive = true;
-}
-
-/* Update errythang */
 void Game::update() {
   sizeEventsBuffer(numPlayerAgents);
   Events *events = (Events*)eventsBuffer;
@@ -1268,13 +629,670 @@ void Game::update() {
   readyToSend = true;
 }
 
+/*------------------Objective Functions-----------------*/
+
+void Game::clearScent() {
+  for (auto it = getSelectionIterator(); it.hasNext(); it++) {
+    it->clearScent();
+  }
+}
+
+void Game::placeBuilding(BuildingType type) {
+  int numPlayerBuilds = 0;
+  int maxBuilds;
+  int s;
+  ObjectiveType oType;
+  std::string errorEnd;
+  switch (type) {
+  case BUILDING_TYPE_TOWER:
+    maxBuilds = MAX_TOWERS;
+    s = TOWER_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_TOWER;
+    errorEnd = " towers";
+    break;
+  case BUILDING_TYPE_BOMB:
+    maxBuilds = MAX_BOMBS;
+    s = BOMB_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_BOMB;
+    errorEnd = " bombs";
+    break;
+  case BUILDING_TYPE_SUBSPAWNER:
+    maxBuilds = MAX_SUBSPAWNERS;
+    s = SUBSPAWNER_SIZE;
+    oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
+    errorEnd = " subspawners";
+    break;
+  default:
+    return;
+  }
+  for (Building *b: buildingLists[type]) {
+    if (b->sid == playerSpawnID) numPlayerBuilds++;
+  }
+  for (Objective *o: objectives) {
+    if (o->type == oType && !o->started) numPlayerBuilds++;
+  }
+  if (numPlayerBuilds < maxBuilds) {
+    placementW = s;
+    placementH = s;
+    placingType = type;
+    context = GAME_CONTEXT_PLACING;
+    mouseMoved(mouseX, mouseY);
+  } else {
+    std::string tooMany = "You can only build "+std::to_string(maxBuilds)+errorEnd+" at a time.";
+    panel->addText(tooMany.c_str());
+  }
+}
+
+void Game::setObjective(ObjectiveType oType) {
+  bool placingOverride = false;
+  if (context == GAME_CONTEXT_PLACING) {
+    if (oType == OBJECTIVE_TYPE_BUILD_TOWER && selection.w == TOWER_SIZE && selection.h == TOWER_SIZE)
+      placingOverride = true;
+    if (oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && selection.w == SUBSPAWNER_SIZE && selection.h == SUBSPAWNER_SIZE)
+      placingOverride = true;
+    if (oType == OBJECTIVE_TYPE_BUILD_BOMB && selection.w == BOMB_SIZE && selection.h == BOMB_SIZE)
+      placingOverride = true;
+  }
+  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_SELECTING || placingOverride) {
+    Objective *o = new Objective(oType, 255, this, selection);
+    objectives.push_back(o);
+    context = GAME_CONTEXT_UNSELECTED;
+  } else {
+    panel->addText("You must select a region to designate.");
+  }
+}
+
+void Game::deleteSelectedObjective() {
+  if (menu->getIfObjectivesShown()) {
+    if (selectedObjective) {
+      for (auto it = objectives.begin(); it != objectives.end(); it++) {
+	if (*it == selectedObjective) {
+	  objectives.erase(it);
+	  break;
+	}
+      }
+      MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
+      for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
+	   it.hasNext(); it++) {
+	it->objective = nullptr;
+      }
+      delete selectedObjective;
+      selectedObjective = nullptr;
+    }
+  }
+}
+
+/*------------Interface functions---------------*/
+
+void Game::zoomIn() {
+  if (scale == MAX_SCALE) return;
+  scale += 1.0;
+  adjustViewToScale();
+}
+
+void Game::zoomOut() {
+  if (scale == initScale) return;
+  scale -= 1.0;
+  adjustViewToScale();
+}
+
+void Game::adjustViewToScale() {
+  view.w = (int)((double)gameDisplaySize / scale);
+  view.h = (int)((double)gameDisplaySize / scale);
+  view.x = selectedUnit->x - view.w/2;
+  view.y = selectedUnit->y - view.h/2;
+  if (view.x < 0) view.x = 0;
+  if (view.y < 0) view.y = 0;
+  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
+  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
+  if (context == GAME_CONTEXT_UNSELECTED) {
+    selectedUnit = mapUnitAt(view.x + view.w/2, view.y + view.h/2);
+  }
+  mouseMoved(mouseX, mouseY);
+}
+
+void Game::mouseMoved(int x, int y) {
+  if (y >= gameDisplaySize || x >= gameDisplaySize) {
+    selectedObjective = nullptr;
+    return;
+  }
+  mouseX = x;
+  mouseY = y;
+  int mouseUnitX = (int)((double)x / scale) + view.x;
+  int mouseUnitY = (int)((double)y / scale) + view.y;
+  if (menu->getIfObjectivesShown()) {
+    if (selectedObjective) {
+      if (mouseUnitX < selectedObjective->region.x ||
+	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w - 1 ||
+	  mouseUnitY < selectedObjective->region.y ||
+	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h - 1) {
+	selectedObjective = nullptr;
+      }
+    } else {
+      for (Objective *o: objectives) {
+	if (mouseUnitX >= o->region.x &&
+	    mouseUnitX <= o->region.x + o->region.w - 1 &&
+	    mouseUnitY >= o->region.y &&
+	    mouseUnitY <= o->region.y + o->region.h - 1) {
+	  selectedObjective = o;
+	}
+      }
+    }
+  }
+  int potX = selection.x;
+  int potY = selection.y;
+  int potW = selection.w;
+  int potH = selection.h;
+  switch(context) {
+  case GAME_CONTEXT_UNSELECTED:
+    selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
+    selection.x = mouseUnitX;
+    selection.y = mouseUnitY;
+    selection.w = 1;
+    selection.h = 1;
+    break;
+  case GAME_CONTEXT_PLACING:
+    potX = mouseUnitX - (placementW/2);
+    potY = mouseUnitY - (placementH/2);
+    potW = placementW;
+    potH = placementH;
+    if (potX + potW > gameSize - 1) potX = gameSize - potW - 1;
+    if (potY + potH > gameSize - 1) potY = gameSize - potH - 1;
+    if (potX < 1) potX = 1;
+    if (potY < 1) potY = 1;
+    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH) &&
+	!potentialSelectionCollidesWithBuilding(potX, potY, potW, potH)) {
+      selection.x = potX;
+      selection.y = potY;
+      selection.w = potW;
+      selection.h = potH;
+    }
+    break;
+  case GAME_CONTEXT_SELECTING:
+    if (mouseUnitX > (int)selectedUnit->x) {
+      potW = mouseUnitX - selectedUnit->x + 1;
+    } else {
+      potX = mouseUnitX;
+      potW = selectedUnit->x - mouseUnitX;
+    }
+    if (mouseUnitY > (int)selectedUnit->y) {
+      potH = mouseUnitY - selectedUnit->y + 1;
+    } else {
+      potY = mouseUnitY;
+      potH = selectedUnit->y - mouseUnitY;
+    }
+    if (potW <= 0) potW = 1;
+    if (potH <= 0) potH = 1;
+    if (potX + potW > gameSize) potW = gameSize - potX;
+    if (potY + potH > gameSize) potH = gameSize - potY;
+    if (potX < 0) potX = 0;
+    if (potY < 0) potY = 0;
+    if (!potentialSelectionCollidesWithObjective(potX, potY, potW, potH)) {
+      selection.x = potX;
+      selection.y = potY;
+      selection.w = potW;
+      selection.h = potH;
+    }
+    break;
+  case GAME_CONTEXT_SELECTED:
+    break;
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    break;
+  }
+}
+
+void Game::leftMouseDown(int x, int y) {
+  if (context == GAME_CONTEXT_CONNECTING) return;
+  if (x >= gameDisplaySize) return;
+  if (y >= gameDisplaySize) {
+    int idx = (x / menuSize);
+    (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
+    return;
+  } else {
+    for (MenuItem *it: menu->items) {
+      if (it->subMenuShown) {
+	if (x > it->subMenu.x &&
+	    x < it->subMenu.x + it->subMenu.w &&
+	    y > it->subMenu.y &&
+	    y < it->subMenu.y + it->subMenu.h) {
+	  int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
+	  if (it->subMenu.isToggleSubMenu) {
+	    it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
+	  } else {
+	    (this->*(it->subMenu.funcs.at(idy)))();
+	    menu->hideAllSubMenus();
+	  }
+	  return;
+	}
+      }
+    }   
+    switch(context) {
+    case GAME_CONTEXT_CONNECTING:
+      break;
+    case GAME_CONTEXT_PLACING:
+      switch (placingType) {
+      case BUILDING_TYPE_TOWER:
+	setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
+	break;
+      case BUILDING_TYPE_SUBSPAWNER:
+	setObjective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER);
+	break;
+      case BUILDING_TYPE_BOMB:
+	setObjective(OBJECTIVE_TYPE_BUILD_BOMB);
+	break;
+      default:
+	break;
+      }
+      context = GAME_CONTEXT_UNSELECTED;
+      break;
+    default:
+      mouseMoved(x,y);
+      if (selectedObjective == nullptr) {
+	context = GAME_CONTEXT_UNSELECTED;
+	mouseMoved(x,y);
+	context = GAME_CONTEXT_SELECTING;
+      }
+      break;
+    }
+  }
+}
+
+void Game::leftMouseUp(int x, int y) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    if (context == GAME_CONTEXT_SELECTING) context = GAME_CONTEXT_SELECTED;
+    break;
+  }
+}
+
+void Game::rightMouseDown(int x, int y) {
+  switch(context) {
+  case GAME_CONTEXT_CONNECTING:
+    break;
+  default:
+    context = GAME_CONTEXT_UNSELECTED;
+    menu->hideAllSubMenus();
+    break;
+  }
+}
+
+void Game::panViewLeft() {
+  view.x -= view.w/4;
+  if (view.x < 0) view.x = 0;
+}
+
+void Game::panViewRight() {
+  view.x += view.w/4;
+  if (view.x > gameSize - view.w) view.x = gameSize - view.w;
+}
+
+void Game::panViewUp() {
+  view.y -= view.h/4;
+  if (view.y < 0) view.y = 0;
+}
+
+void Game::panViewDown() {
+  view.y += view.h/4;
+  if (view.y > gameSize - view.h) view.y = gameSize - view.h;
+}
+
+/*----------------Display Functions------------------*/
+
+void Game::setTeamDrawColor(SpawnerID sid) {
+  switch (sid) {
+  case SPAWNER_ID_GREEN:
+    disp->setDrawColor(0,255,0);
+    break;
+  case SPAWNER_ID_RED:
+    disp->setDrawColor(255,0,0);
+    break;
+  }
+}
+
+void Game::drawStartupScreen() {
+  disp->fillBlack();
+  std::string startupInfoL1 = "You are the";
+  std::string startupInfoL2;
+  std::string startupInfoL3 = "team";
+  std::string startupInfoL4 = std::to_string(secondsRemaining - GAME_TIME_SECONDS);
+  int r, g;
+  int b = 0;
+  switch (playerSpawnID) {
+  case SPAWNER_ID_GREEN:
+    startupInfoL2 = "GREEN";
+    r = 0;
+    g = 255;
+    break;
+  case SPAWNER_ID_RED:
+    startupInfoL2 = "RED";
+    r = 255;
+    g = 0;
+    break;
+  }
+  int w1, h1, w2, h2, w3, h3, w4, h4;
+  disp->sizeTextSized(startupInfoL1.c_str(), STARTUP_FONT_SIZE, &w1, &h1);
+  disp->sizeTextSized(startupInfoL2.c_str(), STARTUP_FONT_SIZE, &w2, &h2);
+  disp->sizeTextSized(startupInfoL3.c_str(), STARTUP_FONT_SIZE, &w3, &h3);
+  disp->sizeTextSized(startupInfoL4.c_str(), STARTUP_FONT_SIZE, &w4, &h4);
+  int xOff = disp->getWidth() / 2 - w1/2;
+  int yOff = disp->getHeight() / 3;
+  disp->drawTextSizedColored(startupInfoL1.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
+  xOff = disp->getWidth()/2 - w2/2;
+  yOff += h1;
+  disp->drawTextSizedColored(startupInfoL2.c_str(), xOff, yOff, STARTUP_FONT_SIZE, r, g, b);
+  xOff = disp->getWidth()/2 - w3/2;
+  yOff += h2;
+  disp->drawTextSizedColored(startupInfoL3.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
+  xOff = disp->getWidth()/2 - w4/2;
+  yOff += h3;
+  disp->drawTextSizedColored(startupInfoL4.c_str(), xOff, yOff, STARTUP_FONT_SIZE, 255, 255, 255);
+}
+
+void Game::drawEffects() {
+  for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
+    disp->setDrawColorWhite();
+    int x1 = scaleInt(it->x1 - view.x);
+    int y1 = scaleInt(it->y1 - view.y);
+    int x2 = scaleInt(it->x2 - view.x);
+    int y2 = scaleInt(it->y2 - view.y);
+    SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
+    for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
+      double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
+      int tx = (int)((1.0-t)*(double)x1 + t*(double)x2);
+      int ty = (int)((1.0-t)*(double)y1 + t*(double)y2);
+      if (i != 0 && i != ZAP_EFFECTS_SUBDIVISION - 1) {
+	tx += (rand() % 2*(int)scale) - (int)scale;
+	ty += (rand() % 2*(int)scale) - (int)scale;
+      }
+      effectPoints[i] = { tx, ty };
+    }
+    disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
+  }
+  for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
+    int x = scaleInt(it->x - view.x);
+    int y = scaleInt(it->y - view.y);
+    int maxRad = scaleInt(BOMB_AOE_RADIUS);
+    int r = rand() % 255;
+    int g = rand() % 255;
+    int b = rand() % 255;
+    disp->setDrawColor(r, g, b);
+    for (int i = 1; i <= maxRad; i++) {
+      disp->drawCircle(x, y, i);
+    }
+  }
+}
+
+void Game::drawBuilding(Building *build) {
+  int x,y,s;
+  Tower *t;
+  Bomb *b;
+  SDL_Point centerPoints[ZAP_CENTER_EFFECTS_NUM];
+  SDL_Texture *texture;    
+  switch (build->type) {
+  case BUILDING_TYPE_SUBSPAWNER:
+  case BUILDING_TYPE_SPAWNER:
+    break;
+  case BUILDING_TYPE_TOWER:
+    t = (Tower*)build;
+    setTeamDrawColor(t->sid);
+    x = scaleInt(t->region.x-view.x);
+    y = scaleInt(t->region.y-view.y);
+    s = scaleInt(TOWER_SIZE);
+    disp->drawRectFilled(x, y+s/4, s, s/2);
+    disp->drawRectFilled(x+s/4, y, s/2, s);
+    disp->drawLine(x, y+s/4, x+s/4, y);
+    disp->drawLine(x+s-s/4, y, x+s, y+s/4);
+    disp->drawLine(x+s, y+s-s/4, x+s-s/4, y+s);
+    disp->drawLine(x+s/4, y+s, x, y+s-s/4);
+    disp->setDrawColorBlack();
+    for (int i = 1; i < s/4; i++) {
+      disp->drawCircle(x+s/2,y+s/2,i);
+    }
+    for (int i = 0; i < ZAP_CENTER_EFFECTS_NUM; i++) {
+      int tx = x + s/2 + (rand() % (s/3)) - s/6;
+      int ty = y + s/2 + (rand() % (s/3)) - s/6;
+      centerPoints[i] = { tx, ty };
+    }
+    disp->setDrawColorWhite();
+    if (t->hp < t->max_hp) {
+      disp->setDrawColorBrightness((double)t->hp / (double)t->max_hp);
+    }
+    disp->drawLines(centerPoints, ZAP_CENTER_EFFECTS_NUM);
+    break;
+  case BUILDING_TYPE_BOMB:
+    b = (Bomb*)build;
+    switch (b->sid) {
+    case SPAWNER_ID_GREEN:
+      texture = bombTextureGreen;
+      break;
+    case SPAWNER_ID_RED:
+      texture = bombTextureRed;
+      break;
+    }
+    double completion = (double)b->hp / (double)b->max_hp;
+    x = scaleInt(b->region.x - view.x);
+    y = scaleInt(b->region.y - view.y);
+    s = scaleInt(BOMB_SIZE);
+    int rectHeight = (int)((double)s*completion);
+    disp->setDrawColorWhite();
+    disp->drawRectFilled(x, y+s-rectHeight, s, rectHeight);
+    disp->drawTexture(texture, x, y, s, s);
+    break;
+  }
+}
+
+void Game::draw() {
+  disp->fillBlack();
+  int lum;
+  double lumprop;
+  MapUnit* first = mapUnitAt(view.x, view.y);
+  for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
+       iter.hasNext(); iter++) {
+    int scaledX = scaleInt(iter->x - view.x);
+    int scaledY = scaleInt(iter->y - view.y);
+    int off;
+    double offProp;
+    switch (iter->type) {
+    case UNIT_TYPE_AGENT:
+      setTeamDrawColor(iter->agent->sid);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_BUILDING:
+      break;
+    case UNIT_TYPE_DOOR:
+      setTeamDrawColor(iter->door->sid);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
+	if (menu->getIfScentsShown()) {
+	  lum = (int)(255.0 * (double)iter->scent/255.0);
+	  disp->setDrawColor(lum, 0, lum);
+	} else {
+	  disp->setDrawColorBlack();
+	}
+	offProp = (double)iter->door->hp/(double)MAX_DOOR_HEALTH;
+	off = (int)(offProp*scale*1.0/4.0); 
+	disp->drawRectFilled(scaledX + (int)(scale/2.0) - off, scaledY + (int)(scale/2.0) - off, 2*off, 2*off);
+      }
+      break;
+    case UNIT_TYPE_SPAWNER:
+      setTeamDrawColor(iter->building->sid);
+      lumprop = (double)iter->hp/(double)SUBSPAWNER_UNIT_COST;
+      disp->setDrawColorBrightness(lumprop);
+      if (((iter->x + iter->y) % 2) == 0) disp->setDrawColorBrightness(0.5);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_WALL:
+      lum = (int)(((double)iter->hp/(double)MAX_WALL_HEALTH)*100.0)+155;
+      disp->setDrawColor(lum,lum,lum);
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      break;
+    case UNIT_TYPE_EMPTY:
+      if (menu->getIfScentsShown()) {
+	lum = (int)(255.0 * (double)iter->scent/255.0);
+	disp->setDrawColor(lum, 0, lum);
+	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      }
+      break;
+    default:	
+      break;
+    }
+  }
+  drawEffects();
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *build : it->second) {
+      drawBuilding(build);
+    }
+  }
+  if (context != GAME_CONTEXT_UNSELECTED) {
+    disp->setDrawColor(150,150,150);
+    int selectionScaledX = scaleInt(selection.x - view.x);
+    int selectionScaledY = scaleInt(selection.y - view.y);
+    disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
+  }
+  if (context == GAME_CONTEXT_PLACING) {
+    ObjectiveType oType;
+    switch (placingType) {
+    case BUILDING_TYPE_TOWER:
+      oType = OBJECTIVE_TYPE_BUILD_TOWER;
+      break;
+    case BUILDING_TYPE_SUBSPAWNER:
+      oType = OBJECTIVE_TYPE_BUILD_SUBSPAWNER;
+      break;
+    case BUILDING_TYPE_BOMB:
+      oType = OBJECTIVE_TYPE_BUILD_BOMB;
+      break;
+    default:
+      oType = OBJECTIVE_TYPE_BUILD_TOWER;
+      break;
+    }
+    SDL_Texture *texture = objectiveInfoTextures[oType];
+    int objectiveInfoWidth;
+    int objectiveInfoHeight;
+    SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
+    int x = mouseX + 20;
+    int y = mouseY + 10;
+    if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
+    if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
+    disp->setDrawColorWhite();
+    disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+    disp->drawTexture(texture, x, y);
+  }
+  if (menu->getIfBuildingsOutlined()) {
+    disp->setDrawColorWhite();
+    for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+      for (Building *build : it->second) {
+	disp->drawRect(scaleInt(build->region.x-view.x), scaleInt(build->region.y-view.y), scaleInt(build->region.w), scaleInt(build->region.h));
+      }
+    }
+  }
+  if (menu->getIfObjectivesShown()) {
+    for (Objective *o: objectives) {
+      disp->setDrawColor(255,255,0);
+      int scaledX = scaleInt(o->region.x - view.x);
+      int scaledY = scaleInt(o->region.y - view.y);
+      int scaledW = scaleInt(o->region.w);
+      int scaledH = scaleInt(o->region.h);
+      disp->drawRect(scaledX, scaledY, scaledW, scaledH);
+      disp->drawRect(scaledX-1, scaledY-1, scaledW+2, scaledH+2);
+    }
+    if (selectedObjective) {
+      SDL_Texture *texture = objectiveInfoTextures[selectedObjective->type];
+      int objectiveInfoWidth;
+      int objectiveInfoHeight;
+      SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
+      int x = mouseX + 20;
+      int y = mouseY + 10;
+      if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
+      if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
+      disp->setDrawColorBlack();
+      disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
+      disp->setDrawColorWhite();
+      disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+      disp->drawTexture(texture, x, y);
+    }
+  }
+  disp->setDrawColorWhite();
+  disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
+  int m = secondsRemaining / 60;
+  int s = secondsRemaining % 60;
+  std::string mText = std::to_string(m);
+  if (m < 10) mText = "0" + mText;
+  std::string sText = std::to_string(s);
+  if (s < 10) sText = "0" + sText;
+  std::string timeText = mText + ":" + sText;
+  int ttw, tth;
+  disp->sizeText(timeText.c_str(), &ttw, &tth);
+  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, 0);
+  panel->draw();
+  menu->draw(disp);
+}
+
+/*-------------------Helper functions & one-liners------------------------------*/
+
+bool Game::rectCollides(SDL_Rect r1, SDL_Rect r2) {
+  return (
+	  r1.x < r2.x + r2.w &&
+	  r1.x + r1.w > r2.x &&
+	  r1.y < r2.y + r2.h &&
+	  r1.y + r1.h > r2.y
+	  );
+}
+
+bool Game::potentialSelectionCollidesWithBuilding(int potX, int potY, int potW, int potH) {
+  SDL_Rect r = { potX, potY, potW, potH };
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *build: it->second) {
+      if (rectCollides(r, build->region)) return true;
+    }
+  }
+  return false;
+}
+
+bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW, int potH) {
+  SDL_Rect r = {potX, potY, potW, potH};
+  for (Objective *o: objectives) {
+    if (rectCollides(r, o->region)) return true;
+  }
+  return false;
+}
+
+int Game::scaleInt(int toScale) { return (int)(scale * ((double)toScale)); }
+int Game::getSize() { return gameSize; }
+Context Game::getContext() { return context; }
+SpawnerID Game::getPlayerSpawnID() { return playerSpawnID; }
+AgentID Game::getNewAgentID() { return newAgentID++; }
+void Game::buildWall() { setObjective(OBJECTIVE_TYPE_BUILD_WALL); }
+void Game::goTo() { setObjective(OBJECTIVE_TYPE_GOTO); }
+void Game::buildDoor() { setObjective(OBJECTIVE_TYPE_BUILD_DOOR); }
+void Game::attack() { setObjective(OBJECTIVE_TYPE_ATTACK); }
+void Game::placeTower() { placeBuilding(BUILDING_TYPE_TOWER); }
+void Game::placeSubspawner() { placeBuilding(BUILDING_TYPE_SUBSPAWNER); }
+void Game::placeBomb() { placeBuilding(BUILDING_TYPE_BOMB); }
+void Game::showControls() { panel->controlsText(); }
+void Game::showBasicInfo() { panel->basicInfoText(); }
+void Game::showCosts() { panel->costsText(); }
+void Game::clearPanel() { panel->clearText(); }
+MapUnit* Game::mapUnitAt(int x, int y) { return mapUnits[y * gameSize + x]; }
+MapUnit::iterator Game::getSelectionIterator() { return mapUnitAt(selection.x + view.x, selection.y + view.y)->getIterator(selection.w, selection.h); }
+
+/*----------------------Main event loop------------------------*/
+
+void Game::resign()  {
+
+}
+
 void Game::handleSDLEvent(SDL_Event *e) {
   int x, y;
   if (e->type == SDL_QUIT) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
-  /* Handle other events case by case */
   SDL_GetMouseState(&x, &y);
   switch(e->type) {
   case SDL_MOUSEWHEEL:
@@ -1362,7 +1380,6 @@ void Game::handleSDLEvent(SDL_Event *e) {
   }
 }
 
-/* Main loop of the game */
 void Game::mainLoop(void) {
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
@@ -1383,45 +1400,4 @@ void Game::mainLoop(void) {
     break;
   }
   disp->update();
-}
-
-Game::~Game() {
-  if (context != GAME_CONTEXT_EXIT && context != GAME_CONTEXT_DONE) {
-    context = GAME_CONTEXT_DONE;
-    pthread_join(netThread, NULL);
-  }
-  /* Reset inter-mapunit links, so we don't have bad pointer segfaults on deletion */
-  for (MapUnit* u : mapUnits) {
-    u->left = nullptr;
-    u->right = nullptr;
-    u->down = nullptr;
-    u->up = nullptr;
-  }
-  for (unsigned int i = 0; i < mapUnits.size(); i++) {
-    delete mapUnits[i];
-  }
-  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
-    delete it->second;
-  }
-  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
-    for (Building *b : it->second) {
-      delete b;
-    }
-    it->second.clear();
-  }
-  for (auto it = objectiveInfoTextures.begin(); it != objectiveInfoTextures.end(); it++) {
-    SDL_DestroyTexture(it->second);
-  }
-  towerZaps.clear();
-  bombEffects.clear();
-  SDL_DestroyTexture(bombTextureGreen);
-  SDL_DestroyTexture(bombTextureRed);
-  objectiveInfoTextures.clear();
-  agentDict.clear();
-  mapUnits.clear();
-  delete disp;
-  delete menu;
-  delete panel;
-  free(eventsBuffer);
-  pthread_mutex_destroy(&threadLock);
 }

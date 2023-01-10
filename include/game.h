@@ -122,6 +122,8 @@ private:
   void resign();
   void setTeamDrawColor(SpawnerID);
   void draw();
+  void drawBuilding(Building*);
+  void drawEffects();
   void drawStartupScreen();
   void handleSDLEvent(SDL_Event*);
   void sizeEventsBuffer(int);
