@@ -57,6 +57,7 @@ private:
   Menu *menu;
   Panel *panel;
   char *pairString;
+  char *token;
   pthread_t netThread;
   pthread_mutex_t threadLock;
   pthread_cond_t startupCond;
@@ -152,7 +153,7 @@ public:
   void zoomOut();
   static void *net_thread(void *);
   static int messageSize(int);
-  Game(int, int, double, char*);
+  Game(int, int, double, char*, char*);
   ~Game();
   void mainLoop();
 };

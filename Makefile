@@ -49,6 +49,7 @@ clean:
 	rm -f $(ODIR)/*.o
 	rm -f $(WEBODIR)/*.o
 	rm -f $(WEBEXECOUTPUTFILESPATH)
+	rm -f $(WEBEXECOUTPUTDIR)/*~
 	rm -f $(EXECNAME)
 	rm -f *~
 	rm -f $(SDIR)/*~

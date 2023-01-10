@@ -25,7 +25,8 @@ int main(int argc, char* argv[]) {
 		     gameSize,
 		     gamePanelSize,
 		     gameInitScale,
-		     argv[4]
+		     argv[4],
+		     argv[5]
 		     );
 
 #ifdef __EMSCRIPTEN__

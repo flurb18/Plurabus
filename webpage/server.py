@@ -1,13 +1,70 @@
 #!/usr/bin/env python
 
+import argparse
 import asyncio
 import os
 import signal
 import websockets
 import ssl
+import urllib.parse
+import http
+import pathlib
+import uuid
 
+
+CONTENT_TYPES = {
+    ".css": "text/css",
+    ".html": "text/html; charset=utf-8",
+    ".ico": "image/x-icon",
+    ".js": "text/javascript",
+    ".wasm": "application/wasm",
+    ".data": "binary"
+}
+
+wssPort = 31108
+httpPort = 31107
+hostName = "10.8.0.1"
+certChain = "/etc/ssl/certs/selfsigned3.pem"
+
+Tokens = []
 SocketQueue = []
 FRAME_DELAY = 0.004
+
+def create_token(lifetime=5):
+    token = uuid.uuid4().hex
+    Tokens.append(token)
+    asyncio.get_running_loop().call_later(lifetime, Tokens.remove, token)
+    return token
+
+def isValidToken(token):
+    if (token in Tokens):
+        return True
+    else:
+        return False
+    
+async def serve_html(path, request_headers):
+    path = urllib.parse.urlparse(path).path
+    if path == "/" or path == "":
+        page = "index.html"
+    else:
+        page = path[1:]
+    try:
+        template = pathlib.Path(__file__).with_name(page)
+    except ValueError:
+        pass
+    else:
+        if template.is_file():
+            headers = {"Content-Type": CONTENT_TYPES[template.suffix]}
+            body = template.read_bytes()
+            if (template.name == 'loadgame.js'):
+                token = create_token()
+                body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
+            return http.HTTPStatus.OK, headers, body
+
+    return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"
+
+async def noop_handler(websocket):
+    pass
 
 async def timerLoop(websocket):
     while (True):
@@ -20,7 +77,11 @@ async def timerLoop(websocket):
         except Exception as e:
             return
     
-async def serveFunction(websocket):
+async def serve_wss(websocket):
+    token = await websocket.recv()
+    if (not isValidToken(token)):
+        await websocket.close()
+        return
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
@@ -109,13 +170,17 @@ async def main():
     stop = loop.create_future()
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain('/etc/ssl/certs/selfsigned3.pem')
-    portenv = int(os.environ.get("PORT", "31108"))
+    ssl_context.load_cert_chain(certChain)
+
     async with websockets.serve(
-            serveFunction,
-            host="10.8.0.1",
-            port=portenv,
-            reuse_port=True,
+            noop_handler,
+            host=hostName,
+            port=httpPort,
+            process_request=serve_html
+    ), websockets.serve(
+            serve_wss,
+            host=hostName,
+            port=wssPort,
             ssl=ssl_context
     ):
         await stop

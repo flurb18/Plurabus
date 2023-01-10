@@ -33,9 +33,10 @@
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr):
+Game::Game(int sz, int psz, double scl, char *pstr, char *tok):
 
   pairString(pstr),
+  token(tok),
   readyToSend(false),
   readyToReceive(false),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
@@ -54,7 +55,7 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   newAgentID(1),
   outside(this),
   selectedObjective(nullptr) {
-  
+
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
   mapUnits.reserve(gameSize * gameSize);
