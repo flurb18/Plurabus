@@ -9,27 +9,6 @@ import ssl
 SocketQueue = []
 FRAME_DELAY = 0.004
 
-async def trySend(socket, data):
-    try:
-        await socket.send(data)
-        return True
-    except websockets.exceptions.ConnectionClosed:
-        print("Host "+str(socket.remote_address[0])+" connection closed")
-        return False
-    except Exception as e:
-        print("Host "+str(socket.remote_address[0])+" Send failed")
-        return False
-async def tryRecv(socket):
-    try:
-        data = await socket.recv()
-        return data
-    except websockets.exceptions.ConnectionClosed:
-        print("Host "+str(socket.remote_address[0])+" connection closed")
-        return False
-    except Exception as e:
-        print("Host "+str(socket.remote_address[0])+" Recv failed")
-        return False
-
 async def timerLoop(websocket):
     while (True):
         await asyncio.sleep(1)
@@ -38,15 +17,11 @@ async def timerLoop(websocket):
             await websocket.pairedClient.send("a");
         except websockets.exceptions.ConnectionClosed:
             return
+        except Exception as e:
+            return
     
 async def serveFunction(websocket):
-    print("Incoming connection, host " + str(websocket.remote_address[0]) +
-          " port " + str(websocket.remote_address[1]))
-    websocket.desiredPairedString = await tryRecv(websocket)
-    if (not isinstance(websocket.desiredPairedString,str)):
-        await websocket.close()
-        return
-    print("Desired pair string: " + websocket.desiredPairedString)
+    websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
     for waitingClient in SocketQueue:
@@ -70,54 +45,64 @@ async def serveFunction(websocket):
         except Exception as e:
             SocketQueue.remove(websocket)
             return
-
     else:
-        await trySend(websocket, str(websocket.pairedClient.desiredPairedString))
-        await trySend(websocket.pairedClient, str(websocket.desiredPairedString))
-        ready = await tryRecv(websocket)
+        try:
+            await websocket.send(str(websocket.pairedClient.desiredPairedString))
+            await websocket.pairedClient.send(str(websocket.desiredPairedString))
+            ready = await websocket.recv()
+        except websockets.exceptions.ConnectionClosed:
+            await websocket.close()
+            await websocket.pairedClient.close()
+            return
+        except Exception as e:
+            await websocket.close()
+            await websocket.pairedClient.close()
+            return
+            
+    # Threads merge
+    try:
+        if (websocket.player == 1):
+            await websocket.send("P1")
+        if (websocket.player == 2):
+            await websocket.send("P2")
+        set1 = await websocket.recv()
+    except websockets.exceptions.ConnectionClosed:
+        await websocket.pairedClient.close()
+        return
 
-    # threads merge here
-    if (websocket.player == 1):
-        await trySend(websocket, "P1")
-    if (websocket.player == 2):
-        await trySend(websocket, "P2")
-
-    set1 = await tryRecv(websocket)
     websocket.readyForGame.set()
     await websocket.pairedClient.readyForGame.wait()
+
     if (websocket.player == 2):
-        await websocket.wait_closed()
-        return
+        async for data in websocket:
+            await asyncio.sleep(FRAME_DELAY)
+            try:
+                await websocket.pairedClient.send(data)
+            except websockets.exceptions.ConnectionClosed:
+                await websocket.close(1001, "Other player disconnected.")
+            except Exception as e:
+                await websocket.close(1001, "")
+        if (websocket.close_code == 1001):
+            await websocket.pairedClient.close(1001, "Other player disconnected.")
         
     if (websocket.player == 1):
-        await trySend(websocket, "Go")
-        start = await tryRecv(websocket)
+        try:
+            await websocket.send("Go")
+            start = await websocket.recv()
+        except websockets.exceptions.ConnectionClosed:
+            await websocket.pairedClient.close()
+            return
         asyncio.ensure_future(timerLoop(websocket))
         async for data in websocket:
             await asyncio.sleep(FRAME_DELAY)
             try:
                 await websocket.pairedClient.send(data)
             except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(websocket.pairedClient.remote_address[0])+" connection closed")
-                if (websocket.pairedClient.close_code == 1001):
-                    await websocket.close(1001, "Other player disconnected.")
-                    
-            try:
-                otherdata = await websocket.pairedClient.recv()
-            except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(websocket.pairedClient.remote_address[0])+" connection closed")
-                if (websocket.pairedClient.close_code == 1001):
-                    await websocket.close(1001, "Other player disconnected.")
-
-            try:
-                await websocket.send(otherdata)
-            except websockets.exceptions.ConnectionClosed:
-                print("Host "+str(websocket.remote_address[0])+" connection closed")
-                if (websocket.close_code == 1001):
-                    await websocket.pairedClient.close(1001, "Other player disconnected.")
-
-    if (websocket.close_code == 1001):
-        await websocket.pairedClient.close(1001, "Other player disconnected.")
+                await websocket.close(1001, "Other player disconnected.")
+            except Exception as e:
+                await websocket.close(1001, "")
+        if (websocket.close_code == 1001):
+            await websocket.pairedClient.close(1001, "Other player disconnected.")
 
 async def main():
     loop = asyncio.get_running_loop()
@@ -125,10 +110,11 @@ async def main():
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain('/etc/ssl/certs/selfsigned3.pem')
+    portenv = int(os.environ.get("PORT", "31108"))
     async with websockets.serve(
             serveFunction,
             host="10.8.0.1",
-            port=31108,
+            port=portenv,
             reuse_port=True,
             ssl=ssl_context
     ):
