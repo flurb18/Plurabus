@@ -237,15 +237,15 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 }
 
 void NetHandler::closeConnection(const char *reason) {
-
+  if (ncon != NET_CONTEXT_CLOSED) {
 #ifdef __EMSCRIPTEN__
-  emscripten_websocket_close(sock, 1000, reason);
+    emscripten_websocket_close(sock, 1000, reason);
 #else
-  m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
+    m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
 #endif
-  
-  game->context = GAME_CONTEXT_DONE;
-  ncon = NET_CONTEXT_CLOSED;
+    game->context = GAME_CONTEXT_DONE;
+    ncon = NET_CONTEXT_CLOSED;
+  }
 }
 
 void NetHandler::notifyOpen() {
@@ -273,9 +273,9 @@ NetHandler::~NetHandler() {
     closeConnection("Cleanup");
   
 #ifdef __EMSCRIPTEN__
-
   emscripten_websocket_delete(sock);
-  
+#else
+  pthread_join(&clientThread, NULL);
 #endif
 
   pthread_mutex_destroy(&netLock);

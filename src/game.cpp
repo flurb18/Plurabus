@@ -153,6 +153,7 @@ Game::~Game() {
   delete menu;
   delete panel;
   free(eventsBuffer);
+  free(token);
   pthread_mutex_destroy(&threadLock);
 }
 
@@ -198,6 +199,7 @@ void *Game::net_thread(void *g) {
   }
   net->closeConnection(winText.c_str());
   pthread_mutex_unlock(&net->netLock);
+  delete net;
   return NULL;
 }
 
