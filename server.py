@@ -25,7 +25,7 @@ wssPort = 31108
 httpPort = 31107
 hostName = "10.8.0.1"
 certChain = "/etc/ssl/certs/selfsigned3.pem"
-unixSocket = "/srv/http/HiveMindServer/hmserver.sock"
+unixSocket = "/srv/http/HiveMind/hmserver.sock"
 
 Tokens = []
 SocketQueue = []
@@ -50,7 +50,8 @@ async def serve_html(path, request_headers):
     else:
         page = path[1:]
     try:
-        template = pathlib.Path(__file__).with_name(page)
+        p = pathlib.Path(__file__).resolve()
+        template = p.parent.joinpath("web").joinpath(page)
     except ValueError:
         pass
     else:
