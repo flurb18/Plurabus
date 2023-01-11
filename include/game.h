@@ -153,7 +153,7 @@ public:
   void zoomOut();
   static void *net_thread(void *);
   static int messageSize(int);
-  Game(int, int, double, char*, char*);
+  Game(int, int, double, char*);
   ~Game();
   void mainLoop();
 };

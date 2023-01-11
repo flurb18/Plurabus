@@ -19,6 +19,8 @@
 #include "nethandler.h"
 #include "panel.h"
 
+const char *em_token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 /*------------------CONTENTS----------------------*/
 /*------------------------------------------------*/
 /*-----1. Constructor / Destructor----------------*/
@@ -33,10 +35,9 @@
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr, char *tok):
+Game::Game(int sz, int psz, double scl, char *pstr):
 
   pairString(pstr),
-  token(tok),
   readyToSend(false),
   readyToReceive(false),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
@@ -56,6 +57,13 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *tok):
   outside(this),
   selectedObjective(nullptr) {
 
+#ifdef __EMSCRIPTEN__
+
+  token = (char*)malloc((strlen(em_token)+1)*sizeof(char));
+  strcpy(token, em_token);
+
+#endif
+  
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
   mapUnits.reserve(gameSize * gameSize);

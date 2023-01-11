@@ -8,8 +8,7 @@ Module['arguments'] = [
     gameSize.toString(),
     gamePanelSize.toString(),
     scale.toString(),
-    pstr.toString(),
-    'TOKEN_PLACEHOLDER'
+    pstr.toString()
 ];
 var mainscript = document.createElement('script');
 mainscript.setAttribute('src','hivemindweb.js');

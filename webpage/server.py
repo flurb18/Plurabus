@@ -25,12 +25,13 @@ wssPort = 31108
 httpPort = 31107
 hostName = "10.8.0.1"
 certChain = "/etc/ssl/certs/selfsigned3.pem"
+unixSocket = "/srv/http/HiveMindServer/hmserver.sock"
 
 Tokens = []
 SocketQueue = []
 FRAME_DELAY = 0.004
 
-def create_token(lifetime=5):
+def create_token(lifetime=2):
     token = uuid.uuid4().hex
     Tokens.append(token)
     asyncio.get_running_loop().call_later(lifetime, Tokens.remove, token)
@@ -56,9 +57,9 @@ async def serve_html(path, request_headers):
         if template.is_file():
             headers = {"Content-Type": CONTENT_TYPES[template.suffix]}
             body = template.read_bytes()
-            if (template.name == 'loadgame.js'):
+            if (template.name == 'hivemindweb.wasm'):
                 token = create_token()
-                body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
+                body = body.replace(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token.encode())
             return http.HTTPStatus.OK, headers, body
 
     return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"
@@ -80,7 +81,7 @@ async def timerLoop(websocket):
 async def serve_wss(websocket):
     token = await websocket.recv()
     if (not isValidToken(token)):
-        await websocket.close()
+        await websocket.close(1011, "Invalid token")
         return
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
@@ -172,10 +173,9 @@ async def main():
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(certChain)
 
-    async with websockets.serve(
+    async with websockets.unix_serve(
             noop_handler,
-            host=hostName,
-            port=httpPort,
+            path=unixSocket,
             process_request=serve_html
     ), websockets.serve(
             serve_wss,
