@@ -63,7 +63,8 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   strcpy(token, em_token);
 
 #endif
-  
+
+  mobile = (panelSize > 0);
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
   mapUnits.reserve(gameSize * gameSize);
@@ -1084,6 +1085,7 @@ void Game::drawBuilding(Building *build) {
 
 void Game::draw() {
   disp->fillBlack();
+  panel->draw();
   int lum;
   double lumprop;
   MapUnit* first = mapUnitAt(view.x, view.y);
@@ -1226,7 +1228,6 @@ void Game::draw() {
   int ttw, tth;
   disp->sizeText(timeText.c_str(), &ttw, &tth);
   disp->drawText(timeText.c_str(), gameDisplaySize - ttw, 0);
-  panel->draw();
   menu->draw(disp);
 }
 
@@ -1326,6 +1327,8 @@ void Game::handleSDLEvent(SDL_Event *e) {
     break;
   case SDL_KEYDOWN:
     switch(e->key.keysym.sym) {
+    case SDLK_ESCAPE:
+      rightMouseDown(x,y);
     case SDLK_SPACE:
       break;
     case SDLK_UP:

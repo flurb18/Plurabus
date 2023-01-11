@@ -29,9 +29,9 @@ unixSocket = "/srv/http/HiveMindServer/hmserver.sock"
 
 Tokens = []
 SocketQueue = []
-FRAME_DELAY = 0.004
+FRAME_DELAY = 0.010
 
-def create_token(lifetime=2):
+def create_token(lifetime=5):
     token = uuid.uuid4().hex
     Tokens.append(token)
     asyncio.get_running_loop().call_later(lifetime, Tokens.remove, token)
@@ -83,6 +83,7 @@ async def serve_wss(websocket):
     if (not isValidToken(token)):
         await websocket.close(1011, "Invalid token")
         return
+    Tokens.remove(token)
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()

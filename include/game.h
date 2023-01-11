@@ -64,6 +64,7 @@ private:
   void *eventsBuffer;
   bool readyToSend;
   bool readyToReceive;
+  bool mobile;
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
   Context context;

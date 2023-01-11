@@ -10,6 +10,7 @@ const int SPAWNER_UPDATE_TIME = 1;
 const int STARTUP_FONT_SIZE = 32;
 const int FONT_SIZE = 16;
 const int PANEL_PADDING = 10;
+const int MOBILE_PANEL_MENU_MULTIPLIER = 2;
 const int MAX_WALL_HEALTH = 10;
 const int STARTING_WALL_HEALTH = 10;
 const int MAX_DOOR_HEALTH = 20;

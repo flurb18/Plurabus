@@ -11,13 +11,22 @@
 
 Panel::Panel(Display *d): basicInfoAdded(false), controlsAdded(false), costsAdded(false), disp(d) {
   width = disp->getWidth() - disp->getGameDisplaySize();
-  bannerHeight = width / 3;
-  height = disp->getHeight() - bannerHeight;
-  wrap = width - (2*PANEL_PADDING);
+  if (width > 0) {
+    mobile = false;
+    bannerSize = width / 3;
+    height = disp->getHeight() - bannerSize;
+    wrap = width - (2*PANEL_PADDING);
+    bannerTexture = disp->cacheImage("assets/img/banner.png");
+  } else {
+    mobile = true;
+    height = disp->getHeight() - disp->getGameDisplaySize() - disp->getMenuSize();
+    bannerSize = height;
+    width = disp->getWidth() - bannerSize;
+    wrap = width - (2*PANEL_PADDING);
+    bannerTexture = disp->cacheImage("assets/img/banner_mobile.png");
+  }
   offset = 0;
   textHeight = 0;
-
-  bannerTexture = disp->cacheImage("assets/img/banner.png");
   newlineTexture = disp->cacheTextWrapped(">", 0);
 }
 
@@ -99,23 +108,41 @@ void Panel::clearText() {
 }
 
 void Panel::draw() {
-  disp->setDrawColorBlack();
-  disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, disp->getHeight());
-  disp->setDrawColorWhite();
-  disp->drawRect(disp->getGameDisplaySize(), 0, width, disp->getHeight());
-  int y = bannerHeight + offset;
-  for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
-    int textureHeight;
-    SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
-    disp->drawTexture(newlineTexture, disp->getGameDisplaySize(), y);
-    disp->drawTexture(*it, disp->getGameDisplaySize() + PANEL_PADDING, y);
-    y += textureHeight;
+  if (mobile) {
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(0, disp->getGameDisplaySize()+disp->getMenuSize(), disp->getWidth(), height);
+    disp->setDrawColorWhite();
+    disp->drawRect(0, disp->getGameDisplaySize()+disp->getMenuSize(), disp->getWidth(), height);
+    int y = disp->getGameDisplaySize()+disp->getMenuSize() + offset;
+    for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
+      int textureHeight;
+      SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
+      disp->drawTexture(newlineTexture, bannerSize, y);
+      disp->drawTexture(*it, bannerSize + PANEL_PADDING, y);
+      y += textureHeight;
+    }
+    disp->drawTexture(bannerTexture, 0, disp->getGameDisplaySize() + disp->getMenuSize(), bannerSize, bannerSize);
+    disp->setDrawColorWhite();
+    disp->drawRect(0, disp->getGameDisplaySize() + disp->getMenuSize(), bannerSize, bannerSize);
+  } else {
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, disp->getHeight());
+    disp->setDrawColorWhite();
+    disp->drawRect(disp->getGameDisplaySize(), 0, width, disp->getHeight());
+    int y = bannerSize + offset;
+    for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
+      int textureHeight;
+      SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
+      disp->drawTexture(newlineTexture, disp->getGameDisplaySize(), y);
+      disp->drawTexture(*it, disp->getGameDisplaySize() + PANEL_PADDING, y);
+      y += textureHeight;
+    }
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, bannerSize);
+    disp->drawTexture(bannerTexture, disp->getGameDisplaySize(), 0, width, bannerSize);
+    disp->setDrawColorWhite();
+    disp->drawRect(disp->getGameDisplaySize(), 0, width, bannerSize);
   }
-  disp->setDrawColorBlack();
-  disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, bannerHeight);
-  disp->drawTexture(bannerTexture, disp->getGameDisplaySize(), 0, width, bannerHeight);
-  disp->setDrawColorWhite();
-  disp->drawRect(disp->getGameDisplaySize(), 0, width, bannerHeight);
 }
 
 void Panel::scrollUp() {

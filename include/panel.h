@@ -12,11 +12,12 @@ private:
   bool basicInfoAdded;
   bool controlsAdded;
   bool costsAdded;
+  bool mobile;
   int width, height;
   int wrap;
   int offset;
   int textHeight;
-  int bannerHeight;
+  int bannerSize;
   Display *disp;
   std::deque<SDL_Texture *> displayedStrings;
   SDL_Texture *bannerTexture;

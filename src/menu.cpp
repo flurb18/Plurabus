@@ -133,7 +133,7 @@ Menu::Menu(Game *g): game(g) {
   items.reserve(6);
   items.push_back(new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
   items.push_back(new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
-  items.push_back(new MenuItem(game, "assets/img/info.png", infoSubMenu, infoSubIdx));
+  items.push_back(new MenuItem(game, "assets/img/info.png", infoSubMenu, infoSubIdx)); 
   items.push_back(new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
   items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
   items.push_back(new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
