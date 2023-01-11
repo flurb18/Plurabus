@@ -25,7 +25,6 @@ wssPort = 31108
 httpPort = 31107
 hostName = "10.8.0.1"
 certChain = "/etc/ssl/certs/selfsigned3.pem"
-unixSocket = "/srv/http/HiveMind/hmserver.sock"
 
 Tokens = []
 SocketQueue = []
@@ -174,7 +173,7 @@ async def main():
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(certChain)
-
+    unixSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("hmserver.sock"))
     async with websockets.unix_serve(
             noop_handler,
             path=unixSocket,
