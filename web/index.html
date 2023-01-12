@@ -8,14 +8,12 @@
     <link rel="stylesheet" href="styles.css">
     <script>
       var Module = { canvas: (function() { return document.getElementById('canvas') })() };
-      var gameSize;
-      var pstr;
     </script>
 </head>
 
 <body data-token="TOKEN">
   <div class="submitForm">
-    <form name="playform" autocomplete="off" method="post">
+    <form name="playform" autocomplete="off">
       <fieldset>
 	<legend>Game size:</legend>
 	<div>
@@ -44,19 +42,6 @@
     </form>
   </div>
   <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-  <script>
-    document.getElementById('pstr-input').oninvalid = function(event) {
-	event.target.setCustomValidity('Please enter only letters and numbers, or leave the field blank.');
-    }
-    document.forms['playform'].addEventListener('submit', function (event) {
-	event.preventDefault();
-	this.style['display']= 'none';
-	gameSize = parseInt(this.elements['gameSize'].value);
-	pstr = this.elements['pstr'].value;
-	var loadscript = document.createElement('script');
-	loadscript.setAttribute('src','loadgame.js');
-	document.head.appendChild(loadscript);
-    });
-  </script>
+  <script src="loadgame.js"></script>
 </body>
 </html>

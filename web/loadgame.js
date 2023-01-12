@@ -5,29 +5,40 @@ window.mobileAndTabletCheck = function() {
     // From http://detectmobilebrowsers.com
 };
 
-var gamePanelSize;
-var gameWindowPadding = 10;
-var scale;
-if (window.mobileAndTabletCheck()) {
-    gamePanelSize = 0;
-    scale = 1;
-    while (scale*(gameSize) < window.innerWidth - gameWindowPadding &&
-	   scale*(gameSize*3/2) < window.innerHeight - gameWindowPadding) { scale++; }
-    scale--;
-} else {
-    gamePanelSize = 300;
-    scale = 1;
-    while (scale*(gameSize) + gamePanelSize < window.innerWidth - gameWindowPadding &&
-	   scale*(gameSize*7/6) < window.innerHeight - gameWindowPadding) { scale++; }
-    scale--;
+loadGame = function (gameSize, pstr) {
+    var gamePanelSize;
+    var gameWindowPadding = 10;
+    var scale;
+    if (window.mobileAndTabletCheck()) {
+	gamePanelSize = 0;
+	scale = 1;
+	while (scale*(gameSize) < window.innerWidth - gameWindowPadding &&
+	       scale*(gameSize*3/2) < window.innerHeight - gameWindowPadding) { scale++; }
+	scale--;
+    } else {
+	gamePanelSize = 300;
+	scale = 1;
+	while (scale*(gameSize) + gamePanelSize < window.innerWidth - gameWindowPadding &&
+	       scale*(gameSize*7/6) < window.innerHeight - gameWindowPadding) { scale++; }
+	scale--;
+    }
+    Module['arguments'] = [
+	gameSize.toString(),
+	gamePanelSize.toString(),
+	scale.toString(),
+	pstr.toString()
+    ];
+    var mainscript = document.createElement('script');
+    mainscript.setAttribute('src','hivemindweb.js');
+    document.head.appendChild(mainscript);
 }
-Module['arguments'] = [
-    gameSize.toString(),
-    gamePanelSize.toString(),
-    scale.toString(),
-    pstr.toString()
-];
-var mainscript = document.createElement('script');
-mainscript.setAttribute('src','hivemindweb.js');
-document.head.appendChild(mainscript);
 
+document.getElementById('pstr-input').oninvalid = function(event) {
+    event.target.setCustomValidity('Please enter only letters and numbers, or leave the field blank.');
+}
+
+document.forms['playform'].addEventListener('submit', function (event) {
+    event.preventDefault();
+    this.style['display']= 'none';
+    loadGame(this.elements['gameSize'].value, this.elements['pstr'].value);
+});
