@@ -20,8 +20,9 @@ Panel::Panel(Display *d): basicInfoAdded(false), controlsAdded(false), costsAdde
   } else {
     mobile = true;
     height = disp->getHeight() - disp->getGameDisplaySize() - disp->getMenuSize();
-    bannerSize = height;
-    width = disp->getWidth() - bannerSize;
+    width = disp->getWidth();
+    bannerSize = height/6;
+    height = height - bannerSize;
     wrap = width - (2*PANEL_PADDING);
     bannerTexture = disp->cacheImage("assets/img/banner_mobile.png");
   }
@@ -110,20 +111,22 @@ void Panel::clearText() {
 void Panel::draw() {
   if (mobile) {
     disp->setDrawColorBlack();
-    disp->drawRectFilled(0, disp->getGameDisplaySize()+disp->getMenuSize(), disp->getWidth(), height);
+    disp->drawRectFilled(0, 0, disp->getWidth(), height + bannerSize);
     disp->setDrawColorWhite();
-    disp->drawRect(0, disp->getGameDisplaySize()+disp->getMenuSize(), disp->getWidth(), height);
-    int y = disp->getGameDisplaySize()+disp->getMenuSize() + offset;
+    disp->drawRect(0, 0, disp->getWidth(), height + bannerSize);
+    int y = bannerSize + offset;
     for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
       int textureHeight;
       SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
-      disp->drawTexture(newlineTexture, bannerSize, y);
-      disp->drawTexture(*it, bannerSize + PANEL_PADDING, y);
+      disp->drawTexture(newlineTexture, 0, y);
+      disp->drawTexture(*it, PANEL_PADDING, y);
       y += textureHeight;
     }
-    disp->drawTexture(bannerTexture, 0, disp->getGameDisplaySize() + disp->getMenuSize(), bannerSize, bannerSize);
+    disp->setDrawColorBlack();
+    disp->drawRectFilled(0,0,disp->getWidth(),bannerSize);
+    disp->drawTexture(bannerTexture, 0, 0, disp->getWidth(), bannerSize);
     disp->setDrawColorWhite();
-    disp->drawRect(0, disp->getGameDisplaySize() + disp->getMenuSize(), bannerSize, bannerSize);
+    disp->drawRect(0, 0, disp->getWidth(), bannerSize);
   } else {
     disp->setDrawColorBlack();
     disp->drawRectFilled(disp->getGameDisplaySize(), 0, width, disp->getHeight());

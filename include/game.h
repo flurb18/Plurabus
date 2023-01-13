@@ -12,12 +12,12 @@
 #include "building.h"
 #include "event.h"
 #include "mapunit.h"
+#include "menu.h"
 #include "objective.h"
 
 /* Forward declarations */
 class Display;
 class Spawner;
-class Menu;
 class NetHandler;
 class Panel;
 
@@ -25,12 +25,16 @@ class Panel;
 enum Context {
   GAME_CONTEXT_DONE,
   GAME_CONTEXT_EXIT,
-  GAME_CONTEXT_UNSELECTED,
-  GAME_CONTEXT_SELECTING,
-  GAME_CONTEXT_SELECTED,
-  GAME_CONTEXT_PLACING,
+  GAME_CONTEXT_PLAYING,
   GAME_CONTEXT_CONNECTING,
   GAME_CONTEXT_STARTUPTIMER
+};
+
+enum SelectionContext {
+  SELECTION_CONTEXT_UNSELECTED,
+  SELECTION_CONTEXT_SELECTING,
+  SELECTION_CONTEXT_SELECTED,
+  SELECTION_CONTEXT_PLACING
 };
 
 typedef struct MarkedCoord {
@@ -53,6 +57,7 @@ class Game {
   friend class Building;
   friend class Tower;
   friend struct Objective;
+  friend class MenuItem;
 private:
   Menu *menu;
   Panel *panel;
@@ -68,12 +73,14 @@ private:
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
   Context context;
+  SelectionContext selectionContext;
   double initScale;
   double scale;
   int gameSize;
   int gameDisplaySize;
   int menuSize;
   int panelSize;
+  int panelYDrawOffset;
   int mouseX, mouseY;
   int placementW, placementH;
   int zapCounter;
@@ -109,6 +116,7 @@ private:
   void panViewUp();
   void panViewDown();
   void adjustViewToScale();
+  void deselect();
   int scaleInt(int);
   MapUnit::iterator getSelectionIterator();
   void attack();
@@ -127,7 +135,9 @@ private:
   void drawBuilding(Building*);
   void drawEffects();
   void drawStartupScreen();
+  void standardizeEventCoords(float, float, int*, int*);
   void handleSDLEvent(SDL_Event*);
+  void handleSDLEventMobile(SDL_Event*);
   void sizeEventsBuffer(int);
   void receiveData(void*, int);
   void receiveEvents(Events*);
@@ -154,7 +164,7 @@ public:
   void zoomOut();
   static void *net_thread(void *);
   static int messageSize(int);
-  Game(int, int, double, char*);
+  Game(int, int, double, char*, bool);
   ~Game();
   void mainLoop();
 };

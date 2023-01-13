@@ -21,11 +21,13 @@ int main(int argc, char* argv[]) {
   int gameSize = atoi(argv[1]);
   int gamePanelSize = atoi(argv[2]);
   double gameInitScale = atof(argv[3]);
+  bool mobile = (argc > 5);
   Game *g = new Game(
 		     gameSize,
 		     gamePanelSize,
 		     gameInitScale,
-		     argv[4]
+		     argv[4],
+		     mobile
 		     );
 
 #ifdef __EMSCRIPTEN__

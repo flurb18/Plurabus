@@ -228,7 +228,9 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
       }
       pthread_mutex_unlock(&game->threadLock);
     } else {
+      pthread_mutex_lock(&game->threadLock);
       game->receiveData(data, numBytes);
+      pthread_mutex_unlock(&game->threadLock);
     }
     break;
   default:

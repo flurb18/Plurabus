@@ -173,16 +173,16 @@ async def main():
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(certChain)
-    unixSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("hmserver.sock"))
+    htmlSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("web.sock"))
+    wssSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("wss.sock"))
     async with websockets.unix_serve(
             noop_handler,
-            path=unixSocket,
+            path=htmlSocket,
             process_request=serve_html
-    ), websockets.serve(
-            serve_wss,
-            host=hostName,
-            port=wssPort,
-            ssl=ssl_context
+    ), websockets.unix_serve(
+        serve_wss,
+        path=wssSocket,
+        ssl=ssl_context
     ):
         await stop
         

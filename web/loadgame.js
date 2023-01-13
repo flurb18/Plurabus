@@ -10,16 +10,15 @@ loadGame = function (gameSize, pstr) {
     var gameWindowPadding = 10;
     var scale;
     if (window.mobileAndTabletCheck()) {
-	gamePanelSize = 0;
 	scale = 1;
-	while (scale*(gameSize) < window.innerWidth - gameWindowPadding &&
-	       scale*(gameSize*3/2) < window.innerHeight - gameWindowPadding) { scale++; }
+	while (scale*(gameSize) < window.innerWidth - gameWindowPadding) { scale++; }
 	scale--;
+	gamePanelSize = window.innerHeight - (scale*gameSize*7)/6 - gameWindowPadding;
     } else {
 	gamePanelSize = 300;
 	scale = 1;
 	while (scale*(gameSize) + gamePanelSize < window.innerWidth - gameWindowPadding &&
-	       scale*(gameSize*7/6) < window.innerHeight - gameWindowPadding) { scale++; }
+	       (scale*gameSize*7)/6 < window.innerHeight - gameWindowPadding) { scale++; }
 	scale--;
     }
     Module['arguments'] = [
@@ -28,6 +27,9 @@ loadGame = function (gameSize, pstr) {
 	scale.toString(),
 	pstr.toString()
     ];
+    if (window.mobileAndTabletCheck()) {
+	Module['arguments'].push('mobile');
+    }
     var mainscript = document.createElement('script');
     mainscript.setAttribute('src','hivemindweb.js');
     document.head.appendChild(mainscript);

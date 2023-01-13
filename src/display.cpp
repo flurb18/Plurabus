@@ -15,11 +15,15 @@
 
 // Initialize a display with a game window size (square), a menu size, and a font size
 // Height = game size + menu size
-Display::Display(int gameSize, int mSize, int pSize, int fontSize) :
-  width(gameSize+pSize), height(gameSize+mSize), gameDisplaySize(gameSize), menuSize(mSize) {
-  width = gameSize + pSize;
-  height = gameSize + mSize;
-  if (pSize == 0) height += MOBILE_PANEL_MENU_MULTIPLIER*mSize;
+Display::Display(int gameSize, int mSize, int pSize, int fontSize, bool mobile) :
+  gameDisplaySize(gameSize), menuSize(mSize) {
+  if (mobile) {
+    width = gameSize;
+    height = gameSize + mSize + pSize;
+  } else {
+    width = gameSize + pSize;
+    height = gameSize + mSize;
+  }
   // Initialize SDL, and check if it initialized correctly
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     std::cerr << "SDL not initialized correctly\n";

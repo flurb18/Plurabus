@@ -21,7 +21,7 @@ void SubMenu::size(Display *disp, int relIdx) {
   int itemSize = disp->getMenuSize();
   x = relIdx * itemSize + (itemSize / 2) - (w / 2);
   if (x > disp->getGameDisplaySize() - w) x = disp->getGameDisplaySize() - w;
-  y = disp->getGameDisplaySize() - h;
+  y = disp->getHeight() - disp->getMenuSize() - h;
 }
 
 SubMenu::~SubMenu() {
@@ -62,6 +62,11 @@ MenuItem::MenuItem(Game *g, const char *iconFile, SubMenu sub, int i):
 
 void MenuItem::doNothing() {}
 
+void MenuItem::xButton() {
+  game->deleteSelectedObjective();
+  game->deselect();
+}
+
 void MenuItem::zoomInWrapper() {
   game->zoomIn();
 }
@@ -72,6 +77,7 @@ void MenuItem::zoomOutWrapper() {
 
 void MenuItem::toggleSubMenu() {
   if (!subMenuShown) {
+    game->menu->hideAllSubMenus();
     subMenuShown = true;
     highlighted = true;
   } else {
@@ -112,28 +118,24 @@ Menu::Menu(Game *g): game(g) {
   viewSubMenu.toggleFlags.push_back(false);
   viewSubMenu.toggleFlags.push_back(false);
   viewSubMenu.size(game->disp, viewSubIdx);
-  SubMenu infoSubMenu;
-  int infoSubIdx = 2;
-  infoSubMenu.strings.push_back("Basic Info");
-  infoSubMenu.strings.push_back("Controls");
-  infoSubMenu.strings.push_back("Agent Action Costs");
-  infoSubMenu.strings.push_back("Clear Panel");
-  infoSubMenu.funcs.push_back(&Game::showBasicInfo);
-  infoSubMenu.funcs.push_back(&Game::showControls);
-  infoSubMenu.funcs.push_back(&Game::showCosts);
-  infoSubMenu.funcs.push_back(&Game::clearPanel);
-  infoSubMenu.isToggleSubMenu = false;
-  infoSubMenu.size(game->disp, infoSubIdx);
   SubMenu userSubMenu;
   int userSubIdx = 5;
+  userSubMenu.strings.push_back("Basic Info");
+  userSubMenu.strings.push_back("Controls");
+  userSubMenu.strings.push_back("Agent Action Costs");
+  userSubMenu.strings.push_back("Clear Panel");
   userSubMenu.strings.push_back("Resign");
+  userSubMenu.funcs.push_back(&Game::showBasicInfo);
+  userSubMenu.funcs.push_back(&Game::showControls);
+  userSubMenu.funcs.push_back(&Game::showCosts);
+  userSubMenu.funcs.push_back(&Game::clearPanel);
   userSubMenu.funcs.push_back(&Game::resign);
   userSubMenu.isToggleSubMenu = false;
   userSubMenu.size(game->disp, userSubIdx);
   items.reserve(6);
   items.push_back(new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
   items.push_back(new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
-  items.push_back(new MenuItem(game, "assets/img/info.png", infoSubMenu, infoSubIdx)); 
+  items.push_back(new MenuItem(game, "assets/img/xmark.png", &MenuItem::xButton, 2)); 
   items.push_back(new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
   items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
   items.push_back(new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
@@ -160,19 +162,20 @@ void Menu::hideAllSubMenus() {
 }
 
 void Menu::draw(Display *disp) {
+  int yoff = disp->getHeight() - disp->getMenuSize();
   disp->setDrawColorWhite();
-  disp->drawRect(0, disp->getGameDisplaySize(), disp->getGameDisplaySize(), disp->getMenuSize());
+  disp->drawRect(0, yoff, disp->getGameDisplaySize(), disp->getMenuSize());
   for (MenuItem *item : items) {
     int idx = item->positionIndex;
     int itemSize = disp->getMenuSize();
     disp->setDrawColorBlack();
     if (item->highlighted) disp->setDrawColor(50,50,50);
-    disp->drawRectFilled(itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
+    disp->drawRectFilled(itemSize * idx, yoff, itemSize, itemSize);
     disp->setDrawColorWhite();
-    disp->drawRect(itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
+    disp->drawRect(itemSize * idx, yoff, itemSize, itemSize);
     if (!item->isBlank) {
       disp->setDrawColorWhite();
-      disp->drawTexture(item->icon, itemSize * idx, disp->getGameDisplaySize(), itemSize, itemSize);
+      disp->drawTexture(item->icon, itemSize * idx, yoff, itemSize, itemSize);
       if (item->subMenuShown) {
 	disp->setDrawColorBlack();
 	disp->drawRectFilled(item->subMenu.x, item->subMenu.y, item->subMenu.w, item->subMenu.h);

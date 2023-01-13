@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-const int GAME_TIME_SECONDS = 300;
+const int GAME_TIME_SECONDS = 900;
 const int STARTUP_TIME_SECONDS = 3;
 const int MENU_ITEMS_IN_VIEW = 6;
 const int SPAWNER_SIZE = 8;
@@ -9,6 +9,7 @@ const int SPAWNER_PADDING = 10;
 const int SPAWNER_UPDATE_TIME = 1;
 const int STARTUP_FONT_SIZE = 32;
 const int FONT_SIZE = 16;
+const int MOBILE_FONT_SIZE = 48;
 const int PANEL_PADDING = 10;
 const int MOBILE_PANEL_MENU_MULTIPLIER = 2;
 const int MAX_WALL_HEALTH = 10;

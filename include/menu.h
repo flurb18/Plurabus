@@ -38,6 +38,7 @@ private:
   bool highlighted;
 public:
   void doNothing();
+  void xButton();
   void zoomInWrapper();
   void zoomOutWrapper();
   void toggleSubMenu();

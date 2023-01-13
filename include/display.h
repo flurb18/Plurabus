@@ -17,7 +17,7 @@ private:
   int gameDisplaySize;
   int menuSize;
 public:
-  Display(int,int,int,int);
+  Display(int,int,int,int,bool);
   ~Display();
   int getWidth();
   int getHeight();

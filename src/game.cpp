@@ -19,7 +19,7 @@
 #include "nethandler.h"
 #include "panel.h"
 
-const char *em_token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /*------------------CONTENTS----------------------*/
 /*------------------------------------------------*/
@@ -35,14 +35,16 @@ const char *em_token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr):
+Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 
   pairString(pstr),
   readyToSend(false),
   readyToReceive(false),
+  mobile(mob),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
   numPlayerAgents(0),
   context(GAME_CONTEXT_CONNECTING),
+  selectionContext(SELECTION_CONTEXT_UNSELECTED),
   initScale(scl),
   scale(scl),
   gameSize(sz),
@@ -56,15 +58,10 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   newAgentID(1),
   outside(this),
   selectedObjective(nullptr) {
-
-#ifdef __EMSCRIPTEN__
-
-  token = (char*)malloc((strlen(em_token)+1)*sizeof(char));
-  strcpy(token, em_token);
-
-#endif
-
-  mobile = (panelSize > 0);
+  
+  token = (char*)malloc((strlen(token_site)+1)*sizeof(char));
+  strcpy(token, token_site); 
+  panelYDrawOffset = (mobile ? panelSize : 0);
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
   mapUnits.reserve(gameSize * gameSize);
@@ -89,7 +86,9 @@ Game::Game(int sz, int psz, double scl, char *pstr):
 
   selection = {0, 0, 1, 1};
   menuSize = gameDisplaySize / MENU_ITEMS_IN_VIEW;
-  disp = new Display(gameDisplaySize, menuSize, panelSize, FONT_SIZE);
+  int fontSize = FONT_SIZE;
+  if (mobile) fontSize = MOBILE_FONT_SIZE;
+  disp = new Display(gameDisplaySize, menuSize, panelSize, fontSize, mobile);
   panel = new Panel(disp);
   std::string welcomeText = "Welcome to " + std::string(TITLE) + "!";
   panel->addText(welcomeText.c_str());
@@ -102,9 +101,9 @@ Game::Game(int sz, int psz, double scl, char *pstr):
   Spawner *greenspawn = new Spawner(this, SPAWNER_ID_GREEN, gpos, gpos);
   buildingLists[BUILDING_TYPE_SPAWNER].push_back(redspawn);
   buildingLists[BUILDING_TYPE_SPAWNER].push_back(greenspawn);
-  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_ATTACK] = disp->cacheTextWrapped("Objective - Attack", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
+  objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_DOOR] = disp->cacheTextWrapped("Objective - Build Door", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
@@ -121,6 +120,7 @@ Game::~Game() {
     context = GAME_CONTEXT_DONE;
     pthread_join(netThread, NULL);
   }
+  context = GAME_CONTEXT_EXIT;
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -168,7 +168,7 @@ void *Game::net_thread(void *g) {
   while (game->secondsRemaining - GAME_TIME_SECONDS > 0)
     pthread_cond_wait(&game->startupCond, &game->threadLock);
   pthread_mutex_unlock(&game->threadLock);
-  game->context = GAME_CONTEXT_UNSELECTED;
+  game->context = GAME_CONTEXT_PLAYING;
   if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
   bool done = false;
   while (!done) {
@@ -675,7 +675,7 @@ void Game::placeBuilding(BuildingType type) {
     placementW = s;
     placementH = s;
     placingType = type;
-    context = GAME_CONTEXT_PLACING;
+    selectionContext = SELECTION_CONTEXT_PLACING;
     mouseMoved(mouseX, mouseY);
   } else {
     std::string tooMany = "You can only build "+std::to_string(maxBuilds)+errorEnd+" at a time.";
@@ -685,7 +685,7 @@ void Game::placeBuilding(BuildingType type) {
 
 void Game::setObjective(ObjectiveType oType) {
   bool placingOverride = false;
-  if (context == GAME_CONTEXT_PLACING) {
+  if (selectionContext == SELECTION_CONTEXT_PLACING) {
     if (oType == OBJECTIVE_TYPE_BUILD_TOWER && selection.w == TOWER_SIZE && selection.h == TOWER_SIZE)
       placingOverride = true;
     if (oType == OBJECTIVE_TYPE_BUILD_SUBSPAWNER && selection.w == SUBSPAWNER_SIZE && selection.h == SUBSPAWNER_SIZE)
@@ -693,10 +693,10 @@ void Game::setObjective(ObjectiveType oType) {
     if (oType == OBJECTIVE_TYPE_BUILD_BOMB && selection.w == BOMB_SIZE && selection.h == BOMB_SIZE)
       placingOverride = true;
   }
-  if (context == GAME_CONTEXT_SELECTED || context == GAME_CONTEXT_SELECTING || placingOverride) {
+  if (selectionContext == SELECTION_CONTEXT_SELECTED || selectionContext == SELECTION_CONTEXT_SELECTING || placingOverride) {
     Objective *o = new Objective(oType, 255, this, selection);
     objectives.push_back(o);
-    context = GAME_CONTEXT_UNSELECTED;
+    selectionContext = SELECTION_CONTEXT_UNSELECTED;
   } else {
     panel->addText("You must select a region to designate.");
   }
@@ -745,53 +745,37 @@ void Game::adjustViewToScale() {
   if (view.y < 0) view.y = 0;
   if (view.x > gameSize - view.w) view.x = gameSize - view.w;
   if (view.y > gameSize - view.h) view.y = gameSize - view.h;
-  if (context == GAME_CONTEXT_UNSELECTED) {
+  if (selectionContext == SELECTION_CONTEXT_UNSELECTED) {
     selectedUnit = mapUnitAt(view.x + view.w/2, view.y + view.h/2);
   }
   mouseMoved(mouseX, mouseY);
 }
 
 void Game::mouseMoved(int x, int y) {
-  if (y >= gameDisplaySize || x >= gameDisplaySize) {
-    selectedObjective = nullptr;
-    return;
-  }
+  if (y >= gameDisplaySize || x >= gameDisplaySize) return;
   mouseX = x;
   mouseY = y;
   int mouseUnitX = (int)((double)x / scale) + view.x;
   int mouseUnitY = (int)((double)y / scale) + view.y;
-  if (menu->getIfObjectivesShown()) {
-    if (selectedObjective) {
-      if (mouseUnitX < selectedObjective->region.x ||
-	  mouseUnitX > selectedObjective->region.x + selectedObjective->region.w - 1 ||
-	  mouseUnitY < selectedObjective->region.y ||
-	  mouseUnitY > selectedObjective->region.y + selectedObjective->region.h - 1) {
-	selectedObjective = nullptr;
-      }
-    } else {
-      for (Objective *o: objectives) {
-	if (mouseUnitX >= o->region.x &&
-	    mouseUnitX <= o->region.x + o->region.w - 1 &&
-	    mouseUnitY >= o->region.y &&
-	    mouseUnitY <= o->region.y + o->region.h - 1) {
-	  selectedObjective = o;
-	}
-      }
-    }
-  }
   int potX = selection.x;
   int potY = selection.y;
   int potW = selection.w;
   int potH = selection.h;
-  switch(context) {
-  case GAME_CONTEXT_UNSELECTED:
-    selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
-    selection.x = mouseUnitX;
-    selection.y = mouseUnitY;
-    selection.w = 1;
-    selection.h = 1;
+  switch(selectionContext) {
+  case SELECTION_CONTEXT_UNSELECTED:
+    potX = mouseUnitX;
+    potY = mouseUnitY;
+    potW = 1;
+    potH = 1;
+    if (!potentialSelectionCollidesWithObjective(potX,potY,potW,potH)) {
+      selectedUnit = mapUnitAt(mouseUnitX, mouseUnitY);
+      selection.x = potX;
+      selection.y = potY;
+      selection.w = potW;
+      selection.h = potH;
+    }
     break;
-  case GAME_CONTEXT_PLACING:
+  case SELECTION_CONTEXT_PLACING:
     potX = mouseUnitX - (placementW/2);
     potY = mouseUnitY - (placementH/2);
     potW = placementW;
@@ -808,7 +792,7 @@ void Game::mouseMoved(int x, int y) {
       selection.h = potH;
     }
     break;
-  case GAME_CONTEXT_SELECTING:
+  case SELECTION_CONTEXT_SELECTING:
     if (mouseUnitX > (int)selectedUnit->x) {
       potW = mouseUnitX - selectedUnit->x + 1;
     } else {
@@ -834,9 +818,7 @@ void Game::mouseMoved(int x, int y) {
       selection.h = potH;
     }
     break;
-  case GAME_CONTEXT_SELECTED:
-    break;
-  case GAME_CONTEXT_CONNECTING:
+  case SELECTION_CONTEXT_SELECTED:
     break;
   default:
     break;
@@ -844,55 +826,52 @@ void Game::mouseMoved(int x, int y) {
 }
 
 void Game::leftMouseDown(int x, int y) {
-  if (context == GAME_CONTEXT_CONNECTING) return;
   if (x >= gameDisplaySize) return;
   if (y >= gameDisplaySize) {
     int idx = (x / menuSize);
     (menu->items.at(idx)->*(menu->items.at(idx)->menuFunc))();
     return;
   } else {
+    mouseMoved(x,y);
     for (MenuItem *it: menu->items) {
       if (it->subMenuShown) {
 	if (x > it->subMenu.x &&
 	    x < it->subMenu.x + it->subMenu.w &&
-	    y > it->subMenu.y &&
-	    y < it->subMenu.y + it->subMenu.h) {
-	  int idy = (y - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
-	  if (it->subMenu.isToggleSubMenu) {
-	    it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
-	  } else {
-	    (this->*(it->subMenu.funcs.at(idy)))();
-	    menu->hideAllSubMenus();
-	  }
+	    y + panelYDrawOffset > it->subMenu.y &&
+	    y + panelYDrawOffset < it->subMenu.y + it->subMenu.h) {
 	  return;
 	}
       }
-    }   
-    switch(context) {
-    case GAME_CONTEXT_CONNECTING:
-      break;
-    case GAME_CONTEXT_PLACING:
-      switch (placingType) {
-      case BUILDING_TYPE_TOWER:
-	setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
-	break;
-      case BUILDING_TYPE_SUBSPAWNER:
-	setObjective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER);
-	break;
-      case BUILDING_TYPE_BOMB:
-	setObjective(OBJECTIVE_TYPE_BUILD_BOMB);
-	break;
-      default:
-	break;
+    }
+    int mouseUnitX = (int)((double)x / scale) + view.x;
+    int mouseUnitY = (int)((double)y / scale) + view.y;
+    if (menu->getIfObjectivesShown()) {
+      if (selectedObjective) {
+	if (mouseUnitX < selectedObjective->region.x ||
+	    mouseUnitX > selectedObjective->region.x + selectedObjective->region.w - 1 ||
+	    mouseUnitY < selectedObjective->region.y ||
+	    mouseUnitY > selectedObjective->region.y + selectedObjective->region.h - 1) {
+	  selectedObjective = nullptr;
+	}
+      } else {
+	for (Objective *o: objectives) {
+	  if (mouseUnitX >= o->region.x &&
+	      mouseUnitX <= o->region.x + o->region.w - 1 &&
+	      mouseUnitY >= o->region.y &&
+	      mouseUnitY <= o->region.y + o->region.h - 1) {
+	    selectedObjective = o;
+	  }
+	}
       }
-      context = GAME_CONTEXT_UNSELECTED;
+    }
+    switch(selectionContext) {
+    case SELECTION_CONTEXT_PLACING:
       break;
     default:
-      mouseMoved(x,y);
       if (selectedObjective == nullptr) {
-	context = GAME_CONTEXT_UNSELECTED;
+	selectionContext = SELECTION_CONTEXT_UNSELECTED;
 	mouseMoved(x,y);
-	context = GAME_CONTEXT_SELECTING;
+	selectionContext = SELECTION_CONTEXT_SELECTING;
       }
       break;
     }
@@ -900,24 +879,52 @@ void Game::leftMouseDown(int x, int y) {
 }
 
 void Game::leftMouseUp(int x, int y) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    if (context == GAME_CONTEXT_SELECTING) context = GAME_CONTEXT_SELECTED;
-    break;
+  if (selectionContext == SELECTION_CONTEXT_SELECTING) selectionContext = SELECTION_CONTEXT_SELECTED;
+  if (selectionContext == SELECTION_CONTEXT_PLACING) {
+    switch (placingType) {
+    case BUILDING_TYPE_TOWER:
+      setObjective(OBJECTIVE_TYPE_BUILD_TOWER);
+      break;
+    case BUILDING_TYPE_SUBSPAWNER:
+      setObjective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER);
+      break;
+    case BUILDING_TYPE_BOMB:
+      setObjective(OBJECTIVE_TYPE_BUILD_BOMB);
+      break;
+    default:
+      break;
+    }
+    selectionContext = SELECTION_CONTEXT_UNSELECTED;
+    return;
+  }
+  for (MenuItem *it: menu->items) {
+    if (it->subMenuShown) {
+      if (x > it->subMenu.x &&
+	  x < it->subMenu.x + it->subMenu.w &&
+	  y + panelYDrawOffset > it->subMenu.y &&
+	  y + panelYDrawOffset < it->subMenu.y + it->subMenu.h) {
+	int idy = (y + panelYDrawOffset - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
+	if (it->subMenu.isToggleSubMenu) {
+	  it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
+	} else {
+	  (this->*(it->subMenu.funcs.at(idy)))();
+	  menu->hideAllSubMenus();
+	}
+	return;
+      }
+    }
   }
 }
 
+void Game::deselect() {
+  selectionContext = SELECTION_CONTEXT_UNSELECTED;
+  menu->hideAllSubMenus();
+  selectedObjective = nullptr;
+}
+
 void Game::rightMouseDown(int x, int y) {
-  switch(context) {
-  case GAME_CONTEXT_CONNECTING:
-    break;
-  default:
-    context = GAME_CONTEXT_UNSELECTED;
-    menu->hideAllSubMenus();
-    break;
-  }
+  deselect();
+  mouseMoved(x,y);
 }
 
 void Game::panViewLeft() {
@@ -996,9 +1003,9 @@ void Game::drawEffects() {
   for (auto it = towerZaps.begin(); it != towerZaps.end(); it++) {
     disp->setDrawColorWhite();
     int x1 = scaleInt(it->x1 - view.x);
-    int y1 = scaleInt(it->y1 - view.y);
+    int y1 = scaleInt(it->y1 - view.y) + panelYDrawOffset;
     int x2 = scaleInt(it->x2 - view.x);
-    int y2 = scaleInt(it->y2 - view.y);
+    int y2 = scaleInt(it->y2 - view.y) + panelYDrawOffset;
     SDL_Point effectPoints[ZAP_EFFECTS_SUBDIVISION];
     for (int i = 0; i < ZAP_EFFECTS_SUBDIVISION; i++) {
       double t = (double)i/(double)(ZAP_EFFECTS_SUBDIVISION-1);
@@ -1014,7 +1021,7 @@ void Game::drawEffects() {
   }
   for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
     int x = scaleInt(it->x - view.x);
-    int y = scaleInt(it->y - view.y);
+    int y = scaleInt(it->y - view.y) + panelYDrawOffset;
     int maxRad = scaleInt(BOMB_AOE_RADIUS);
     int r = rand() % 255;
     int g = rand() % 255;
@@ -1040,7 +1047,7 @@ void Game::drawBuilding(Building *build) {
     t = (Tower*)build;
     setTeamDrawColor(t->sid);
     x = scaleInt(t->region.x-view.x);
-    y = scaleInt(t->region.y-view.y);
+    y = scaleInt(t->region.y-view.y) + panelYDrawOffset;
     s = scaleInt(TOWER_SIZE);
     disp->drawRectFilled(x, y+s/4, s, s/2);
     disp->drawRectFilled(x+s/4, y, s/2, s);
@@ -1075,7 +1082,7 @@ void Game::drawBuilding(Building *build) {
     }
     double completion = (double)b->hp / (double)b->max_hp;
     x = scaleInt(b->region.x - view.x);
-    y = scaleInt(b->region.y - view.y);
+    y = scaleInt(b->region.y - view.y) + panelYDrawOffset;
     s = scaleInt(BOMB_SIZE);
     int rectHeight = (int)((double)s*completion);
     disp->setDrawColorWhite();
@@ -1088,13 +1095,15 @@ void Game::drawBuilding(Building *build) {
 void Game::draw() {
   disp->fillBlack();
   panel->draw();
+  disp->setDrawColorBlack();
+  disp->drawRectFilled(0,panelYDrawOffset,gameDisplaySize,gameDisplaySize);
   int lum;
   double lumprop;
   MapUnit* first = mapUnitAt(view.x, view.y);
   for (MapUnit::iterator iter = first->getIterator(view.w, view.h); \
        iter.hasNext(); iter++) {
     int scaledX = scaleInt(iter->x - view.x);
-    int scaledY = scaleInt(iter->y - view.y);
+    int scaledY = scaleInt(iter->y - view.y) + panelYDrawOffset;
     int off;
     double offProp;
     switch (iter->type) {
@@ -1135,8 +1144,10 @@ void Game::draw() {
       if (menu->getIfScentsShown()) {
 	lum = (int)(255.0 * (double)iter->scent/255.0);
 	disp->setDrawColor(lum, 0, lum);
-	disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
+      } else {
+	disp->setDrawColorBlack();
       }
+      disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
       break;
     default:	
       break;
@@ -1148,13 +1159,13 @@ void Game::draw() {
       drawBuilding(build);
     }
   }
-  if (context != GAME_CONTEXT_UNSELECTED) {
+  if (selectionContext != SELECTION_CONTEXT_UNSELECTED) {
     disp->setDrawColor(150,150,150);
     int selectionScaledX = scaleInt(selection.x - view.x);
-    int selectionScaledY = scaleInt(selection.y - view.y);
+    int selectionScaledY = scaleInt(selection.y - view.y) + panelYDrawOffset;
     disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
   }
-  if (context == GAME_CONTEXT_PLACING) {
+  if (selectionContext == SELECTION_CONTEXT_PLACING) {
     ObjectiveType oType;
     switch (placingType) {
     case BUILDING_TYPE_TOWER:
@@ -1174,29 +1185,26 @@ void Game::draw() {
     int objectiveInfoWidth;
     int objectiveInfoHeight;
     SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
-    int x = mouseX + 20;
-    int y = mouseY + 10;
-    if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
-    if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
-    disp->setDrawColorBlack();
-    disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
-    disp->setDrawColorWhite();
-    disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+    int x = 0;
+    int y = gameDisplaySize + panelYDrawOffset - objectiveInfoHeight;
     disp->drawTexture(texture, x, y);
   }
   if (menu->getIfBuildingsOutlined()) {
     disp->setDrawColorWhite();
     for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
       for (Building *build : it->second) {
-	disp->drawRect(scaleInt(build->region.x-view.x), scaleInt(build->region.y-view.y), scaleInt(build->region.w), scaleInt(build->region.h));
+	disp->drawRect(scaleInt(build->region.x-view.x), scaleInt(build->region.y-view.y)+panelYDrawOffset, scaleInt(build->region.w), scaleInt(build->region.h));
       }
     }
   }
   if (menu->getIfObjectivesShown()) {
     for (Objective *o: objectives) {
       disp->setDrawColor(255,255,0);
+      if (o == selectedObjective) {
+	disp->setDrawColor(0,255,255);
+      }
       int scaledX = scaleInt(o->region.x - view.x);
-      int scaledY = scaleInt(o->region.y - view.y);
+      int scaledY = scaleInt(o->region.y - view.y) + panelYDrawOffset;
       int scaledW = scaleInt(o->region.w);
       int scaledH = scaleInt(o->region.h);
       disp->drawRect(scaledX, scaledY, scaledW, scaledH);
@@ -1207,19 +1215,13 @@ void Game::draw() {
       int objectiveInfoWidth;
       int objectiveInfoHeight;
       SDL_QueryTexture(texture, NULL, NULL, &objectiveInfoWidth, &objectiveInfoHeight);
-      int x = mouseX + 20;
-      int y = mouseY + 10;
-      if (x > gameDisplaySize - objectiveInfoWidth) x = gameDisplaySize - objectiveInfoWidth;
-      if (y > gameDisplaySize - objectiveInfoHeight) y = gameDisplaySize - objectiveInfoHeight;
-      disp->setDrawColorBlack();
-      disp->drawRectFilled(x, y, objectiveInfoWidth, objectiveInfoHeight);
-      disp->setDrawColorWhite();
-      disp->drawRect(x, y, objectiveInfoWidth, objectiveInfoHeight);
+      int x = 0;
+      int y = gameDisplaySize + panelYDrawOffset - objectiveInfoHeight;
       disp->drawTexture(texture, x, y);
     }
   }
   disp->setDrawColorWhite();
-  disp->drawRect(0, 0, gameDisplaySize, gameDisplaySize);
+  disp->drawRect(0, panelYDrawOffset, gameDisplaySize, gameDisplaySize);
   int m = secondsRemaining / 60;
   int s = secondsRemaining % 60;
   std::string mText = std::to_string(m);
@@ -1229,7 +1231,7 @@ void Game::draw() {
   std::string timeText = mText + ":" + sText;
   int ttw, tth;
   disp->sizeText(timeText.c_str(), &ttw, &tth);
-  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, 0);
+  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, panelYDrawOffset);
   menu->draw(disp);
 }
 
@@ -1287,6 +1289,57 @@ void Game::resign()  {
 
 }
 
+void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {
+  *retx = (int)(x*(float)disp->getWidth());
+  *rety = (int)(y*(float)disp->getHeight()) - panelSize;
+}
+
+void Game::handleSDLEventMobile(SDL_Event *e) {
+  if (e->type == SDL_QUIT) {
+    context = GAME_CONTEXT_EXIT;
+    return;
+  }
+  int x, y;
+  switch(e->type) {
+  case SDL_FINGERDOWN:
+    standardizeEventCoords(e->tfinger.x, e->tfinger.y, &x, &y);
+    if (y <= 0) {
+      deselect();
+      break;
+    };
+    leftMouseDown(x,y);
+    break;
+  case SDL_FINGERUP:
+    standardizeEventCoords(e->tfinger.x, e->tfinger.y, &x, &y);
+    if (y <= 0) break;
+    leftMouseUp(x,y);
+    break;
+  case SDL_FINGERMOTION:
+    standardizeEventCoords(e->tfinger.x, e->tfinger.y, &x, &y);
+    if (y > 0 ) {
+      mouseMoved(x,y);
+      break;
+    }
+    if (e->tfinger.dy < 0) panel->scrollUp();
+    if (e->tfinger.dy > 0) panel->scrollDown();
+    break;
+  case SDL_MULTIGESTURE:
+    standardizeEventCoords(e->mgesture.x, e->mgesture.y, &x, &y);
+    if (e->mgesture.numFingers == 1) {
+      if (y > 0) mouseMoved(x, y);
+      break;
+    }
+    if (e->mgesture.dDist < 0.01 && e->mgesture.dDist > -0.01) deselect();
+    else {
+      if (e->mgesture.dDist > 0) zoomIn();
+      else zoomOut();
+    }
+    break;
+  default:
+    break;
+  }
+}
+
 void Game::handleSDLEvent(SDL_Event *e) {
   int x, y;
   if (e->type == SDL_QUIT) {
@@ -1330,7 +1383,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
   case SDL_KEYDOWN:
     switch(e->key.keysym.sym) {
     case SDLK_ESCAPE:
-      rightMouseDown(x,y);
+      deselect();
     case SDLK_SPACE:
       break;
     case SDLK_UP:
@@ -1396,9 +1449,16 @@ void Game::mainLoop(void) {
   default:
     pthread_mutex_lock(&threadLock);
     draw();
-    pthread_mutex_unlock(&threadLock);
+    SDL_PumpEvents();
     SDL_Event e;
-    if (SDL_PollEvent(&e) != 0) handleSDLEvent(&e);
+    while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
+      if (mobile) {
+	handleSDLEventMobile(&e);
+      } else {
+	handleSDLEvent(&e);
+      }
+    }
+    pthread_mutex_unlock(&threadLock);
     break;
   }
   disp->update();
