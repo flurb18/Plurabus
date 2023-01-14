@@ -283,7 +283,7 @@ NetHandler::~NetHandler() {
 #ifdef __EMSCRIPTEN__
   emscripten_websocket_delete(sock);
 #else
-  pthread_join(&clientThread, NULL);
+  pthread_join(clientThread, NULL);
 #endif
 
   pthread_mutex_destroy(&netLock);
