@@ -38,6 +38,7 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
 #else
 
 context_ptr on_tls_init() {
+  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
     // establishes a SSL connection
     context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
 
@@ -49,7 +50,7 @@ context_ptr on_tls_init() {
     } catch (std::exception &e) {
         std::cout << "Error in context pointer: " << e.what() << std::endl;
     }
-    return ctx;
+    return ctx;*/
 }
 
 #endif
