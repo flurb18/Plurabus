@@ -10,7 +10,8 @@ import urllib.parse
 import http
 import pathlib
 import uuid
-
+import mariadb
+import sys
 
 CONTENT_TYPES = {
     ".css": "text/css",
@@ -41,6 +42,20 @@ def isValidToken(token):
         return True
     else:
         return False
+
+def isUser(cur, username):
+    cur.execute(
+        "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE User=?)",
+        (username,))
+    ret = cur.fetchall()
+    return (ret[0][0] == 1)
+
+def isAuthorizedUser(cur, username, password):
+    cur.execute(
+        "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE User=? AND Password=PASSWORD(?))",
+        (username, password))
+    ret = cur.fetchall()
+    return (ret[0][0] == 1)
     
 async def serve_html(path, request_headers):
     path = urllib.parse.urlparse(path).path
@@ -79,11 +94,22 @@ async def timerLoop(websocket):
             return
     
 async def serve_wss(websocket):
-    token = await websocket.recv()
-    if (not isValidToken(token)):
+    try:
+        firstMessage = await websocket.recv()
+    except websockets.exceptions.ConnectionClosed:
+        return
+    tokenValid = isValidToken(firstMessage)
+    valid = tokenValid
+    if (not valid):
+        if (isUser(conn.cursor(), firstMessage)):
+            try:
+                passwd = await websocket.recv()
+            except websockets.exceptions.ConnectionClosed:
+                return
+            valid = isAuthorizedUser(conn.cursor(), firstMessage, passwd)
+    if (not valid):
         await websocket.close(1011, "Invalid token")
         return
-    Tokens.remove(token)
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
@@ -135,19 +161,7 @@ async def serve_wss(websocket):
 
     websocket.readyForGame.set()
     await websocket.pairedClient.readyForGame.wait()
-
-    if (websocket.player == 2):
-        async for data in websocket:
-            await asyncio.sleep(FRAME_DELAY)
-            try:
-                await websocket.pairedClient.send(data)
-            except websockets.exceptions.ConnectionClosed:
-                await websocket.close(1001, "Other player disconnected.")
-            except Exception as e:
-                await websocket.close(1001, "")
-        if (websocket.close_code == 1001):
-            await websocket.pairedClient.close(1001, "Other player disconnected.")
-        
+    
     if (websocket.player == 1):
         try:
             await websocket.send("Go")
@@ -156,16 +170,20 @@ async def serve_wss(websocket):
             await websocket.pairedClient.close()
             return
         asyncio.ensure_future(timerLoop(websocket))
-        async for data in websocket:
-            await asyncio.sleep(FRAME_DELAY)
-            try:
-                await websocket.pairedClient.send(data)
-            except websockets.exceptions.ConnectionClosed:
-                await websocket.close(1001, "Other player disconnected.")
-            except Exception as e:
-                await websocket.close(1001, "")
-        if (websocket.close_code == 1001):
-            await websocket.pairedClient.close(1001, "Other player disconnected.")
+
+    async for data in websocket:
+        await asyncio.sleep(FRAME_DELAY)
+        try:
+            await websocket.pairedClient.send(data)
+        except websockets.exceptions.ConnectionClosed:
+            await websocket.close(1001, "Other player disconnected.")
+        except Exception as e:
+            await websocket.close(1001, "")
+            if (websocket.close_code == 1001):
+                await websocket.pairedClient.close(1001, "Other player disconnected.")
+
+    if (websocket.close_code == 1001):
+        await websocket.pairedClient.close(1001, "Other player disconnected.")
 
 async def main():
     loop = asyncio.get_running_loop()
@@ -185,6 +203,16 @@ async def main():
         ssl=ssl_context
     ):
         await stop
+
+
         
 if __name__ == "__main__":
+    try:
+        conn = mariadb.connect(
+            user="server",
+            unix_socket="/run/mysqld/mysqld.sock"
+        )
+    except mariadb.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        sys.exit(1)
     asyncio.run(main())
