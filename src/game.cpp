@@ -1299,6 +1299,7 @@ void Game::handleSDLEventMobile(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE) return;
   int x, y;
   switch(e->type) {
   case SDL_FINGERDOWN:
@@ -1346,6 +1347,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE) return;
   SDL_GetMouseState(&x, &y);
   switch(e->type) {
   case SDL_MOUSEWHEEL:
@@ -1436,30 +1438,28 @@ void Game::handleSDLEvent(SDL_Event *e) {
 }
 
 void Game::mainLoop(void) {
+  pthread_mutex_lock(&threadLock);
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
-    pthread_mutex_lock(&threadLock);
     drawStartupScreen();
-    pthread_mutex_unlock(&threadLock);
     break;
   default:
-    pthread_mutex_lock(&threadLock);
     draw();
-    SDL_PumpEvents();
-    SDL_Event e;
-    while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
-      if (mobile) {
-	handleSDLEventMobile(&e);
-      } else {
-	handleSDLEvent(&e);
-      }
-    }
-    pthread_mutex_unlock(&threadLock);
     break;
   }
+  SDL_PumpEvents();
+  SDL_Event e;
+  while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
+    if (mobile) {
+      handleSDLEventMobile(&e);
+    } else {
+      handleSDLEvent(&e);
+    }
+  }
+  pthread_mutex_unlock(&threadLock);
   disp->update();
 }

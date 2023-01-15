@@ -25,7 +25,7 @@ loadGame = function (gameSize, pstr) {
 	gameSize.toString(),
 	gamePanelSize.toString(),
 	scale.toString(),
-	pstr.toString()
+	pstr.toString()+gameSize.toString()
     ];
     if (window.mobileAndTabletCheck()) {
 	Module['arguments'].push('mobile');

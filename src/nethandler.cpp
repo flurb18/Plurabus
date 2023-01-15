@@ -38,9 +38,9 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
 #else
 
 context_ptr on_tls_init() {
-  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
+  //  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
     // establishes a SSL connection
-    context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
+    context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv12);
 
     try {
         ctx->set_options(boost::asio::ssl::context::default_workarounds |
@@ -50,7 +50,7 @@ context_ptr on_tls_init() {
     } catch (std::exception &e) {
         std::cout << "Error in context pointer: " << e.what() << std::endl;
     }
-    return ctx;*/
+    return ctx;
 }
 
 #endif
@@ -83,6 +83,7 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   m_client.clear_error_channels(websocketpp::log::elevel::all);
 
   m_client.init_asio();
+  m_client.start_perpetual();
   m_client.set_tls_init_handler(bind(&on_tls_init));
   
   websocketpp::lib::error_code ec;
@@ -190,6 +191,7 @@ void NetHandler::send(void *data, int numBytes) {
 }
 
 void NetHandler::receive(void *data, int numBytes, bool isText) {
+  pthread_mutex_lock(&game->threadLock);
   switch(ncon) {
   case NET_CONTEXT_INIT:
     break;
@@ -222,21 +224,18 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
-      pthread_mutex_lock(&game->threadLock);
       game->secondsRemaining--;
       if (game->context == GAME_CONTEXT_STARTUPTIMER) {
 	pthread_cond_signal(&game->startupCond);
       }
-      pthread_mutex_unlock(&game->threadLock);
     } else {
-      pthread_mutex_lock(&game->threadLock);
       game->receiveData(data, numBytes);
-      pthread_mutex_unlock(&game->threadLock);
     }
     break;
   default:
     break;
   }
+  pthread_mutex_unlock(&game->threadLock);
 }
 
 void NetHandler::closeConnection(const char *reason) {
@@ -245,6 +244,7 @@ void NetHandler::closeConnection(const char *reason) {
     emscripten_websocket_close(sock, 1000, reason);
 #else
     m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
+    m_client.stop_perpetual();
 #endif
     game->context = GAME_CONTEXT_DONE;
     ncon = NET_CONTEXT_CLOSED;
