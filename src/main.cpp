@@ -6,7 +6,6 @@
 #endif
 
 #include <string>
-#include <SDL2/SDL_thread.h>
 
 #include "display.h"
 #include "game.h"
