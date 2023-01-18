@@ -18,7 +18,7 @@ void mainloop(void *arg) {
 
 int mainloop_thread(void *arg) {
   Game *g = (Game*)arg;
-  while (g->getContext != GAME_CONTEXT_EXIT) {
+  while (g->getContext() != GAME_CONTEXT_EXIT) {
     g->mainLoop();
   }
   return 0;
