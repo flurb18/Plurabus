@@ -15,15 +15,6 @@ void mainloop(void *arg) {
   g->mainLoop();
 }
 
-void *mainloop_thread(void *arg) {
-  Game *g = (Game*)arg;
-  while (g->getContext() != GAME_CONTEXT_EXIT) {
-    g->mainLoop();
-  }
-  delete g;
-  return NULL;
-}
-
 int main(int argc, char* argv[]) {
   /* Set the random number generator seed */
   srand(time(0));
@@ -45,10 +36,12 @@ int main(int argc, char* argv[]) {
 
 #else
 
-  pthread_t mainThread;
-  pthread_create(&mainThread, NULL, &mainloop_thread, (void*)g);
-  pthread_join(mainThread, NULL);
+  while (g->getContext() != GAME_CONTEXT_EXIT) {
+    g->mainLoop();
+  }
 
 #endif
+
+  delete g;
   return 0;
 }
