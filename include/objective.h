@@ -27,8 +27,8 @@ struct Objective {
   bool started;
   bool done;
   Objective *super;
-  std::deque<Objective> subObjectives;
-  std::deque<Objective>::iterator iter;
+  std::deque<Objective*> subObjectives;
+  std::deque<Objective*>::iterator iter;
   Game* game;
   SDL_Rect region;
   Objective(ObjectiveType, int, Game*, SDL_Rect);

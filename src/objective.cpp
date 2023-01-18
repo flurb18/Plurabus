@@ -10,7 +10,7 @@ Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
   case OBJECTIVE_TYPE_BUILD_WALL:
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
       SDL_Rect sub = { region.x + i, region.y + i, region.w - (2*i), region.h - (2*i) };
-      subObjectives.emplace_front(this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub); 
+      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub)); 
     }
     iter = subObjectives.begin();
     break;
@@ -21,7 +21,7 @@ Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
     started = false;
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
       SDL_Rect sub = { region.x + i, region.y + i, region.w - (2*i), region.h - (2*i) };
-      subObjectives.emplace_front(this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub);
+      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub));
     }
     iter = subObjectives.begin();
     break;
@@ -73,8 +73,8 @@ void Objective::update() {
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     if (iter != subObjectives.end()) {
-      iter->update();
-      if (iter->isDone()){
+      (*iter)->update();
+      if ((*iter)->isDone()){
 	iter++;
       }
     }
@@ -93,8 +93,8 @@ void Objective::update() {
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
     if (iter != subObjectives.end()) {
-      iter->update();
-      if (iter->isDone()){
+      (*iter)->update();
+      if ((*iter)->isDone()){
 	iter++;
       }
     }
@@ -227,5 +227,6 @@ Objective::~Objective() {
   for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
     if (m->objective == this) m->objective = nullptr;
   }
+  for (Objective *o: subObjectives) delete o;
   subObjectives.clear();
 }
