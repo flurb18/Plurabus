@@ -6,6 +6,7 @@
 #endif
 
 #include <string>
+#include <SDL2/SDL_thread.h>
 
 #include "display.h"
 #include "game.h"
@@ -13,6 +14,14 @@
 void mainloop(void *arg) {
   Game *g = (Game*)arg;
   g->mainLoop();
+}
+
+int mainloop_thread(void *arg) {
+  Game *g = (Game*)arg;
+  while (g->getContext != GAME_CONTEXT_EXIT) {
+    g->mainLoop();
+  }
+  return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -36,9 +45,9 @@ int main(int argc, char* argv[]) {
 
 #else
 
-  while (g->getContext() != GAME_CONTEXT_EXIT) {
-    g->mainLoop();
-  }
+  SDL_Thread *mainThread;
+  mainThread = SDL_CreateThread(mainloop_thread, (void*)g);
+  SDL_WaitThread(mainThread, NULL);
 
 #endif
 
