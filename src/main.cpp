@@ -15,6 +15,14 @@ void mainloop(void *arg) {
   g->mainLoop();
 }
 
+void mainloop_thread(void *arg) {
+  Game *g = (Game*)arg;
+  while (g->getContext() != GAME_CONTEXT_EXIT) {
+    g->mainLoop();
+  }
+  delete g;
+}
+
 int main(int argc, char* argv[]) {
   /* Set the random number generator seed */
   srand(time(0));
@@ -35,13 +43,9 @@ int main(int argc, char* argv[]) {
   emscripten_set_main_loop_arg(mainloop, (void*)g, 0, 1);
 
 #else
-  
-  while (g->getContext() != GAME_CONTEXT_EXIT) {
-    mainloop((void*)g);
-  }
+
+  pthread_t mainThread;
+  pthread_create(&mainThread, NULL, &mainloop_thread, (void*)g);
 
 #endif
-
-  delete g;
-  return 0;
 }
