@@ -45,10 +45,8 @@ int main(int argc, char* argv[]) {
 
 #else
 
-  SDL_Thread *mainThread;
-  mainThread = SDL_CreateThread(mainloop_thread, (void*)g);
-  SDL_WaitThread(mainThread, NULL);
-
+  mainloop_thread((void*)g);
+  
 #endif
 
   delete g;
