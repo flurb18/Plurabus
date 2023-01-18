@@ -50,4 +50,5 @@ int main(int argc, char* argv[]) {
   pthread_join(mainThread, NULL);
 
 #endif
+  return 0;
 }
