@@ -15,12 +15,13 @@ void mainloop(void *arg) {
   g->mainLoop();
 }
 
-void mainloop_thread(void *arg) {
+void *mainloop_thread(void *arg) {
   Game *g = (Game*)arg;
   while (g->getContext() != GAME_CONTEXT_EXIT) {
     g->mainLoop();
   }
   delete g;
+  return NULL;
 }
 
 int main(int argc, char* argv[]) {
