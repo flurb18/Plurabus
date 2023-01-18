@@ -47,6 +47,7 @@ int main(int argc, char* argv[]) {
 
   pthread_t mainThread;
   pthread_create(&mainThread, NULL, &mainloop_thread, (void*)g);
+  pthread_join(mainThread, NULL);
 
 #endif
 }
