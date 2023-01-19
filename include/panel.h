@@ -19,11 +19,13 @@ private:
   int textHeight;
   int bannerSize;
   Display *disp;
+  std::deque<std::string> queuedStrings;
   std::deque<SDL_Texture *> displayedStrings;
   SDL_Texture *bannerTexture;
   SDL_Texture *newlineTexture;
 public:
   void addText(const char *);
+  void flushText();
   void basicInfoText();
   void controlsText();
   void costsText();

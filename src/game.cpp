@@ -1111,6 +1111,7 @@ void Game::drawBuilding(Building *build) {
 
 void Game::draw() {
   disp->fillBlack();
+  panel->flushText();
   panel->draw();
   disp->setDrawColorBlack();
   disp->drawRectFilled(0,panelYDrawOffset,gameDisplaySize,gameDisplaySize);

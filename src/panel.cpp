@@ -32,13 +32,20 @@ Panel::Panel(Display *d): basicInfoAdded(false), controlsAdded(false), costsAdde
 }
 
 void Panel::addText(const char* input) {
-  SDL_Texture *texture = disp->cacheTextWrapped(input, wrap);
-  int textureHeight;
-  SDL_QueryTexture(texture, NULL, NULL, NULL, &textureHeight);
-  textHeight += textureHeight;
-  if (textHeight > height)
-    offset = height - textHeight;
-  displayedStrings.push_back(texture);
+  queuedStrings.emplace_back(input);
+}
+
+void Panel::flushText() {
+  for (std::string s : queuedStrings) {
+    SDL_Texture *texture = disp->cacheTextWrapped(s.c_str(), wrap);
+    int textureHeight;
+    SDL_QueryTexture(texture, NULL, NULL, NULL, &textureHeight);
+    textHeight += textureHeight;
+    if (textHeight > height)
+      offset = height - textHeight;
+    displayedStrings.push_back(texture);
+  }
+  queuedStrings.clear();
 }
 
 void Panel::basicInfoText() {
