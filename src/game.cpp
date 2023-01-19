@@ -170,7 +170,7 @@ void *Game::net_thread(void *g) {
 
 #ifdef ANDROID
   JNIEnv *env;
-  game->jvm->AttachCurrentThread((void**)env, NULL);
+  game->jvm->AttachCurrentThread(&env, NULL);
 #endif
   
   NetHandler *net = new NetHandler(game, game->pairString);
