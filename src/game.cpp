@@ -1438,7 +1438,9 @@ void Game::handleSDLEvent(SDL_Event *e) {
 }
 
 void Game::mainLoop(void) {
+#ifndef __EMSCRIPTEN__
   pthread_mutex_lock(&threadLock);
+#endif
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1460,6 +1462,8 @@ void Game::mainLoop(void) {
       handleSDLEvent(&e);
     }
   }
+#ifndef __EMSCRIPTEN__
   pthread_mutex_unlock(&threadLock);
+#endif
   disp->update();
 }
