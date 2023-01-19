@@ -5,7 +5,7 @@ EXECNAME=hivemind
 
 WEBCC=/usr/lib/emsdk/upstream/emscripten/emcc
 WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall -pthread -s USE_PTHREADS=1
-WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --preload-file assets --use-preload-plugins -s PTHREAD_POOL_SIZE=1
+WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --preload-file assets --use-preload-plugins -s PTHREAD_POOL_SIZE=1 -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1073741824
 WEBEXECNAME=hivemindweb
 WEBEXECOUTPUTDIR=web
 WEBEXECOUTPUTEXT=.js .wasm .data .worker.js

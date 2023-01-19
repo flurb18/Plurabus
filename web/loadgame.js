@@ -21,6 +21,12 @@ loadGame = function (gameSize, pstr) {
 	       (scale*gameSize*7)/6 < window.innerHeight - gameWindowPadding) { scale++; }
 	scale--;
     }
+    const memory = new WebAssembly.Memory({
+	initial: 1024,
+	maximum: 16384,
+	shared: true,
+    });
+    Module['wasmMemory'] = memory;
     Module['arguments'] = [
 	gameSize.toString(),
 	gamePanelSize.toString(),
