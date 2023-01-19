@@ -1111,8 +1111,6 @@ void Game::drawBuilding(Building *build) {
 
 void Game::draw() {
   disp->fillBlack();
-  panel->flushText();
-  panel->draw();
   disp->setDrawColorBlack();
   disp->drawRectFilled(0,panelYDrawOffset,gameDisplaySize,gameDisplaySize);
   int lum;
@@ -1250,6 +1248,8 @@ void Game::draw() {
   int ttw, tth;
   disp->sizeText(timeText.c_str(), &ttw, &tth);
   disp->drawText(timeText.c_str(), gameDisplaySize - ttw, panelYDrawOffset);
+  panel->flushText();
+  panel->draw();
   menu->draw(disp);
 }
 

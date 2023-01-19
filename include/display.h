@@ -38,6 +38,7 @@ public:
   void drawSurface(SDL_Surface*, int, int, int, int);
   void drawTexture(SDL_Texture*, int, int);
   void drawTexture(SDL_Texture*, int, int, int, int);
+  void drawTextureCropped(SDL_Texture*, int, int, SDL_Rect*);
   void drawImage(const char*, int, int, int, int);
   void drawSVG(const char*, int, int, int, int);
   SDL_Texture *cacheTextWrapped(const char*, int);

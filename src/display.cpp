@@ -135,6 +135,11 @@ void Display::drawTexture(SDL_Texture *texture, int x, int y) {
   SDL_RenderCopy(render, texture, nullptr, &rect);
 }
 
+void Display::drawTextureCropped(SDL_Texture *texture, int x, int y, SDL_Rect *crop) {
+  SDL_Rect rect = {x, y, crop->w, crop->h};
+  SDL_RenderCopy(render, texture, crop, &rect);
+}
+
 void Display::drawTexture(SDL_Texture *texture, int x, int y, int w, int h) {
   SDL_Rect rect = {x, y, w, h};
   SDL_RenderCopy(render, texture, nullptr, &rect);

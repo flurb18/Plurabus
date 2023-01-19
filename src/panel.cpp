@@ -123,11 +123,13 @@ void Panel::draw() {
     disp->drawRect(0, 0, disp->getWidth(), height + bannerSize);
     int y = bannerSize + offset;
     for (std::deque<SDL_Texture *>::iterator it = displayedStrings.begin(); it != displayedStrings.end(); it++) {
-      int textureHeight;
-      SDL_QueryTexture(*it, NULL, NULL, NULL, &textureHeight);
-      disp->drawTexture(newlineTexture, 0, y);
-      disp->drawTexture(*it, PANEL_PADDING, y);
+      int textureWidth, textureHeight;
+      SDL_QueryTexture(*it, NULL, NULL, &textureWidth, &textureHeight);
+      int drawHeight = (y + textureHeight >= height + bannerSize ? height + bannerSize - y : textureHeight);
+      SDL_Rect crop = { 0, 0, textureWidth, drawHeight };
+      disp->drawTextureCropped(*it, PANEL_PADDING, y, &crop);
       y += textureHeight;
+      if (y >= height + bannerSize) break;
     }
     disp->setDrawColorBlack();
     disp->drawRectFilled(0,0,disp->getWidth(),bannerSize);
