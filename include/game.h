@@ -8,6 +8,10 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rect.h>
 
+#ifdef ANDROID
+#include <jni.h>
+#endif
+
 #include "agent.h"
 #include "building.h"
 #include "event.h"
@@ -59,6 +63,11 @@ class Game {
   friend struct Objective;
   friend class MenuItem;
 private:
+  
+#ifdef ANDROID
+  JavaVM *jvm;
+#endif
+  
   Menu *menu;
   Panel *panel;
   char *pairString;

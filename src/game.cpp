@@ -89,6 +89,12 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   int fontSize = FONT_SIZE;
   if (mobile) fontSize = MOBILE_FONT_SIZE;
   disp = new Display(gameDisplaySize, menuSize, panelSize, fontSize, mobile);
+
+#ifdef ANDROID
+  JNIEnv *env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+  env->GetJavaVM(&jvm);
+#endif
+  
   panel = new Panel(disp);
   std::string welcomeText = "Welcome to " + std::string(TITLE) + "!";
   panel->addText(welcomeText.c_str());
@@ -161,6 +167,12 @@ Game::~Game() {
 
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
+
+#ifdef ANDROID
+  JNIEnv *env;
+  game->jvm->AttachCurrentThread((void**)env, NULL);
+#endif
+  
   NetHandler *net = new NetHandler(game, game->pairString);
   pthread_mutex_lock(&net->netLock);
   game->context = GAME_CONTEXT_STARTUPTIMER;
@@ -199,6 +211,11 @@ void *Game::net_thread(void *g) {
   }
   net->closeConnection(winText.c_str());
   pthread_mutex_unlock(&net->netLock);
+
+#ifdef ANDROID
+  game->jvm->DetachCurrentThread();
+#endif
+  
   delete net;
   return NULL;
 }
