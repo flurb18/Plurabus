@@ -1,2 +1,7 @@
 icons in menu - FontAwesome
 font for banner - noto sans mono
+
+Emscripten for web compilation
+python websockets and MariaDB for server
+websocketpp for app connection
+SDL for graphics
