@@ -38,8 +38,6 @@ const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 
   pairString(pstr),
-  readyToSend(false),
-  readyToReceive(false),
   mobile(mob),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
   numPlayerAgents(0),
@@ -118,6 +116,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
   pthread_mutex_init(&threadLock, NULL);
   pthread_cond_init(&startupCond, NULL);
+  pthread_cond_init(&recvCond, NULL);
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
@@ -163,7 +162,7 @@ Game::~Game() {
   pthread_mutex_destroy(&threadLock);
 }
 
-/*-------------------Main net loop------------------------*/
+/*-------------------Main net thread------------------------*/
 
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
@@ -179,26 +178,16 @@ void *Game::net_thread(void *g) {
   pthread_mutex_lock(&game->threadLock);
   while (game->secondsRemaining - GAME_TIME_SECONDS > 0)
     pthread_cond_wait(&game->startupCond, &game->threadLock);
-  pthread_mutex_unlock(&game->threadLock);
   game->context = GAME_CONTEXT_PLAYING;
-  if (game->playerSpawnID == SPAWNER_ID_GREEN) game->update();
-  bool done = false;
-  while (!done) {
-    pthread_mutex_lock(&game->threadLock);
-    Events *events = (Events*)game->eventsBuffer;
-    if (game->readyToSend) {
-      game->receiveEvents(events);
-      net->send(game->eventsBuffer, messageSize(events->numAgentEvents));
-      game->readyToSend = false;
-    }
-    if (game->readyToReceive) {
-      game->receiveEvents(events);
-      game->readyToReceive = false;
-      game->update();
-    }
-    game->checkSpawnersDestroyed();
-    done = (game->context == GAME_CONTEXT_DONE);
-    pthread_mutex_unlock(&game->threadLock);    
+  if (game->playerSpawnID == SPAWNER_ID_GREEN) {
+    game->update();
+    game->receiveEventsBuffer(true, net);
+  }
+  while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT) {
+    pthread_cond_wait(&game->recvCond, &game->threadLock);
+    game->receiveEventsBuffer(false, net);
+    game->update();
+    game->receiveEventsBuffer(true, net);
   }
   std::string winText;
   switch (game->winnerSpawnID) {
@@ -211,14 +200,17 @@ void *Game::net_thread(void *g) {
   }
   net->closeConnection(winText.c_str());
   pthread_mutex_unlock(&net->netLock);
+  pthread_mutex_unlock(&game->threadLock);
+  delete net;
 
 #ifdef ANDROID
   game->jvm->DetachCurrentThread();
 #endif
   
-  delete net;
   return NULL;
 }
+
+/*--------------Game state functions-------------*/
 
 void Game::checkSpawnersDestroyed() {
   auto ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].begin();
@@ -249,7 +241,25 @@ void Game::checkSpawnersDestroyed() {
   }
 }
 
-/*--------------Event buffer functions-------------*/
+void Game::deleteMarkedAgents() {
+  for (AgentID id : markedAgents) {
+    auto it = agentDict.find(id);
+    if (it == agentDict.end()) continue;
+    Agent *a = it->second;
+    MapUnit *u = a->unit;
+    SpawnerID s = a->sid;
+    if (u->type == UNIT_TYPE_AGENT) {
+      u->type = UNIT_TYPE_EMPTY;
+    } else if (u->type == UNIT_TYPE_DOOR) {
+      u->door->isEmpty = true;
+    }
+    u->agent = nullptr;
+    agentDict.erase(it);
+    if (s == playerSpawnID)
+      numPlayerAgents--;
+  }
+  markedAgents.clear();
+}
 
 int Game::messageSize(int n) {
   return (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS+1)) + (sizeof(TowerEvent) * MAX_TOWERS) +
@@ -269,7 +279,14 @@ void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
-  readyToReceive = true;
+  pthread_cond_signal(&recvCond);
+}
+
+void Game::receiveEventsBuffer(bool send, NetHandler *net) {
+  Events *events = (Events*)eventsBuffer;
+  receiveEvents(events);
+  if (send)
+    net->send(eventsBuffer, messageSize(events->numAgentEvents));
 }
 
 void Game::receiveEvents(Events *events) {
@@ -285,13 +302,14 @@ void Game::receiveEvents(Events *events) {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
+  checkSpawnersDestroyed();
+  deleteMarkedAgents();
 }
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
   auto it = agentDict.find(aevent->id);
   if (it == agentDict.end()) return;
-  Agent *a = agentDict[aevent->id];
-  Agent *b;
+  Agent *a = it->second;
   int x, y, count;
   SpawnerID s;
   Building *build;
@@ -334,8 +352,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
   case AGENT_ACTION_BUILDWALL:
     destuptr->type = UNIT_TYPE_WALL;
     destuptr->hp = STARTING_WALL_HEALTH;
-    a->die();
-    delete a;
+    markAgentForDeletion(a->id);
     break;
   case AGENT_ACTION_BUILDDOOR:
     if (destuptr->type == UNIT_TYPE_WALL) {
@@ -348,8 +365,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       destuptr->door->hp++;
       if (destuptr->door->hp == MAX_DOOR_HEALTH) destuptr->door->isEmpty = true;
     }
-    a->die();
-    delete a;
+    markAgentForDeletion(a->id);
     break;
   case AGENT_ACTION_BUILDTOWER:
     if (destuptr->type == UNIT_TYPE_EMPTY) {
@@ -360,9 +376,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       s = a->sid;
       for (MapUnit::iterator it = first->getIterator(TOWER_SIZE, TOWER_SIZE); it.hasNext(); it++) {
 	if (it->type == UNIT_TYPE_AGENT) {
-	  b = it->agent;
-	  b->die();
-	  delete b;
+	  markAgentForDeletion(it->agent->id);
 	  count++;
 	}
       }
@@ -374,8 +388,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       buildingLists[BUILDING_TYPE_TOWER].push_back(tower);
     } else {
       destuptr->building->hp++;
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
     }
     break;
   case AGENT_ACTION_BUILDBOMB:
@@ -387,9 +400,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       s = a->sid;
       for (MapUnit::iterator it = first->getIterator(BOMB_SIZE, BOMB_SIZE); it.hasNext(); it++) {
 	if (it->type == UNIT_TYPE_AGENT) {
-	  b = it->agent;
-	  b->die();
-	  delete b;
+	  markAgentForDeletion(it->agent->id);
 	  count++;
 	}
       }
@@ -401,8 +412,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       buildingLists[BUILDING_TYPE_BOMB].push_back(bomb);
     } else {
       destuptr->building->hp++;
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
     }
     break;
   case AGENT_ACTION_BUILDSUBSPAWNER:
@@ -419,29 +429,22 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     } else {
       destuptr->hp++;
     }
-    a->die();
-    delete a;
+    markAgentForDeletion(a->id);
     break;
   case AGENT_ACTION_ATTACK:
-    Agent *b;
     switch (destuptr->type) {
     case UNIT_TYPE_SPAWNER:
       destuptr->type = UNIT_TYPE_EMPTY;
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
       break;
     case UNIT_TYPE_AGENT:
-      b = destuptr->agent;
-      b->die();
-      delete b;
-      a->die();
-      delete a;
+      markAgentForDeletion(destuptr->agent->id);
+      markAgentForDeletion(a->id);
       break;
     case UNIT_TYPE_WALL:
       destuptr->hp--;
       if (destuptr->hp == 0) destuptr->type = UNIT_TYPE_EMPTY;
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
       break;
     case UNIT_TYPE_DOOR:
       destuptr->door->hp--;
@@ -453,8 +456,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 	  destuptr->type = UNIT_TYPE_EMPTY;
 	}
       }
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
       break;
     case UNIT_TYPE_BUILDING:
       build = destuptr->building;
@@ -476,8 +478,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 	  }
 	}
       }
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
       break;
     default:
       break;
@@ -494,8 +495,7 @@ void Game::receiveTowerEvent(TowerEvent *tevent) {
       Agent *a = it->second;
       TowerZap t = {tevent->x, tevent->y, (int)a->unit->x, (int)a->unit->y, 0};
       towerZaps.push_back(t);
-      a->die();
-      delete a;
+      markAgentForDeletion(a->id);
     }
   }
 }
@@ -526,13 +526,10 @@ void Game::receiveBombEvent(BombEvent *bevent) {
       int dx = m->x - bevent->x;
       int dy = m->y - bevent->y;
       if (dx*dx + dy*dy <= BOMB_AOE_RADIUS * BOMB_AOE_RADIUS) {
-	Agent *a;
 	Building *build;
 	switch (m->type) {
 	case UNIT_TYPE_AGENT:
-	  a = m->agent;
-	  a->die();
-	  delete a;
+	  markAgentForDeletion(m->agent->id);
 	  break;
 	case UNIT_TYPE_SPAWNER:
 	  break;
@@ -540,9 +537,7 @@ void Game::receiveBombEvent(BombEvent *bevent) {
 	  delete m->door;
 	  m->door = nullptr;
 	  if (m->agent != nullptr) {
-	    a = m->agent;
-	    a->die();
-	    delete a;
+	    markAgentForDeletion(m->agent->id);
 	  }
 	  break;
 	case UNIT_TYPE_BUILDING:
@@ -643,7 +638,6 @@ void Game::update() {
     }
   }
   events->numAgentEvents = numPlayerAgents;
-  readyToSend = true;
 }
 
 /*------------------Objective Functions-----------------*/
@@ -1298,6 +1292,7 @@ void Game::showControls() { panel->controlsText(); }
 void Game::showBasicInfo() { panel->basicInfoText(); }
 void Game::showCosts() { panel->costsText(); }
 void Game::clearPanel() { panel->clearText(); }
+void Game::markAgentForDeletion(AgentID id) { markedAgents.push_back(id); }
 MapUnit* Game::mapUnitAt(int x, int y) { return mapUnits[y * gameSize + x]; }
 MapUnit::iterator Game::getSelectionIterator() { return mapUnitAt(selection.x + view.x, selection.y + view.y)->getIterator(selection.w, selection.h); }
 

@@ -75,9 +75,8 @@ private:
   pthread_t netThread;
   pthread_mutex_t threadLock;
   pthread_cond_t startupCond;
+  pthread_cond_t recvCond;
   void *eventsBuffer;
-  bool readyToSend;
-  bool readyToReceive;
   bool mobile;
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
@@ -101,6 +100,7 @@ private:
   std::map<ObjectiveType, SDL_Texture*> objectiveInfoTextures;
   std::vector<MapUnit*> mapUnits;
   std::deque<MarkedCoord> markedCoords;
+  std::deque<AgentID> markedAgents;
   std::deque<TowerZap> towerZaps;
   std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
@@ -149,12 +149,15 @@ private:
   void handleSDLEventMobile(SDL_Event*);
   void sizeEventsBuffer(int);
   void receiveData(void*, int);
+  void receiveEventsBuffer(bool, NetHandler*);
   void receiveEvents(Events*);
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);
   void receiveBombEvent(BombEvent*);
   void deleteSelectedObjective();
+  void markAgentForDeletion(AgentID);
+  void deleteMarkedAgents();
   void checkSpawnersDestroyed();
   void update();
 public:
