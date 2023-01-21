@@ -112,8 +112,8 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
 				  _1));
   
   m_client.connect(con);
-  pthread_create(&clientThread, NULL, &NetHandler::client_thread, this);
-  
+  //  pthread_create(&clientThread, NULL, &NetHandler::client_thread, this);
+  m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
 #endif
 
 }
@@ -283,8 +283,6 @@ NetHandler::~NetHandler() {
   
 #ifdef __EMSCRIPTEN__
   emscripten_websocket_delete(sock);
-#else
-  pthread_join(clientThread, NULL);
 #endif
 
   pthread_mutex_destroy(&netLock);
