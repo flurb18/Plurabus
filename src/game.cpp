@@ -121,11 +121,6 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 }
 
 Game::~Game() {
-  if (context != GAME_CONTEXT_EXIT && context != GAME_CONTEXT_DONE) {
-    context = GAME_CONTEXT_DONE;
-    pthread_join(netThread, NULL);
-  }
-  context = GAME_CONTEXT_EXIT;
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -160,6 +155,8 @@ Game::~Game() {
   free(eventsBuffer);
   free(token);
   pthread_mutex_destroy(&threadLock);
+  pthread_cond_destroy(&startupCond);
+  pthread_cond_destroy(&recvCond);
 }
 
 /*-------------------Main net thread------------------------*/
@@ -287,6 +284,8 @@ void Game::receiveEventsBuffer(bool send, NetHandler *net) {
   receiveEvents(events);
   if (send)
     net->send(eventsBuffer, messageSize(events->numAgentEvents));
+  checkSpawnersDestroyed();
+  deleteMarkedAgents();
 }
 
 void Game::receiveEvents(Events *events) {
@@ -302,8 +301,6 @@ void Game::receiveEvents(Events *events) {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
-  checkSpawnersDestroyed();
-  deleteMarkedAgents();
 }
 
 void Game::receiveAgentEvent(AgentEvent *aevent) {
