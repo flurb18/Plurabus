@@ -178,6 +178,7 @@ async def serve_wss(websocket):
         except websockets.exceptions.ConnectionClosed:
             try:
                 await websocket.send("DISCONNECT")
+                await websocket.wait_closed()
                 return
             except websockets.exceptions.ConnectionClosed:
                 return
@@ -188,8 +189,9 @@ async def serve_wss(websocket):
     if (websocket.close_code == 1001):
         try:
             await websocket.pairedClient.send("DISCONNECT")
+            await websocket.pairedClient.wait_closed()
         except websockets.exceptions.ConnectionClosed:
-            return
+            pass
 
 async def main():
     loop = asyncio.get_running_loop()

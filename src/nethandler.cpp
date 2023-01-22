@@ -250,10 +250,7 @@ void NetHandler::closeConnection(const char *reason) {
     emscripten_websocket_close(sock, 1000, reason);
 #else
     m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
-    m_client.stop_perpetual();
 #endif
-    game->context = GAME_CONTEXT_DONE;
-    ncon = NET_CONTEXT_CLOSED;
   }
 }
 
@@ -270,13 +267,13 @@ void NetHandler::notifyOpen() {
 }
 
 void NetHandler::notifyClosed(const char *reason) {
-  if (strlen(reason) > 0) {
-    game->panel->addText(reason);
-  } else {
-    game->panel->addText("Connection closed - unspecified reason");
-  }
   ncon = NET_CONTEXT_CLOSED;
-  game->context = GAME_CONTEXT_DONE;
+  if (game->context != GAME_CONTEXT_DONE) {
+    game->context = GAME_CONTEXT_DONE;
+    pthread_mutex_lock(&game->threadLock);
+    pthread_cond_signal(&game->endCond);
+    pthread_mutex_unlock(&game->threadLock);
+  }
 }
 
 bool NetHandler::readyForGame() {
@@ -289,6 +286,8 @@ NetHandler::~NetHandler() {
   
 #ifdef __EMSCRIPTEN__
   emscripten_websocket_delete(sock);
+#else
+  m_client.stop_perpetual();
 #endif
 
   pthread_mutex_destroy(&netLock);

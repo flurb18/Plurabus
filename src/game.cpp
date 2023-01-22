@@ -190,7 +190,7 @@ void *Game::net_thread(void *g) {
   }
   while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT)
     pthread_cond_wait(&game->endCond, &game->threadLock);
-  std::string closeText;
+  std::string closeText = "placeholder";
   switch (game->doneStatus) {
   case DONE_STATUS_INIT:
     game->doneStatus = DONE_STATUS_OTHER;
@@ -229,7 +229,8 @@ void *Game::net_thread(void *g) {
     closeText = ":(";
     break;
   }
-  net->closeConnection(closeText.c_str());
+  game->panel->addText(closeText.c_str());
+  net->closeConnection("Normal");
   pthread_mutex_unlock(&net->netLock);
   pthread_mutex_unlock(&game->threadLock);
   delete net;
