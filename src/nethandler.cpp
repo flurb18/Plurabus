@@ -224,12 +224,18 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
-      game->secondsRemaining--;
-      if (game->context == GAME_CONTEXT_STARTUPTIMER) {
-	pthread_cond_signal(&game->startupCond);
+      if (strcmp((char*)data, "TIMER") == 0) {
+	game->secondsRemaining--;
+	if (game->context == GAME_CONTEXT_STARTUPTIMER) {
+	  pthread_cond_signal(&game->startupCond);
+	}
+      } else if (strcmp((char*)data, "DISCONNECT") == 0) {
+	game->context = GAME_CONTEXT_DONE;
+	game->doneStatus = DONE_STATUS_DISCONNECT;
+	pthread_cond_signal(&game->endCond);
       }
     } else {
-      game->receiveData(data, numBytes);
+      game->receiveData(this, data, numBytes);
     }
     break;
   default:

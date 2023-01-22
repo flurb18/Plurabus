@@ -41,6 +41,15 @@ enum SelectionContext {
   SELECTION_CONTEXT_PLACING
 };
 
+typedef enum DoneStatus {
+  DONE_STATUS_INIT,
+  DONE_STATUS_WINNER,
+  DONE_STATUS_DRAW,
+  DONE_STATUS_DISCONNECT,
+  DONE_STATUS_RESIGN,
+  DONE_STATUS_OTHER
+} DoneStatus;
+
 typedef struct MarkedCoord {
   int x,y;
 } MarkedCoord;
@@ -75,7 +84,7 @@ private:
   pthread_t netThread;
   pthread_mutex_t threadLock;
   pthread_cond_t startupCond;
-  pthread_cond_t recvCond;
+  pthread_cond_t endCond;
   void *eventsBuffer;
   bool mobile;
   unsigned int eventsBufferCapacity;
@@ -108,6 +117,7 @@ private:
   std::map<BuildingType, std::deque<Building*>> buildingLists;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;
+  DoneStatus doneStatus;
   AgentID newAgentID;
   BuildingType placingType;
   MapUnit outside;
@@ -148,8 +158,9 @@ private:
   void handleSDLEvent(SDL_Event*);
   void handleSDLEventMobile(SDL_Event*);
   void sizeEventsBuffer(int);
-  void receiveData(void*, int);
-  void receiveEventsBuffer(bool, NetHandler*);
+  void receiveData(NetHandler*, void*, int);
+  void receiveEventsBuffer();
+  void sendEventsBuffer(NetHandler*);
   void receiveEvents(Events*);
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);

@@ -24,8 +24,8 @@ const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 /*------------------CONTENTS----------------------*/
 /*------------------------------------------------*/
 /*-----1. Constructor / Destructor----------------*/
-/*-----2. Main net loop---------------------------*/
-/*-----3. Event buffer functions------------------*/
+/*-----2. Main net thread-------------------------*/
+/*-----3. Game state functions--------------------*/
 /*-----4. Objective functions---------------------*/
 /*-----5. Interface functions---------------------*/
 /*-----6. Display functions-----------------------*/
@@ -53,6 +53,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   placementH(0),
   zapCounter(1),
   secondsRemaining(GAME_TIME_SECONDS+STARTUP_TIME_SECONDS),
+  doneStatus(DONE_STATUS_INIT),
   newAgentID(1),
   outside(this),
   selectedObjective(nullptr) {
@@ -116,11 +117,17 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
   pthread_mutex_init(&threadLock, NULL);
   pthread_cond_init(&startupCond, NULL);
-  pthread_cond_init(&recvCond, NULL);
+  pthread_cond_init(&endCond, NULL);
   pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
 Game::~Game() {
+  if (doneStatus == DONE_STATUS_INIT) {
+    context = GAME_CONTEXT_DONE;
+    pthread_mutex_lock(&threadLock);
+    pthread_cond_signal(&endCond);
+    pthread_mutex_unlock(&threadLock);
+  }
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -156,7 +163,7 @@ Game::~Game() {
   free(token);
   pthread_mutex_destroy(&threadLock);
   pthread_cond_destroy(&startupCond);
-  pthread_cond_destroy(&recvCond);
+  pthread_cond_destroy(&endCond);
 }
 
 /*-------------------Main net thread------------------------*/
@@ -178,24 +185,51 @@ void *Game::net_thread(void *g) {
   game->context = GAME_CONTEXT_PLAYING;
   if (game->playerSpawnID == SPAWNER_ID_GREEN) {
     game->update();
-    game->receiveEventsBuffer(true, net);
+    game->receiveEventsBuffer();
+    game->sendEventsBuffer(net);
   }
-  while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT) {
-    pthread_cond_wait(&game->recvCond, &game->threadLock);
-    game->receiveEventsBuffer(false, net);
-    game->update();
-    game->receiveEventsBuffer(true, net);
-  }
-  std::string winText;
-  switch (game->winnerSpawnID) {
-  case SPAWNER_ID_RED:
-    winText = "RED team wins!";
+  while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT)
+    pthread_cond_wait(&game->endCond, &game->threadLock);
+  std::string closeText;
+  switch (game->doneStatus) {
+  case DONE_STATUS_INIT:
+    game->doneStatus = DONE_STATUS_OTHER;
+    closeText = "Improper exit within net thread";
     break;
-  case SPAWNER_ID_GREEN:
-    winText = "GREEN team wins!";
+  case DONE_STATUS_WINNER:
+    switch (game->winnerSpawnID) {
+    case SPAWNER_ID_RED:
+      closeText = "RED team wins!";
+      break;
+    case SPAWNER_ID_GREEN:
+      closeText = "GREEN team wins!";
+      break;
+    }
+    break;
+  case DONE_STATUS_DRAW:
+    closeText = "Draw!";
+    break;
+  case DONE_STATUS_DISCONNECT:
+    closeText = "Other player disconnected.";
+    break;
+  case DONE_STATUS_RESIGN:
+    switch (game->winnerSpawnID) {
+    case SPAWNER_ID_RED:
+      closeText = "RED team wins by resignation!";
+      break;
+    case SPAWNER_ID_GREEN:
+      closeText = "GREEN team wins by resignation!";
+      break;
+    }
+    break;
+  case DONE_STATUS_OTHER:
+    closeText = "What! You shouldn't see this text!";
+    break;
+  default:
+    closeText = ":(";
     break;
   }
-  net->closeConnection(winText.c_str());
+  net->closeConnection(closeText.c_str());
   pthread_mutex_unlock(&net->netLock);
   pthread_mutex_unlock(&game->threadLock);
   delete net;
@@ -234,6 +268,8 @@ void Game::checkSpawnersDestroyed() {
       towerZaps.clear();
       bombEffects.clear();
       context = GAME_CONTEXT_DONE;
+      doneStatus = DONE_STATUS_WINNER;
+      pthread_cond_signal(&endCond);
     }
   }
 }
@@ -272,20 +308,27 @@ void Game::sizeEventsBuffer(int s) {
   }
 }
 
-void Game::receiveData(void* data, int numBytes) {
+void Game::receiveData(NetHandler *net, void* data, int numBytes) {
   Events *events = (Events*)data;
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
-  pthread_cond_signal(&recvCond);
+  receiveEventsBuffer();
+  checkSpawnersDestroyed();
+  update();
+  receiveEventsBuffer();
+  sendEventsBuffer(net);
+  checkSpawnersDestroyed();
 }
 
-void Game::receiveEventsBuffer(bool send, NetHandler *net) {
+void Game::receiveEventsBuffer() {
   Events *events = (Events*)eventsBuffer;
   receiveEvents(events);
-  if (send)
-    net->send(eventsBuffer, messageSize(events->numAgentEvents));
-  checkSpawnersDestroyed();
   deleteMarkedAgents();
+}
+
+void Game::sendEventsBuffer(NetHandler *net) {
+  Events *events = (Events*)eventsBuffer;
+  net->send(eventsBuffer, messageSize(events->numAgentEvents));
 }
 
 void Game::receiveEvents(Events *events) {

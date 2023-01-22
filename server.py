@@ -86,8 +86,8 @@ async def timerLoop(websocket):
     while (True):
         await asyncio.sleep(1)
         try:
-            await websocket.send("a");
-            await websocket.pairedClient.send("a");
+            await websocket.send("TIMER");
+            await websocket.pairedClient.send("TIMER");
         except websockets.exceptions.ConnectionClosed:
             return
         except Exception as e:
@@ -176,14 +176,20 @@ async def serve_wss(websocket):
         try:
             await websocket.pairedClient.send(data)
         except websockets.exceptions.ConnectionClosed:
-            await websocket.close(1001, "Other player disconnected.")
+            try:
+                await websocket.send("DISCONNECT")
+                return
+            except websockets.exceptions.ConnectionClosed:
+                return
         except Exception as e:
-            await websocket.close(1001, "")
-            if (websocket.close_code == 1001):
-                await websocket.pairedClient.close(1001, "Other player disconnected.")
+            await websocket.close()
+            await websocket.pairedClient.close()
 
     if (websocket.close_code == 1001):
-        await websocket.pairedClient.close(1001, "Other player disconnected.")
+        try:
+            await websocket.pairedClient.send("DISCONNECT")
+        except websockets.exceptions.ConnectionClosed:
+            return
 
 async def main():
     loop = asyncio.get_running_loop()
