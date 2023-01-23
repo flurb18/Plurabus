@@ -251,6 +251,7 @@ void NetHandler::closeConnection(const char *reason) {
 #else
     m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
 #endif
+    ncon = NET_CONTEXT_CLOSED;
   }
 }
 
