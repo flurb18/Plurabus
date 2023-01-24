@@ -37,6 +37,28 @@ EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void 
 
 #else
 
+class NetMetadata {
+public:
+  NetHandler *net;
+  typedef websocketpp::lib::shared_ptr<NetMetadata> ptr;
+
+  NetMetadata(NetHandler *n): net(n) {}
+
+  void on_open(client *c, websocketpp::connection_hdl hdl) {
+    net->notifyOpen();
+  }
+  void on_message(client *c, websocketpp::connection_hdl hdl, client::message_ptr data) {
+    if (data->get_opcode() == websocketpp::frame::opcode::text) {
+      net->receive((void*)data->get_payload().data(), data->get_payload().size(), true);
+    } else {
+      net->receive((void*)data->get_payload().data(), data->get_payload().size(), false);
+    }
+  }
+  void on_close(client *c, websocketpp::connection_hdl hdl) {
+    net->notifyClosed(c->get_con_from_hdl(hdl)->get_remote_close_reason().c_str());
+  }
+};
+
 context_ptr on_tls_init() {
   //  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
     // establishes a SSL connection
@@ -87,66 +109,32 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   m_client.set_tls_init_handler(bind(&on_tls_init));
   
   websocketpp::lib::error_code ec;
-  con = m_client.get_connection(uri, ec);
+  client::connection_ptr con = m_client.get_connection(uri, ec);
   m_hdl = con->get_handle();
   if (ec) {
     printf("Initial connection error");
   }
-  NetHandler::ptr metadata_ptr(this);
-  con->set_open_handler(bind(&NetHandler::on_open,
-				 metadata_ptr,
-				 &m_client,
-				 _1));
-  con->set_fail_handler(bind(&NetHandler::on_fail,
-				 metadata_ptr,
-				 &m_client,
-				 _1));
-  con->set_message_handler(bind(&NetHandler::on_message,
-				    metadata_ptr,
-				    &m_client,
-				    _1,
-				    _2));
-  con->set_close_handler(bind(&NetHandler::on_close,
-				  metadata_ptr,
-				  &m_client,
-				  _1));
+
+  NetMetadata::ptr metadata_ptr(new NetMetadata(this));
+  con->set_open_handler(bind(&NetMetadata::on_open,
+			     metadata_ptr,
+			     &m_client,
+			     _1));
+  con->set_message_handler(bind(&NetMetadata::on_message,
+				metadata_ptr,
+				&m_client,
+				_1,
+				_2));
+  con->set_close_handler(bind(&NetMetadata::on_close,
+			      metadata_ptr,
+			      &m_client,
+			      _1));
   
   m_client.connect(con);
-  //  pthread_create(&clientThread, NULL, &NetHandler::client_thread, this);
   m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
 #endif
 
 }
-
-#ifndef __EMSCRIPTEN__
-
-void NetHandler::on_open(client *c, websocketpp::connection_hdl hdl) {
-  notifyOpen();
-}
-
-void NetHandler::on_fail(client *c, websocketpp::connection_hdl hdl) {
-  printf(":(");
-}
-
-void NetHandler::on_message(client *c, websocketpp::connection_hdl hdl, client::message_ptr data) {
-  if (data->get_opcode() == websocketpp::frame::opcode::text) {
-    receive((void*)data->get_payload().data(), data->get_payload().size(), true);
-  } else {
-    receive((void*)data->get_payload().data(), data->get_payload().size(), false);
-  }
-}
-
-void NetHandler::on_close(client *c, websocketpp::connection_hdl hdl) {
-  notifyClosed(con->get_remote_close_reason().c_str());
-}
-
-void *NetHandler::client_thread(void *n) {
-  NetHandler *net = (NetHandler*)n;
-  net->m_client.run();
-  return NULL;
-}
-
-#endif
 
 void NetHandler::sendText(const char *text) {
 
@@ -249,6 +237,7 @@ void NetHandler::closeConnection(const char *reason) {
 #ifdef __EMSCRIPTEN__
     emscripten_websocket_close(sock, 1000, reason);
 #else
+    m_client.stop_perpetual();
     m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
 #endif
     ncon = NET_CONTEXT_CLOSED;
@@ -269,9 +258,11 @@ void NetHandler::notifyOpen() {
 
 void NetHandler::notifyClosed(const char *reason) {
   ncon = NET_CONTEXT_CLOSED;
-  if (game->context != GAME_CONTEXT_DONE) {
+  if (game->context == GAME_CONTEXT_STARTUPTIMER || game->context == GAME_CONTEXT_PLAYING) {
     game->context = GAME_CONTEXT_DONE;
+    game->secondsRemaining = 0;
     pthread_mutex_lock(&game->threadLock);
+    pthread_cond_signal(&game->startupCond);
     pthread_cond_signal(&game->endCond);
     pthread_mutex_unlock(&game->threadLock);
   }
@@ -284,13 +275,12 @@ bool NetHandler::readyForGame() {
 NetHandler::~NetHandler() {
   if (ncon != NET_CONTEXT_CLOSED)
     closeConnection("Cleanup");
-  
+  pthread_mutex_destroy(&netLock);
+  delete[] pairString;
 #ifdef __EMSCRIPTEN__
   emscripten_websocket_delete(sock);
 #else
-  m_client.stop_perpetual();
+  m_thread->join();
 #endif
-
-  pthread_mutex_destroy(&netLock);
 }
 
