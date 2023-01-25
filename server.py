@@ -173,6 +173,16 @@ async def serve_wss(websocket):
 
     async for data in websocket:
         await asyncio.sleep(FRAME_DELAY)
+        if (isinstance(data, str)):
+            if (data == "RESIGN"):
+                try:
+                    await websocket.pairedClient.send("RESIGN")
+                    await websocket.pairedClient.wait_closed()
+                    await websocket.wait_closed()
+                    return
+                except websockets.exceptions.ConnectionClosed:
+                    await websocket.wait_closed()
+                    return
         try:
             await websocket.pairedClient.send(data)
         except websockets.exceptions.ConnectionClosed:

@@ -129,7 +129,7 @@ Menu::Menu(Game *g): game(g) {
   userSubMenu.funcs.push_back(&Game::showControls);
   userSubMenu.funcs.push_back(&Game::showCosts);
   userSubMenu.funcs.push_back(&Game::clearPanel);
-  userSubMenu.funcs.push_back(&Game::resign);
+  userSubMenu.funcs.push_back(&Game::confirmResign);
   userSubMenu.isToggleSubMenu = false;
   userSubMenu.size(game->disp, userSubIdx);
   items.reserve(6);

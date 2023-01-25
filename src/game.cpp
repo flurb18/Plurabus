@@ -39,6 +39,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 
   pairString(pstr),
   mobile(mob),
+  resignConfirmation(false),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
   numPlayerAgents(0),
   context(GAME_CONTEXT_CONNECTING),
@@ -181,16 +182,20 @@ void *Game::net_thread(void *g) {
   pthread_mutex_lock(&net->netLock);
   game->context = GAME_CONTEXT_STARTUPTIMER;
   pthread_mutex_lock(&game->threadLock);
+  
   while (game->secondsRemaining - GAME_TIME_SECONDS > 0)
     pthread_cond_wait(&game->startupCond, &game->threadLock);
+  
   game->context = GAME_CONTEXT_PLAYING;
   if (game->playerSpawnID == SPAWNER_ID_GREEN) {
     game->update();
     game->receiveEventsBuffer();
     game->sendEventsBuffer(net);
   }
+  
   while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT)
     pthread_cond_wait(&game->endCond, &game->threadLock);
+  
   std::string closeText = "placeholder";
   switch (game->doneStatus) {
   case DONE_STATUS_INIT:
@@ -214,6 +219,9 @@ void *Game::net_thread(void *g) {
     closeText = "Other player disconnected.";
     break;
   case DONE_STATUS_RESIGN:
+    if (game->winnerSpawnID != game->playerSpawnID) {
+      net->sendText("RESIGN");
+    }
     switch (game->winnerSpawnID) {
     case SPAWNER_ID_RED:
       closeText = "RED team wins by resignation!";
@@ -973,6 +981,7 @@ void Game::deselect() {
   selectionContext = SELECTION_CONTEXT_UNSELECTED;
   menu->hideAllSubMenus();
   selectedObjective = nullptr;
+  resignConfirmation = false;
 }
 
 void Game::rightMouseDown(int x, int y) {
@@ -1340,8 +1349,27 @@ MapUnit::iterator Game::getSelectionIterator() { return mapUnitAt(selection.x + 
 
 /*----------------------Main event loop------------------------*/
 
-void Game::resign()  {
+void Game::confirmResign() {
+  if (!resignConfirmation) {
+    panel->addText("Are you sure you want to resign? Select 'Resign' again to confirm or use the X to cancel.");
+    resignConfirmation = true;
+  } else {
+    resign();
+  }
+}
 
+void Game::resign()  {
+  doneStatus = DONE_STATUS_RESIGN;
+  switch (playerSpawnID) {
+  case SPAWNER_ID_GREEN:
+    winnerSpawnID = SPAWNER_ID_RED;
+    break;
+  case SPAWNER_ID_RED:
+    winnerSpawnID = SPAWNER_ID_GREEN;
+    break;
+  }
+  context = GAME_CONTEXT_DONE;
+  pthread_cond_signal(&endCond);
 }
 
 void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {

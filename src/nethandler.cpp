@@ -221,6 +221,11 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	game->context = GAME_CONTEXT_DONE;
 	game->doneStatus = DONE_STATUS_DISCONNECT;
 	pthread_cond_signal(&game->endCond);
+      } else if (strcmp((char*)data, "RESIGN") == 0) {
+	game->doneStatus = DONE_STATUS_RESIGN;
+	game->winnerSpawnID = game->playerSpawnID;
+	game->context = GAME_CONTEXT_DONE;
+	pthread_cond_signal(&game->endCond);
       }
     } else {
       game->receiveData(this, data, numBytes);

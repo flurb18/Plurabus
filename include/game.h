@@ -87,6 +87,7 @@ private:
   pthread_cond_t endCond;
   void *eventsBuffer;
   bool mobile;
+  bool resignConfirmation;
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
   Context context;
@@ -149,6 +150,7 @@ private:
   void setObjective(ObjectiveType);
   void clearScent();
   void resign();
+  void confirmResign();
   void setTeamDrawColor(SpawnerID);
   void draw();
   void drawBuilding(Building*);
