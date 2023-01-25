@@ -128,8 +128,8 @@ Game::~Game() {
     pthread_mutex_lock(&threadLock);
     pthread_cond_signal(&endCond);
     pthread_mutex_unlock(&threadLock);
-    pthread_join(netThread, NULL);
   }
+  pthread_join(netThread, NULL);
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
