@@ -123,12 +123,12 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 }
 
 Game::~Game() {
-  if (doneStatus == DONE_STATUS_INIT) {
-    context = GAME_CONTEXT_DONE;
-    pthread_mutex_lock(&threadLock);
-    pthread_cond_signal(&endCond);
-    pthread_mutex_unlock(&threadLock);
-  }
+  secondsRemaining = 0;
+  context = GAME_CONTEXT_DONE;
+  pthread_mutex_lock(&threadLock);
+  pthread_cond_signal(&startupCond);
+  pthread_cond_signal(&endCond);
+  pthread_mutex_unlock(&threadLock);
   pthread_join(netThread, NULL);
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
