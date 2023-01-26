@@ -92,7 +92,7 @@ async def timerLoop(websocket):
             return
         except Exception as e:
             return
-    
+        
 async def serve_wss(websocket):
     try:
         firstMessage = await websocket.recv()
@@ -174,6 +174,15 @@ async def serve_wss(websocket):
     async for data in websocket:
         await asyncio.sleep(FRAME_DELAY)
         if (isinstance(data, str)):
+            if (data == "DISCONNECT"):
+                try:
+                    await websocket.pairedClient.send("DISCONNECT")
+                    await websocket.pairedClient.wait_closed()
+                    await websocket.wait_closed()
+                    return
+                except websockets.exceptions.ConnectionClosed:
+                    await websocket.wait_closed()
+                    return
             if (data == "RESIGN"):
                 try:
                     await websocket.pairedClient.send("RESIGN")

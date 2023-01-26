@@ -123,9 +123,10 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 }
 
 Game::~Game() {
+  pthread_mutex_lock(&threadLock);
   secondsRemaining = 0;
   context = GAME_CONTEXT_DONE;
-  pthread_mutex_lock(&threadLock);
+  doneStatus = DONE_STATUS_EXIT;
   pthread_cond_signal(&startupCond);
   pthread_cond_signal(&endCond);
   pthread_mutex_unlock(&threadLock);
@@ -193,14 +194,14 @@ void *Game::net_thread(void *g) {
     game->sendEventsBuffer(net);
   }
   
-  while (game->context != GAME_CONTEXT_DONE && game->context != GAME_CONTEXT_EXIT)
+  while (game->context != GAME_CONTEXT_DONE)
     pthread_cond_wait(&game->endCond, &game->threadLock);
   
-  std::string closeText = "placeholder";
+  std::string closeText = "Connection closed.";
   switch (game->doneStatus) {
   case DONE_STATUS_INIT:
     game->doneStatus = DONE_STATUS_OTHER;
-    closeText = "Improper exit within net thread";
+    closeText = "Improper exit within net thread.";
     break;
   case DONE_STATUS_WINNER:
     switch (game->winnerSpawnID) {
@@ -231,6 +232,9 @@ void *Game::net_thread(void *g) {
       break;
     }
     break;
+  case DONE_STATUS_EXIT:
+    net->sendText("DISCONNECT");
+    break;
   case DONE_STATUS_OTHER:
     closeText = "What! You shouldn't see this text!";
     break;
@@ -238,8 +242,8 @@ void *Game::net_thread(void *g) {
     closeText = ":(";
     break;
   }
-  game->panel->addText(closeText.c_str());
   net->closeConnection("Normal");
+  game->panel->addText(closeText.c_str());
   pthread_mutex_unlock(&net->netLock);
   pthread_mutex_unlock(&game->threadLock);
   delete net;
