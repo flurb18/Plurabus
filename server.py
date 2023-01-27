@@ -171,11 +171,14 @@ async def serve_wss(websocket):
             return
         asyncio.ensure_future(timerLoop(websocket))
 
+    
+    websocket.gameStatus = "DISCONNECT"
     async for data in websocket:
         await asyncio.sleep(FRAME_DELAY)
         if (isinstance(data, str)):
-            if (data == "DISCONNECT" || data == "RESIGN"):
+            if (data == "DISCONNECT" or data == "RESIGN"):
                 try:
+                    websocket.gameStatus = data
                     await websocket.pairedClient.send(data)
                     await websocket.pairedClient.wait_closed()
                     await websocket.wait_closed()
@@ -187,7 +190,7 @@ async def serve_wss(websocket):
             await websocket.pairedClient.send(data)
         except websockets.exceptions.ConnectionClosed:
             try:
-                await websocket.send("DISCONNECT")
+                await websocket.send(websocket.pairedClient.gameStatus)
                 await websocket.wait_closed()
                 return
             except websockets.exceptions.ConnectionClosed:
@@ -198,7 +201,7 @@ async def serve_wss(websocket):
 
     if (websocket.close_code == 1001):
         try:
-            await websocket.pairedClient.send("DISCONNECT")
+            await websocket.pairedClient.send(websocket.gameStatus)
             await websocket.pairedClient.wait_closed()
         except websockets.exceptions.ConnectionClosed:
             pass
