@@ -33,7 +33,7 @@ int handleAppEvents(void *arg, SDL_Event *event) {
     delete g;
     break;
   default:
-    break;
+    return 1;
   }
   return 0;
 }
