@@ -123,14 +123,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
 }
 
 Game::~Game() {
-  pthread_mutex_lock(&threadLock);
-  secondsRemaining = 0;
-  context = GAME_CONTEXT_DONE;
-  doneStatus = DONE_STATUS_EXIT;
-  pthread_cond_signal(&startupCond);
-  pthread_cond_signal(&endCond);
-  pthread_mutex_unlock(&threadLock);
-  pthread_join(netThread, NULL);
+  endNetThread(DONE_STATUS_EXIT);
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -238,8 +231,10 @@ void *Game::net_thread(void *g) {
   case DONE_STATUS_OTHER:
     closeText = "What! You shouldn't see this text!";
     break;
+  case DONE_STATUS_BACKGROUND:
+    net->sendText("DISCONNECT");
+    break;
   default:
-    closeText = ":(";
     break;
   }
   net->closeConnection("Normal");
@@ -253,6 +248,17 @@ void *Game::net_thread(void *g) {
 #endif
   
   return NULL;
+}
+
+void Game::endNetThread(DoneStatus s) {
+  pthread_mutex_lock(&threadLock);
+  secondsRemaining = 0;
+  context = GAME_CONTEXT_DONE;
+  doneStatus = s;
+  pthread_cond_signal(&startupCond);
+  pthread_cond_signal(&endCond);
+  pthread_mutex_unlock(&threadLock);
+  pthread_join(netThread, NULL);
 }
 
 /*--------------Game state functions-------------*/

@@ -23,6 +23,21 @@ int mainloop_thread(void *arg) {
   return 0;
 }
 
+int handleAppEvents(void *arg, SDL_Event *event) {
+  Game *g = (Game*)arg;
+  switch (event->type) {
+  case SDL_APP_DIDENTERBACKGROUND:
+    g->endNetThread(DONE_STATUS_BACKGROUND);
+    break;
+  case SDL_APP_TERMINATING:
+    delete g;
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
 int main(int argc, char* argv[]) {
   /* Set the random number generator seed */
   srand(time(0));
@@ -37,6 +52,8 @@ int main(int argc, char* argv[]) {
 		     argv[4],
 		     mobile
 		     );
+  
+  SDL_SetEventFilter(handleAppEvents, (void*)g);
 
 #ifdef __EMSCRIPTEN__
 

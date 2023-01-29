@@ -48,6 +48,7 @@ typedef enum DoneStatus {
   DONE_STATUS_DISCONNECT,
   DONE_STATUS_RESIGN,
   DONE_STATUS_EXIT,
+  DONE_STATUS_BACKGROUND,
   DONE_STATUS_OTHER
 } DoneStatus;
 
@@ -188,6 +189,7 @@ public:
   void clearPanel();
   void zoomIn();
   void zoomOut();
+  void endNetThread(DoneStatus);
   static void *net_thread(void *);
   static int messageSize(int);
   Game(int, int, double, char*, bool);
