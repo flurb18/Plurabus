@@ -1,0 +1,46 @@
+body {
+    background-color: #222222;
+    color: #CCCCCC;
+    font-family: "Helvetica";
+    font-size: large;
+}
+
+canvas{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    touch-action: none;
+}
+
+.submitForm {
+    inline-size: 450px;
+    position:absolute;
+    work-break: break-all;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1.5em;
+
+}
+
+div.horizontalgap {
+    float: left;
+    overflow: hidden;
+    height: 1px;
+    width: 0px;
+}
+
+input[type="text"] {
+    position: relative;
+    display: block;
+    margin: 0 auto;
+}
+
+input[type="submit"] {
+    position:relative;
+    display: block;
+    margin: 0 auto;
+}
+
