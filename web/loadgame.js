@@ -41,12 +41,9 @@ loadGame = function (gameSize, pstr) {
     document.head.appendChild(mainscript);
 }
 
-document.getElementById('pstr-input').oninvalid = function(event) {
-    event.target.setCustomValidity('Please enter only letters and numbers, or leave the field blank.');
-}
-
 document.forms['playform'].addEventListener('submit', function (event) {
     event.preventDefault();
     this.style['display']= 'none';
-    loadGame(this.elements['gameSize'].value, this.elements['pstr'].value);
+    document.getElementById('canvas').removeAttribute("hidden");
+    loadGame(100, 'play');
 });

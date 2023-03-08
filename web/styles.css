@@ -1,5 +1,5 @@
 body {
-    background-color: #222222;
+    background-color: #000000;
     color: #CCCCCC;
     font-family: "Helvetica";
     font-size: large;
@@ -13,7 +13,7 @@ canvas{
     touch-action: none;
 }
 
-.submitForm {
+.bodyText {
     inline-size: 450px;
     position:absolute;
     work-break: break-all;
@@ -23,6 +23,23 @@ canvas{
     transform: translate(-50%, -50%);
     line-height: 1.5em;
 
+}
+
+img {
+    max-width: 100%;
+}
+
+.block {
+    display: block;
+    width: 50%;
+    left: 50%;
+    transform: translateX(50%);
+    border: 3px solid #CCCCCC;
+    background-color: #FFFFFF;
+    padding: 14px 28px;
+    font-size: 32px;
+    cursor: pointer;
+    text-align: center;
 }
 
 div.horizontalgap {

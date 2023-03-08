@@ -17,6 +17,7 @@ CONTENT_TYPES = {
     ".css": "text/css",
     ".html": "text/html; charset=utf-8",
     ".ico": "image/x-icon",
+    ".png": "image/png",
     ".js": "text/javascript",
     ".wasm": "application/wasm",
     ".data": "binary"

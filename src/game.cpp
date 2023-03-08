@@ -1531,7 +1531,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
 }
 
 void Game::mainLoop(void) {
-  pthread_mutex_lock(&threadLock);
+  //pthread_mutex_lock(&threadLock);
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1553,6 +1553,6 @@ void Game::mainLoop(void) {
       handleSDLEvent(&e);
     }
   }
-  pthread_mutex_unlock(&threadLock);
+  //pthread_mutex_unlock(&threadLock);
   disp->update();
 }

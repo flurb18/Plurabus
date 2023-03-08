@@ -12,36 +12,18 @@
 </head>
 
 <body>
-  <div class="submitForm">
+  <div class="bodyText">
+    <img src="/webtitle.png" alt="Hive Mind">
+    <br><br>
     <form name="playform" autocomplete="off">
-      <fieldset>
-	<legend>Game size:</legend>
-	<div>
-	  <input type="radio" id="choice1" name="gameSize" value="90" />
-	  <label for="choice1">Small</label>
-
-	  <input type="radio" id="choice2" name="gameSize" value="120" checked />
-	  <label for="choice2">Medium</label>
-
-	  <input type="radio" id="choice3" name="gameSize" value="150" />
-	  <label for="choice3">Large</label>
-	</div>
-      </fieldset>
-      <br>
-      You will be matched with the first player in the queue
-      with the same text (case-sensitive) as you enter in the box.
-      You may only enter up to 16 alphanumeric characters;
-      no spaces or special characters.
-      Leave the input blank to play with anyone.
       <div>
-	<br>
-	<input type="text" autocomplete="off" placeholder="Any" id="pstr-input" name="pstr" pattern="^$|[a-zA-Z0-9]+" maxlength="16">
-	<br>
-	<button type="submit">Play</button>
+	<button type="submit" class="block">Play</button>
       </div>
     </form>
+    <br><br>
+    <a href="/info.html">Game Info / Instructions</a>
   </div>
-  <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <canvas hidden="hidden" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
   <script src="loadgame.js"></script>
 </body>
 </html>
