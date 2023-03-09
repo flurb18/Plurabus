@@ -179,7 +179,7 @@ void NetHandler::send(void *data, int numBytes) {
 }
 
 void NetHandler::receive(void *data, int numBytes, bool isText) {
-  pthread_mutex_lock(&game->threadLock);
+  //pthread_mutex_lock(&game->threadLock);
   switch(ncon) {
   case NET_CONTEXT_INIT:
     break;
@@ -234,7 +234,7 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
   default:
     break;
   }
-  pthread_mutex_unlock(&game->threadLock);
+  //pthread_mutex_unlock(&game->threadLock);
 }
 
 void NetHandler::closeConnection(const char *reason) {
