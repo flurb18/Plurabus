@@ -18,8 +18,6 @@ using websocketpp::lib::bind;
 
 #endif
 
-#include <pthread.h>
-
 /* Forward declarations */
 class Game;
 
@@ -38,7 +36,6 @@ private:
   NetContext ncon;
   char *pairString;
   Game *game;
-  pthread_mutex_t netLock;
   
 #ifdef __EMSCRIPTEN__
 

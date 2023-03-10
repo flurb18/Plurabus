@@ -6,13 +6,10 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Hive Mind</title>
     <link rel="stylesheet" href="styles.css">
-    <script>
-      var Module = { canvas: (function() { return document.getElementById('canvas') })() };
-    </script>
 </head>
 
 <body>
-  <div class="bodyText">
+  <div class="bodyText" id="bodyDiv">
     <img src="/webtitle.png" alt="Hive Mind">
     <br><br>
     <form name="playform" autocomplete="off">
@@ -23,7 +20,7 @@
     <br><br>
     <a href="/info.html">Game Info / Instructions</a>
   </div>
-  <canvas hidden="hidden" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
   <script src="loadgame.js"></script>
 </body>
 </html>

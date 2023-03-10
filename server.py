@@ -148,8 +148,13 @@ async def serve_wss(websocket):
             await websocket.close()
             await websocket.pairedClient.close()
             return
-            
+
     # Threads merge
+    if (not websocket.foundPartner):
+        await websocket.close()
+        SocketQueue.remove(websocket)
+        return
+    
     try:
         if (websocket.player == 1):
             await websocket.send("P1")

@@ -40,6 +40,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   pairString(pstr),
   mobile(mob),
   resignConfirmation(false),
+  ended(false),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
   numPlayerAgents(0),
   context(GAME_CONTEXT_CONNECTING),
@@ -116,14 +117,12 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_BOMB] = disp->cacheTextWrapped("Objective - Build Bomb", 0);
   bombTextureGreen = disp->cacheImageColored("assets/img/bomb.png", 0, 255, 0);
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
-  pthread_mutex_init(&threadLock, NULL);
-  pthread_cond_init(&startupCond, NULL);
-  pthread_cond_init(&endCond, NULL);
-  pthread_create(&netThread, NULL, &Game::net_thread, this);
+  net = new NetHandler(this, pairString);
+  //pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
 Game::~Game() {
-  endNetThread(DONE_STATUS_EXIT);
+  if (!ended) end(DONE_STATUS_EXIT);
   for (MapUnit* u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -157,13 +156,11 @@ Game::~Game() {
   delete panel;
   free(eventsBuffer);
   free(token);
-  pthread_mutex_destroy(&threadLock);
-  pthread_cond_destroy(&startupCond);
-  pthread_cond_destroy(&endCond);
 }
 
 /*-------------------Main net thread------------------------*/
 
+/*
 void *Game::net_thread(void *g) {
   Game *game = (Game*)g;
 
@@ -189,15 +186,16 @@ void *Game::net_thread(void *g) {
   
   while (game->context != GAME_CONTEXT_DONE)
     pthread_cond_wait(&game->endCond, &game->threadLock);
-  
+}
+*/
+
+void Game::end(DoneStatus s) {
+  context = GAME_CONTEXT_DONE;
+  ended = true;
   std::string closeText = "Connection closed.";
-  switch (game->doneStatus) {
-  case DONE_STATUS_INIT:
-    game->doneStatus = DONE_STATUS_OTHER;
-    closeText = "Improper exit within net thread.";
-    break;
+  switch (s) {
   case DONE_STATUS_WINNER:
-    switch (game->winnerSpawnID) {
+    switch (winnerSpawnID) {
     case SPAWNER_ID_RED:
       closeText = "RED team wins!";
       break;
@@ -213,10 +211,10 @@ void *Game::net_thread(void *g) {
     closeText = "Other player disconnected.";
     break;
   case DONE_STATUS_RESIGN:
-    if (game->winnerSpawnID != game->playerSpawnID) {
+    if (winnerSpawnID != playerSpawnID) {
       net->sendText("RESIGN");
     }
-    switch (game->winnerSpawnID) {
+    switch (winnerSpawnID) {
     case SPAWNER_ID_RED:
       closeText = "RED team wins by resignation!";
       break;
@@ -238,18 +236,16 @@ void *Game::net_thread(void *g) {
     break;
   }
   net->closeConnection("Normal");
-  game->panel->addText(closeText.c_str());
-  pthread_mutex_unlock(&net->netLock);
-  pthread_mutex_unlock(&game->threadLock);
+  panel->addText(closeText.c_str());
   delete net;
 
 #ifdef ANDROID
   game->jvm->DetachCurrentThread();
 #endif
-  
-  return NULL;
+
 }
 
+/*
 void Game::endNetThread(DoneStatus s) {
   pthread_mutex_lock(&threadLock);
   secondsRemaining = 0;
@@ -260,6 +256,7 @@ void Game::endNetThread(DoneStatus s) {
   pthread_mutex_unlock(&threadLock);
   pthread_join(netThread, NULL);
 }
+*/
 
 /*--------------Game state functions-------------*/
 
@@ -287,9 +284,7 @@ void Game::checkSpawnersDestroyed() {
       }
       towerZaps.clear();
       bombEffects.clear();
-      context = GAME_CONTEXT_DONE;
-      doneStatus = DONE_STATUS_WINNER;
-      pthread_cond_signal(&endCond);
+      end(DONE_STATUS_WINNER);
     }
   }
 }
@@ -328,7 +323,7 @@ void Game::sizeEventsBuffer(int s) {
   }
 }
 
-void Game::receiveData(NetHandler *net, void* data, int numBytes) {
+void Game::receiveData(void* data, int numBytes) {
   Events *events = (Events*)data;
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void*)data, messageSize(events->numAgentEvents));
@@ -336,7 +331,7 @@ void Game::receiveData(NetHandler *net, void* data, int numBytes) {
   checkSpawnersDestroyed();
   update();
   receiveEventsBuffer();
-  sendEventsBuffer(net);
+  sendEventsBuffer();
   checkSpawnersDestroyed();
 }
 
@@ -346,7 +341,7 @@ void Game::receiveEventsBuffer() {
   deleteMarkedAgents();
 }
 
-void Game::sendEventsBuffer(NetHandler *net) {
+void Game::sendEventsBuffer() {
   Events *events = (Events*)eventsBuffer;
   net->send(eventsBuffer, messageSize(events->numAgentEvents));
 }
@@ -1369,7 +1364,6 @@ void Game::confirmResign() {
 }
 
 void Game::resign()  {
-  doneStatus = DONE_STATUS_RESIGN;
   switch (playerSpawnID) {
   case SPAWNER_ID_GREEN:
     winnerSpawnID = SPAWNER_ID_RED;
@@ -1378,8 +1372,7 @@ void Game::resign()  {
     winnerSpawnID = SPAWNER_ID_GREEN;
     break;
   }
-  context = GAME_CONTEXT_DONE;
-  pthread_cond_signal(&endCond);
+  end(DONE_STATUS_RESIGN);
 }
 
 void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {

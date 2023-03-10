@@ -4,7 +4,6 @@
 #include <vector>
 #include <list>
 #include <map>
-#include <pthread.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rect.h>
 
@@ -78,18 +77,15 @@ private:
 #ifdef ANDROID
   JavaVM *jvm;
 #endif
-  
+  NetHandler *net;
   Menu *menu;
   Panel *panel;
   char *pairString;
   char *token;
-  pthread_t netThread;
-  pthread_mutex_t threadLock;
-  pthread_cond_t startupCond;
-  pthread_cond_t endCond;
   void *eventsBuffer;
   bool mobile;
   bool resignConfirmation;
+  bool ended;
   unsigned int eventsBufferCapacity;
   unsigned int numPlayerAgents;
   Context context;
@@ -162,9 +158,9 @@ private:
   void handleSDLEvent(SDL_Event*);
   void handleSDLEventMobile(SDL_Event*);
   void sizeEventsBuffer(int);
-  void receiveData(NetHandler*, void*, int);
+  void receiveData(void*, int);
   void receiveEventsBuffer();
-  void sendEventsBuffer(NetHandler*);
+  void sendEventsBuffer();
   void receiveEvents(Events*);
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
@@ -189,8 +185,7 @@ public:
   void clearPanel();
   void zoomIn();
   void zoomOut();
-  void endNetThread(DoneStatus);
-  static void *net_thread(void *);
+  void end(DoneStatus);
   static int messageSize(int);
   Game(int, int, double, char*, bool);
   ~Game();

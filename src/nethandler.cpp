@@ -78,11 +78,11 @@ context_ptr on_tls_init() {
 #endif
 
 NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
-  pthread_mutex_init(&netLock, NULL);
-  pthread_mutex_lock(&netLock);
+  //  pthread_mutex_init(&netLock, NULL);
+  //pthread_mutex_lock(&netLock);
   pairString = new char[strlen(pstr)];
   strcpy(pairString, pstr);
-  std::string uri = "wss://10.8.0.1/websocket";
+  std::string uri = "wss://hivemindga.me/websocket";
   
 #ifdef __EMSCRIPTEN__
   
@@ -202,33 +202,33 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	game->playerSpawnID = SPAWNER_ID_RED;
 	game->panel->addText("You are the RED team.");
 	sendText("Set");
-	pthread_mutex_unlock(&netLock);
+	game->context = GAME_CONTEXT_STARTUPTIMER;
       } else if (strcmp((char *)data, "Go") == 0) {
 	ncon = NET_CONTEXT_PLAYING;
 	sendText("Start");
-	pthread_mutex_unlock(&netLock);
+	game->context = GAME_CONTEXT_STARTUPTIMER;
       }
     }
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
       if (strcmp((char*)data, "TIMER") == 0) {
-	game->secondsRemaining--;
-	if (game->context == GAME_CONTEXT_STARTUPTIMER) {
-	  pthread_cond_signal(&game->startupCond);
+	if (game->secondsRemaining-- - GAME_TIME_SECONDS == 0) {
+	  game->context = GAME_CONTEXT_PLAYING;
+	  if (game->playerSpawnID == SPAWNER_ID_GREEN) {
+	    game->update();
+	    game->receiveEventsBuffer();
+	    game->sendEventsBuffer();
+	  }
 	}
       } else if (strcmp((char*)data, "DISCONNECT") == 0) {
-	game->context = GAME_CONTEXT_DONE;
-	game->doneStatus = DONE_STATUS_DISCONNECT;
-	pthread_cond_signal(&game->endCond);
+	game->end(DONE_STATUS_DISCONNECT);
       } else if (strcmp((char*)data, "RESIGN") == 0) {
-	game->doneStatus = DONE_STATUS_RESIGN;
 	game->winnerSpawnID = game->playerSpawnID;
-	game->context = GAME_CONTEXT_DONE;
-	pthread_cond_signal(&game->endCond);
+	game->end(DONE_STATUS_RESIGN);
       }
     } else {
-      game->receiveData(this, data, numBytes);
+      game->receiveData(data, numBytes);
     }
     break;
   default:
@@ -263,14 +263,6 @@ void NetHandler::notifyOpen() {
 
 void NetHandler::notifyClosed(const char *reason) {
   ncon = NET_CONTEXT_CLOSED;
-  if (game->context == GAME_CONTEXT_STARTUPTIMER || game->context == GAME_CONTEXT_PLAYING) {
-    game->context = GAME_CONTEXT_DONE;
-    game->secondsRemaining = 0;
-    pthread_mutex_lock(&game->threadLock);
-    pthread_cond_signal(&game->startupCond);
-    pthread_cond_signal(&game->endCond);
-    pthread_mutex_unlock(&game->threadLock);
-  }
 }
 
 bool NetHandler::readyForGame() {
@@ -280,7 +272,6 @@ bool NetHandler::readyForGame() {
 NetHandler::~NetHandler() {
   if (ncon != NET_CONTEXT_CLOSED)
     closeConnection("Cleanup");
-  pthread_mutex_destroy(&netLock);
   delete[] pairString;
 #ifdef __EMSCRIPTEN__
   emscripten_websocket_delete(sock);

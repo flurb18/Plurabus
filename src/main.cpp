@@ -27,7 +27,7 @@ int handleAppEvents(void *arg, SDL_Event *event) {
   Game *g = (Game*)arg;
   switch (event->type) {
   case SDL_APP_DIDENTERBACKGROUND:
-    g->endNetThread(DONE_STATUS_BACKGROUND);
+    g->end(DONE_STATUS_BACKGROUND);
     break;
   case SDL_APP_TERMINATING:
     delete g;
