@@ -7,7 +7,11 @@ window.mobileAndTabletCheck = function() {
     // From http://detectmobilebrowsers.com
 };
 
-loadGame = function (gameSize, pstr) {
+document.forms['playform'].addEventListener('submit', function (event) {
+    event.preventDefault();
+    document.getElementById('bodyDiv').style['display']= 'none';
+    document.getElementById('canvas').removeAttribute("hidden");
+    var gameSize = 100;
     var gamePanelSize;
     var gameWindowPadding = 10;
     var scale;
@@ -33,7 +37,7 @@ loadGame = function (gameSize, pstr) {
 	gameSize.toString(),
 	gamePanelSize.toString(),
 	scale.toString(),
-	pstr.toString()+gameSize.toString()
+	'PLAY'
     ];
     if (window.mobileAndTabletCheck()) {
 	Module['arguments'].push('mobile');
@@ -41,11 +45,4 @@ loadGame = function (gameSize, pstr) {
     var mainscript = document.createElement('script');
     mainscript.setAttribute('src','hivemindweb.js');
     document.body.appendChild(mainscript);
-}
-
-document.forms['playform'].addEventListener('submit', function (event) {
-    event.preventDefault();
-    document.getElementById('bodyDiv').style['display']= 'none';
-    document.getElementById('canvas').removeAttribute("hidden");
-    loadGame(100, 'play');
 });

@@ -82,7 +82,7 @@ NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
   //pthread_mutex_lock(&netLock);
   pairString = new char[strlen(pstr)];
   strcpy(pairString, pstr);
-  std::string uri = "wss://hivemindga.me/websocket";
+  std::string uri = "wss://10.8.0.1/websocket";
   
 #ifdef __EMSCRIPTEN__
   
