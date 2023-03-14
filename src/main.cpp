@@ -44,12 +44,13 @@ int main(int argc, char* argv[]) {
   int gameSize = atoi(argv[1]);
   int gamePanelSize = atoi(argv[2]);
   double gameInitScale = atof(argv[3]);
-  bool mobile = (argc > 5);
+  bool mobile = (argc > 6);
   Game *g = new Game(
 		     gameSize,
 		     gamePanelSize,
 		     gameInitScale,
 		     argv[4],
+		     argv[5],
 		     mobile
 		     );
   

@@ -35,7 +35,7 @@ const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
+Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
 
   pairString(pstr),
   mobile(mob),
@@ -117,7 +117,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, bool mob):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_BOMB] = disp->cacheTextWrapped("Objective - Build Bomb", 0);
   bombTextureGreen = disp->cacheImageColored("assets/img/bomb.png", 0, 255, 0);
   bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
-  net = new NetHandler(this, pairString);
+  net = new NetHandler(this, pairString, uri);
   //pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
 
@@ -1529,6 +1529,8 @@ void Game::mainLoop(void) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
+    if (net->ncon == NET_CONTEXT_CONNECTED || net->ncon == NET_CONTEXT_READY)
+      disp->drawText("Connected to server, waiting for opponent...",0,20);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();

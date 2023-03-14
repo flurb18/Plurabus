@@ -77,12 +77,13 @@ context_ptr on_tls_init() {
 
 #endif
 
-NetHandler::NetHandler(Game *g, char *pstr):  ncon(NET_CONTEXT_INIT), game(g) {
+NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr):  ncon(NET_CONTEXT_INIT), game(g) {
   //  pthread_mutex_init(&netLock, NULL);
   //pthread_mutex_lock(&netLock);
   pairString = new char[strlen(pstr)];
   strcpy(pairString, pstr);
-  std::string uri = "wss://10.8.0.1/websocket";
+  
+  std::string uri(uriCstr);
   
 #ifdef __EMSCRIPTEN__
   

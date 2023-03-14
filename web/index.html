@@ -14,7 +14,13 @@
     <br><br>
     <form name="playform" autocomplete="off">
       <div>
-	<button type="submit" class="block">Play</button>
+	<button type="submit" class="block">Public Game</button>
+      </div>
+    </form>
+    <br>
+    <form name="privateform" autocompete="off">
+      <div>
+	<button type="submit" class="block">Private Game</button>
       </div>
     </form>
     <br><br>
@@ -22,5 +28,16 @@
   </div>
   <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
   <script src="loadgame.js"></script>
+  <script>
+    document.forms['playform'].addEventListener('submit', function (event) {
+	event.preventDefault();
+	document.getElementById('bodyDiv').style['display']= 'none';
+	loadGame('PLAY');
+    });
+    document.forms['privateform'].addEventListener('submit', function (event) {
+	event.preventDefault();
+	window.location.href = '/private.html';
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Hive Mind</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body data-lobbykey="KEY_PLACEHOLDER">
+  <div class="bodyText" id="bodyDiv">
+    <p>Copy the link and send it to whoever you want to play against, then click Play when you're ready!</p>
+    <div>
+      <input type="text" value="" id="gamelink" style="width:40ch;text-align:center;" readonly>
+      <button onclick="copyLobbyLink(event)">Copy</button>
+    </div>
+    <br>
+    <form name="playprivateform" autocomplete="off">
+      <div>
+	<button type="submit" class="block">Play</button>
+      </div>
+    </form>
+  </div>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
+  <script src="loadgame.js"></script>
+  <script>
+    var lobbyKey = document.body.dataset.lobbykey;
+    function copyLobbyLink(e) {
+	var copyText = e.target.previousElementSibling;
+	copyText.select();
+	copyText.setSelectionRange(0,99999);
+	document.execCommand("copy");
+    }
+    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/'+lobbyKey);
+    document.forms['playprivateform'].addEventListener('submit', function (event) {
+	event.preventDefault();
+	document.getElementById('bodyDiv').style['display']='none';
+	loadGame(lobbyKey);
+    });
+  </script>
+</body>
+</html>

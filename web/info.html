@@ -9,8 +9,46 @@
 </head>
 
 <body>
-
-  <a href="/">Back</a>
-  
+  <div class="infoText" id="infoDiv">
+    <img src="/webtitle.png" alt="Hive Mind" class="center-img">
+    <br>
+    <h1>Introduction</h1>
+    <p>Welcome! Hive Mind is a 2D head-to-head multiplayer game played on a 100x100 board. The screen is divided into the game board, the menu (on the bottom) and the information panel (on the right). This is what the game looks like when it starts.</p>
+    <img src="/examples/start.png" alt="Start of the game" class="center-img" style="width:50%;">
+    <p>Those large checkered blocks are called Spawners. They continuously create the smaller blocks, called Agents. When the game begins you are assigned one of the two colors as your team. The other color is your opponent. You can influence the Agents on your team by placing tasks on the board for them to complete, called Objectives. The goal of the game is to be the first one to destroy your opponent's Spawner completely.</p>
+    <h4>Objectives</h4>
+    <p>If you click and drag the mouse on the game board, it selects a rectangular region. Then, click on the triple bars icon in the menu to place an Objective.</p>
+    <p>The Objectives that you can designate on a region are:
+      <ul>
+	<li>Wall - Build a wall on every empty unit in the region, that no Agents can pass through</li>
+	<li>Door - Build a door on every wall unit in the region, that only your Agents can pass through</li>
+	<li>Go To - Command your Agents to go to the region and stay there</li>
+	<li>Attack - Attack all enemy Buildings, Agents, walls and doors, as well as friendly Buildings, in the region</li>
+      </ul>
+      You can also create Buildings with your Agents, again through Objectives accessible in the triple bars menu. The difference is that you don't select a region first - select the Building you want to create and an outline will appear around the mouse. Choose where you want it and click the mouse, and an objective will be set to start constructing the Building in the outline. The types of Buildings you can create are:
+      <ul>
+	<li>Tower - Continuously destroys enemy Agents within a radius</li>
+	<li>Subspawer - Contiously spawns friendly Agents, at a lower rate than your main Spawner</li>
+	<li>Bomb - Once completed, denotates and destroys everything (both friendly and opponent) within a radius</li>
+      </ul>
+    </p>
+    <p>An active objective will be highlighted in yellow. Click the objective and press the X in the menu to delete it.</p>
+    <h4>Controls</h4>
+    <p>There are also keybinds to do each of the commands in the triple bars menu. Once a region is selected, press:
+      <ul>
+	<li>W - Wall</li>
+	<li>D - Door</li>
+	<li>G - Go To</li>
+	<li>A - Attack</li>
+      </ul>
+      At any time, press:
+      <ul>
+	<li>T - Tower</li>
+	<li>S - Subspawner</li>
+	<li>B - Bomb</li>
+      </ul>
+      Press Backspace to delete a selected objective. Right click to clear the current selection.</p>
+    <a href="/">Back</a>
+  </div>
 </body>
 </html>

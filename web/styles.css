@@ -24,8 +24,19 @@ canvas{
     line-height: 1.5em;
 }
 
+.infoText {
+    margin-left: 80px;
+    margin-right: 80px;
+}
+
 img {
     max-width: 100%;
+}
+
+.center-img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .block {
@@ -37,7 +48,7 @@ img {
     background-color: #FFFFFF;
     color: #222222;
     padding: 14px 28px;
-    font-size: 32px;
+    font-size: 24px;
     cursor: pointer;
     text-align: center;
 }

@@ -50,7 +50,7 @@ private:
 #endif
 
 public:
-  NetHandler(Game*, char*);
+  NetHandler(Game*, char*, char*);
   ~NetHandler();
   void sendText(const char*);
   void send(void*, int);
