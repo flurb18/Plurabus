@@ -5,4 +5,5 @@ web/hivemindweb.*
 webobj/*
 *~
 push
+deploy
 mariadbcmds

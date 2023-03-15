@@ -27,12 +27,10 @@
     <a href="/info.html">Game Info / Instructions</a>
   </div>
   <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
-  <script src="loadgame.js"></script>
   <script>
     document.forms['playform'].addEventListener('submit', function (event) {
 	event.preventDefault();
-	document.getElementById('bodyDiv').style['display']= 'none';
-	loadGame('PLAY');
+	window.location.href = '/play.html';
     });
     document.forms['privateform'].addEventListener('submit', function (event) {
 	event.preventDefault();

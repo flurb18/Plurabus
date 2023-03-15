@@ -10,9 +10,11 @@
 
 <body data-lobbykey="KEY_PLACEHOLDER">
   <div class="bodyText" id="bodyDiv">
+    <img src="/webtitle.png" alt="Hive Mind">
     <p>Copy the link and send it to whoever you want to play against, then click Play when you're ready!</p>
     <div>
-      <input type="text" value="" id="gamelink" style="width:40ch;text-align:center;" readonly>
+      <input type="text" value="" id="gamelink" style="width:32ch;text-align:center;" readonly>
+      <br>
       <button onclick="copyLobbyLink(event)">Copy</button>
     </div>
     <br>
@@ -27,7 +29,7 @@
   <script>
     var lobbyKey = document.body.dataset.lobbykey;
     function copyLobbyLink(e) {
-	var copyText = e.target.previousElementSibling;
+	var copyText = document.getElementById('gamelink');
 	copyText.select();
 	copyText.setSelectionRange(0,99999);
 	document.execCommand("copy");

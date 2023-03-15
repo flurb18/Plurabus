@@ -23,12 +23,11 @@ CONTENT_TYPES = {
     ".data": "binary"
 }
 
-hostName = "10.8.0.1"
+hostName = "hivemindga.me"
 
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
-PrivateGames = {}
 FRAME_DELAY = 0.010
 
 def create_token(lifetime=5):

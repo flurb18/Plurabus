@@ -64,6 +64,17 @@ input[type="text"] {
     position: relative;
     display: block;
     margin: 0 auto;
+    margin-left: 50%;
+    transform: translateX(-50%);
+    border: none;
+    background-color: #000000;
+    color: #FFFFFF;
+    font-size: 32px;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border: none;
 }
 
 input[type="submit"] {
