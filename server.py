@@ -23,7 +23,11 @@ CONTENT_TYPES = {
     ".data": "binary"
 }
 
-hostName = "hivemindga.me"
+if (len(sys.argv) < 2):
+    print("Input host name as command argument")
+    exit()
+
+hostName = sys.argv[1]
 
 Tokens = []
 SocketQueue = []
