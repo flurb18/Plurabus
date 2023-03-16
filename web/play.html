@@ -12,7 +12,8 @@
   <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
   <script src="loadgame.js"></script>
   <script>
-    loadGame('PLAY');
+    const params = new URLSearchParams(window.location.search);
+    loadGame(params.get("q"));
   </script>
 </body>
 </html>

@@ -25,7 +25,6 @@
     </form>
   </div>
   <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
-  <script src="loadgame.js"></script>
   <script>
     var lobbyKey = document.body.dataset.lobbykey;
     function copyLobbyLink(e) {
@@ -34,11 +33,10 @@
 	copyText.setSelectionRange(0,99999);
 	document.execCommand("copy");
     }
-    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/'+lobbyKey);
+    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/play.html?q='+lobbyKey);
     document.forms['playprivateform'].addEventListener('submit', function (event) {
 	event.preventDefault();
-	document.getElementById('bodyDiv').style['display']='none';
-	loadGame(lobbyKey);
+	window.location.href = '/play.html?q='+lobbyKey;
     });
   </script>
 </body>

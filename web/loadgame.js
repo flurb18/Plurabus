@@ -14,16 +14,14 @@ function loadGame(pstr) {
     var gameWindowPadding = 10;
     var scale;
     if (window.mobileAndTabletCheck()) {
-	scale = 1;
-	while (scale*(gameSize) < window.innerWidth - gameWindowPadding) { scale++; }
-	scale--;
+	scale = Math.floor((window.innerWidth - gameWindowPadding)/gameSize);
 	gamePanelSize = window.innerHeight - (scale*gameSize*7)/6 - gameWindowPadding;
     } else {
 	gamePanelSize = 300;
-	scale = 1;
-	while (scale*(gameSize) + gamePanelSize < window.innerWidth - gameWindowPadding &&
-	       (scale*gameSize*7)/6 < window.innerHeight - gameWindowPadding) { scale++; }
-	scale--;
+	scale = Math.min(
+	    Math.floor((window.innerWidth - gameWindowPadding - gamePanelSize)/gameSize),
+	    Math.floor((6/7)*(window.innerHeight - gameWindowPadding)/gameSize)
+	);
     }
     const memory = new WebAssembly.Memory({
 	initial: 1024,

@@ -1530,7 +1530,7 @@ void Game::mainLoop(void) {
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
     if (net->ncon == NET_CONTEXT_CONNECTED || net->ncon == NET_CONTEXT_READY)
-      disp->drawText("Connected to server, waiting for opponent...",0,20);
+      disp->drawText("Waiting for opponent...",0,40);
     break;
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();
