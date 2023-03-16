@@ -48,14 +48,16 @@ def create_gamekey(lifetime=180):
 
 async def serve_html(path, request_headers):
     path = urllib.parse.urlparse(path).path
-    gameKey = ""
+    pstr = ""
     if path == "/" or path == "":
         page = "index.html"
     else:
         page = path[1:]
-        if (page in LobbyKeys):
-            gameKey = page
-            page = "join.html"
+        if (len(page) > 50):
+            return http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"
+        if (page == "public" or (page in LobbyKeys)):
+            pstr = page
+            page = "play.html"
     try:
         p = pathlib.Path(__file__).resolve()
         template = p.parent.joinpath("web").joinpath(page)
@@ -69,10 +71,9 @@ async def serve_html(path, request_headers):
                 token = create_token()
                 body = body.replace(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token.encode())
             if (template.name == 'private.html'):
-                gameKey = create_gamekey()
-                body = body.replace(b"KEY_PLACEHOLDER", gameKey.encode())
-            if (template.name == 'join.html'):
-                body = body.replace(b"KEY_PLACEHOLDER", gameKey.encode())
+                body = body.replace(b"KEY_PLACEHOLDER", create_gamekey().encode())
+            if (template.name == 'play.html'):
+                body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
             return http.HTTPStatus.OK, headers, body
 
     return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"

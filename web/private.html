@@ -33,10 +33,10 @@
 	copyText.setSelectionRange(0,99999);
 	document.execCommand("copy");
     }
-    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/play.html?q='+lobbyKey);
+    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/'+lobbyKey);
     document.forms['playprivateform'].addEventListener('submit', function (event) {
 	event.preventDefault();
-	window.location.href = '/play.html?q='+lobbyKey;
+	window.location.href = '/'+lobbyKey;
     });
   </script>
 </body>
