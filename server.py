@@ -113,7 +113,7 @@ async def serve_html(requrl, request_headers):
             if (act_string == "public"):
                 page = "play.html"
                 token = create_token()
-            else if (act_string == "private"):
+            elif (act_string == "private"):
                 page = "private.html"
                 lobbyKey = create_lobby_key()
             else:
