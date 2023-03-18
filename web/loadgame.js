@@ -7,7 +7,7 @@ window.mobileAndTabletCheck = function() {
     // From http://detectmobilebrowsers.com
 };
 
-function loadGame(pstr) {
+function loadGame(pstr, token) {
     document.getElementById('canvas').removeAttribute("hidden");
     var gameSize = 100;
     var gamePanelSize;
@@ -34,6 +34,7 @@ function loadGame(pstr) {
 	gamePanelSize.toString(),
 	scale.toString(),
 	pstr,
+	token,
 	(window.location.origin+"/websocket").replace(/^https(.*)/, 'wss$1')
     ];
     if (window.mobileAndTabletCheck()) {

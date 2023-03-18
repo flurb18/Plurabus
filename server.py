@@ -12,6 +12,9 @@ import pathlib
 import uuid
 import sys
 import secrets
+import json
+from google.cloud import recaptchaenterprise_v1
+from google.cloud.recaptchaenterprise_v1 import Assessment
 
 CONTENT_TYPES = {
     ".css": "text/css",
@@ -28,6 +31,9 @@ if (len(sys.argv) < 2):
     exit()
 
 hostName = sys.argv[1]
+
+recaptchaSiteKey = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
+projectID = "skillful-garden-379804"
 
 Tokens = []
 SocketQueue = []
@@ -46,18 +52,74 @@ def create_gamekey(lifetime=180):
     asyncio.get_running_loop().call_later(lifetime, LobbyKeys.remove, gameKey)
     return gameKey
 
-async def serve_html(path, request_headers):
-    path = urllib.parse.urlparse(path).path
-    pstr = ""
+# From https://cloud.google.com/recaptcha-enterprise/docs/create-assessment
+def create_assessment(
+        project_id: str, recaptcha_site_key: str, token: str, recaptcha_action: str
+) -> Assessment:
+    """Create an assessment to analyze the risk of a UI action.
+    Args:
+        project_id: GCloud Project ID
+        recaptcha_site_key: Site key obtained by registering a domain/app to use recaptcha services.
+        token: The token obtained from the client on passing the recaptchaSiteKey.
+        recaptcha_action: Action name corresponding to the token.
+    """
+
+    client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
+
+    # Set the properties of the event to be tracked.
+    event = recaptchaenterprise_v1.Event()
+    event.site_key = recaptcha_site_key
+    event.token = token
+
+    assessment = recaptchaenterprise_v1.Assessment()
+    assessment.event = event
+
+    project_name = f"projects/{project_id}"
+
+    # Build the assessment request.
+    request = recaptchaenterprise_v1.CreateAssessmentRequest()
+    request.assessment = assessment
+    request.parent = project_name
+
+    response = client.create_assessment(request)
+    return response
+
+async def serve_html(requrl, request_headers):
+    parsed_url = urllib.parse.urlparse(requrl)
+    path = parsed_url.path
+    pstr = "default"
+    token = "default"
+    lobbyKey = "default"
     if path == "/" or path == "":
         page = "index.html"
     else:
         page = path[1:]
+        if (page == "play.html" or page == "private.html"):
+            page = "index.html"
         if (len(page) > 50):
             return http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"
-        if (page == "public" or (page in LobbyKeys)):
+        if (page == "assess"):
+            recap_token = urllib.parse.parse_qs(parsed_url.query)['q'][0]
+            act_string = urllib.parse.parse_qs(parsed_url.query)['a'][0]
+            assessment = create_assessment(projectID, recaptchaSiteKey, recap_token, act_string)
+            score = assessment.risk_analysis.score
+            responseString = str(score)
+            if (not assessment.token_properties.valid):
+                responseString = str(assessment.token_properties.invalid_reason)
+                return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
+            if (assessment.token_properties.action != act_string):
+                responseString = "Expected: "+act_string+"\nActual: "+assessment.token_properties.action+"\n"
+                return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
+            if (act_string == "public" and score > 0.5):
+                page = "play.html"
+                token = create_token()
+            if (act_string == "private" and score > 0.5):
+                page = "private.html"
+                lobbyKey = create_gamekey()
+        if (page in LobbyKeys):
             pstr = page
             page = "play.html"
+            token = create_token()
     try:
         p = pathlib.Path(__file__).resolve()
         template = p.parent.joinpath("web").joinpath(page)
@@ -67,13 +129,10 @@ async def serve_html(path, request_headers):
         if template.is_file():
             headers = {"Content-Type": CONTENT_TYPES[template.suffix]}
             body = template.read_bytes()
-            if (template.name == 'hivemindweb.wasm'):
-                token = create_token()
-                body = body.replace(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token.encode())
             if (template.name == 'private.html'):
-                body = body.replace(b"KEY_PLACEHOLDER", create_gamekey().encode())
+                body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
             if (template.name == 'play.html'):
-                body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
+                body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode()).replace(b"TOKEN_PLACEHOLDER", token.encode())
             return http.HTTPStatus.OK, headers, body
 
     return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"

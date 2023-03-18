@@ -19,8 +19,6 @@
 #include "nethandler.h"
 #include "panel.h"
 
-const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-
 /*------------------CONTENTS----------------------*/
 /*------------------------------------------------*/
 /*-----1. Constructor / Destructor----------------*/
@@ -35,7 +33,7 @@ const char *token_site = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
+Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool mob):
 
   pairString(pstr),
   mobile(mob),
@@ -60,8 +58,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
   outside(this),
   selectedObjective(nullptr) {
   
-  token = (char*)malloc((strlen(token_site)+1)*sizeof(char));
-  strcpy(token, token_site); 
+  token = tok;
   panelYDrawOffset = (mobile ? panelSize : 0);
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);

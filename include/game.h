@@ -187,7 +187,7 @@ public:
   void zoomOut();
   void end(DoneStatus);
   static int messageSize(int);
-  Game(int, int, double, char*, char*, bool);
+  Game(int, int, double, char*, char*, char*, bool);
   ~Game();
   void mainLoop();
 };
