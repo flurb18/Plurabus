@@ -29,6 +29,11 @@ canvas{
     margin-right: 80px;
 }
 
+.gamelink {
+    width:48ch;
+    text-align: center;
+}
+
 img {
     max-width: 100%;
 }

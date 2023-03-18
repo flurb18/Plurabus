@@ -9,6 +9,7 @@ window.mobileAndTabletCheck = function() {
 
 function loadGame(pstr, token) {
     document.getElementById('canvas').removeAttribute("hidden");
+    document.getElementById('canvas').addEventListener("contextmenu", (e) => {e.preventDefault()});
     var gameSize = 100;
     var gamePanelSize;
     var gameWindowPadding = 10;
@@ -44,3 +45,5 @@ function loadGame(pstr, token) {
     mainscript.setAttribute('src','hivemindweb.js');
     document.body.appendChild(mainscript);
 }
+
+loadGame(document.body.dataset.pstr, document.body.dataset.token);

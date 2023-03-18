@@ -13,9 +13,9 @@
     <img src="/webtitle.png" alt="Hive Mind">
     <p>Copy the link and send it to whoever you want to play against, then click Play when you're ready!</p>
     <div>
-      <input type="text" value="" id="gamelink" style="width:48ch;text-align:center;" readonly>
+      <input type="text" value="" id="gamelink" class="gamelink" readonly>
       <br>
-      <button onclick="copyLobbyLink(event)">Copy</button>
+      <button id="copybutton">Copy</button>
     </div>
     <br>
     <form name="playprivateform" autocomplete="off">
@@ -24,20 +24,6 @@
       </div>
     </form>
   </div>
-  <canvas id="canvas" oncontextmenu="event.preventDefault()" hidden="hidden"></canvas>
-  <script>
-    var lobbyKey = document.body.dataset.lobbykey;
-    function copyLobbyLink(e) {
-	var copyText = document.getElementById('gamelink');
-	copyText.select();
-	copyText.setSelectionRange(0,99999);
-	document.execCommand("copy");
-    }
-    document.getElementById('gamelink').setAttribute('value', window.location.origin+'/'+lobbyKey);
-    document.forms['playprivateform'].addEventListener('submit', function (event) {
-	event.preventDefault();
-	window.location.href = '/'+lobbyKey;
-    });
-  </script>
+  <script src="private.js"></script>
 </body>
 </html>

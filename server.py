@@ -46,7 +46,7 @@ def create_token(lifetime=5):
     asyncio.get_running_loop().call_later(lifetime, Tokens.remove, token)
     return token
 
-def create_gamekey(lifetime=180):
+def create_lobby_key(lifetime=180):
     gameKey = secrets.token_urlsafe(12)
     LobbyKeys.append(gameKey)
     asyncio.get_running_loop().call_later(lifetime, LobbyKeys.remove, gameKey)
@@ -99,23 +99,25 @@ async def serve_html(requrl, request_headers):
         if (len(page) > 50):
             return http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"
         if (page == "assess"):
-            recap_token = urllib.parse.parse_qs(parsed_url.query)['q'][0]
             act_string = urllib.parse.parse_qs(parsed_url.query)['a'][0]
+            recap_token = urllib.parse.parse_qs(parsed_url.query)['q'][0]
             assessment = create_assessment(projectID, recaptchaSiteKey, recap_token, act_string)
-            score = assessment.risk_analysis.score
-            responseString = str(score)
             if (not assessment.token_properties.valid):
                 responseString = str(assessment.token_properties.invalid_reason)
                 return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
             if (assessment.token_properties.action != act_string):
                 responseString = "Expected: "+act_string+"\nActual: "+assessment.token_properties.action+"\n"
                 return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
-            if (act_string == "public" and score > 0.5):
+            if (assessment.risk_analysis.score < 0.5):
+                return http.HTTPStatus.BAD_REQUEST, {}, b"Failed recaptcha\n"
+            if (act_string == "public"):
                 page = "play.html"
                 token = create_token()
-            if (act_string == "private" and score > 0.5):
+            else if (act_string == "private"):
                 page = "private.html"
-                lobbyKey = create_gamekey()
+                lobbyKey = create_lobby_key()
+            else:
+                return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"
         if (page in LobbyKeys):
             pstr = page
             page = "play.html"
@@ -127,7 +129,15 @@ async def serve_html(requrl, request_headers):
         pass
     else:
         if template.is_file():
-            headers = {"Content-Type": CONTENT_TYPES[template.suffix]}
+            csp = "script-src 'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
+            csp += "img-src 'self' blob:;"
+            csp += "frame-src 'self' https://www.google.com;"
+            csp += "connect-src 'self';"
+            csp += "default-src 'self';"
+            headers = {
+                "Content-Type": CONTENT_TYPES[template.suffix],
+                "Content-Security-Policy": csp
+            }
             body = template.read_bytes()
             if (template.name == 'private.html'):
                 body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
