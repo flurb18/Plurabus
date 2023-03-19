@@ -19,8 +19,8 @@ BlockedDirectPages = [ "play.html", "private.html" ]
 StatusPages = {
     'not-found' : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
     'too-long' : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
-    'bad-req-queries' : (http.HTTPStatus.BAD_REQUEST, {}, b"Bad request: missing queries\n"),
-    'bad-req-captcha' : (http.HTTPStatus.BAD_REQUEST, {}, b"Bad request: failed captcha\n")
+    'missing-queries' : (http.HTTPStatus.BAD_REQUEST, {}, b"Missing queries\n"),
+    'failed-captcha' : (http.HTTPStatus.UNAUTHORIZED, {}, b"Failed captcha\n")
 }
 ContentTypes = {
     ".css": "text/css",
@@ -121,16 +121,16 @@ async def serve_html(requrl, request_headers):
     elif (page == "action"):
         queries = urllib.parse.parse_qs(parsed_url.query)
         if (not 'a' in queries or not 't' in queries):
-            return StatusPages['bad-req-queries']
+            return StatusPages['missing-queries']
         if (len(queries['a']) == 0 or len(queries['t']) == 0):
-            return StatusPages['bad-req-queries']
+            return StatusPages['missing-queries']
         actionString = queries['a'][0]
         recaptchaToken = queries['t'][0]
         assessment = create_assessment(PROJECTID, RECAPTCHA_SITE_KEY, recaptchaToken)
         if (not assessment.token_properties.valid or
             assessment.token_properties.action != actionString or
             assessment.risk_analysis.score < 0.5):
-            return StatusPages['bad-req-captcha']
+            return StatusPages['failed-captcha']
         if (actionString == "public"):
             page = "play.html"
             token = await create_token()
