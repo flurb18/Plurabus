@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 
-import argparse
 import asyncio
-import os
 import signal
 import websockets
-import ssl
 import urllib.parse
 import http
 import pathlib
 import uuid
-import sys
 import secrets
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
@@ -88,21 +84,7 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
-
-async def noop_handler(websocket):
-    pass
-
-async def timerLoop(websocket):
-    while (True):
-        await asyncio.sleep(1)
-        try:
-            await websocket.send("TIMER");
-            await websocket.pairedClient.send("TIMER");
-        except websockets.exceptions.ConnectionClosed:
-            return
-        except Exception as e:
-            return
-
+        
 async def serve_html(requrl, request_headers):
     parsed_url = urllib.parse.urlparse(requrl)
     pstr = "default"
@@ -239,7 +221,6 @@ async def serve_websocket(websocket, path):
             return
         asyncio.ensure_future(timerLoop(websocket))
 
-    
     websocket.gameStatus = "DISCONNECT"
     async for data in websocket:
         await asyncio.sleep(FRAME_DELAY)
@@ -274,6 +255,20 @@ async def serve_websocket(websocket, path):
         except websockets.exceptions.ConnectionClosed:
             pass
 
+async def timerLoop(websocket):
+    while (True):
+        await asyncio.sleep(1)
+        try:
+            await websocket.send("TIMER");
+            await websocket.pairedClient.send("TIMER");
+        except websockets.exceptions.ConnectionClosed:
+            return
+        except Exception as e:
+            return
+
+async def serve_nothing(websocket, path):
+    pass
+
 async def main():
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
@@ -281,16 +276,11 @@ async def main():
     htmlSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("web.sock"))
     wssSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("wss.sock"))
     async with websockets.unix_serve(
-            noop_handler,
-            path=htmlSocket,
-            process_request=serve_html
+            serve_websocket, path=wssSocket
     ), websockets.unix_serve(
-        serve_websocket,
-        path=wssSocket
+        serve_nothing, path=htmlSocket, process_request=serve_html
     ):
         await stop
-
-
         
 if __name__ == "__main__":
     asyncio.run(main())
