@@ -35,22 +35,34 @@ hostName = sys.argv[1]
 recaptchaSiteKey = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 projectID = "skillful-garden-379804"
 
+BlockedDirectPages = [ "play.html", "private.html" ]
+StatusPages = {
+    'not-found' : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
+    'too-long' : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
+    'bad-req-queries' : (http.HTTPStatus.BAD_REQUEST, {}, b"Bad request: missing queries\n"),
+    'bad-req-captcha' : (http.HTTPStatus.BAD_REQUEST, {}, b"Bad request: failed captcha\n")
+}
+
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
 FRAME_DELAY = 0.010
 
-def create_token(lifetime=5):
+def expire_token(token):
+    if token in Tokens:
+        Tokens.remove(token)
+
+def create_token(lifetime=15):
     token = uuid.uuid4().hex
     Tokens.append(token)
-    asyncio.get_running_loop().call_later(lifetime, Tokens.remove, token)
+    asyncio.get_running_loop().call_later(lifetime, expire_token, token)
     return token
 
 def create_lobby_key(lifetime=180):
-    gameKey = secrets.token_urlsafe(12)
-    LobbyKeys.append(gameKey)
-    asyncio.get_running_loop().call_later(lifetime, LobbyKeys.remove, gameKey)
-    return gameKey
+    lobbyKey = secrets.token_urlsafe(12)
+    LobbyKeys.append(lobbyKey)
+    asyncio.get_running_loop().call_later(lifetime, LobbyKeys.remove, lobbyKey)
+    return lobbyKey
 
 # From https://cloud.google.com/recaptcha-enterprise/docs/create-assessment
 def create_assessment(
@@ -65,63 +77,58 @@ def create_assessment(
     """
 
     client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
-
-    # Set the properties of the event to be tracked.
     event = recaptchaenterprise_v1.Event()
     event.site_key = recaptcha_site_key
     event.token = token
-
     assessment = recaptchaenterprise_v1.Assessment()
     assessment.event = event
-
-    project_name = f"projects/{project_id}"
-
-    # Build the assessment request.
     request = recaptchaenterprise_v1.CreateAssessmentRequest()
     request.assessment = assessment
-    request.parent = project_name
-
+    request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
 
+
 async def serve_html(requrl, request_headers):
     parsed_url = urllib.parse.urlparse(requrl)
-    path = parsed_url.path
     pstr = "default"
     token = "default"
     lobbyKey = "default"
-    if path == "/" or path == "":
+    redirectToIndex = [ "/", "" ]
+
+    if (parsed_url.path in redirectToIndex):
         page = "index.html"
     else:
-        page = path[1:]
-        if (page == "play.html" or page == "private.html"):
-            page = "index.html"
-        if (len(page) > 50):
-            return http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"
-        if (page == "assess"):
-            act_string = urllib.parse.parse_qs(parsed_url.query)['a'][0]
-            recap_token = urllib.parse.parse_qs(parsed_url.query)['q'][0]
-            assessment = create_assessment(projectID, recaptchaSiteKey, recap_token, act_string)
-            if (not assessment.token_properties.valid):
-                responseString = str(assessment.token_properties.invalid_reason)
-                return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
-            if (assessment.token_properties.action != act_string):
-                responseString = "Expected: "+act_string+"\nActual: "+assessment.token_properties.action+"\n"
-                return http.HTTPStatus.BAD_REQUEST, {}, responseString.encode()
-            if (assessment.risk_analysis.score < 0.5):
-                return http.HTTPStatus.BAD_REQUEST, {}, b"Failed recaptcha\n"
-            if (act_string == "public"):
-                page = "play.html"
-                token = create_token()
-            elif (act_string == "private"):
-                page = "private.html"
-                lobbyKey = create_lobby_key()
-            else:
-                return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"
-        if (page in LobbyKeys):
-            pstr = page
+        page = parsed_url.path[1:]
+    if (len(page) > 50):
+        return StatusPages['too-long']
+    if (page in BlockedDirectPages):
+        return StatusPages['not-found']
+    elif (page == "action"):
+        queries = urllib.parse.parse_qs(parsed_url.query)
+        if (not 'a' in queries or not 't' in queries):
+            return StatusPages['bad-req-queries']
+        if (len(queries['a']) == 0 or len(queries['t']) == 0):
+            return StatusPages['bad-req-queries']
+        act_string = queries['a'][0]
+        recap_token = queries['t'][0]
+        assessment = create_assessment(projectID, recaptchaSiteKey, recap_token, act_string)
+        if (not assessment.token_properties.valid or
+            assessment.token_properties.action != act_string or
+            assessment.risk_analysis.score < 0.5):
+            return StatusPages['bad-req-captcha']
+        if (act_string == "public"):
             page = "play.html"
             token = create_token()
+        elif (act_string == "private"):
+            page = "private.html"
+            lobbyKey = create_lobby_key()
+        else:
+            return StatusPages['not-found']
+    elif (page in LobbyKeys):
+        pstr = page
+        page = "play.html"
+        token = create_token()
     try:
         p = pathlib.Path(__file__).resolve()
         template = p.parent.joinpath("web").joinpath(page)
@@ -145,7 +152,7 @@ async def serve_html(requrl, request_headers):
                 body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode()).replace(b"TOKEN_PLACEHOLDER", token.encode())
             return http.HTTPStatus.OK, headers, body
 
-    return http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"
+    return StatusPages['not-found']
 
 async def noop_handler(websocket):
     pass
@@ -163,12 +170,14 @@ async def timerLoop(websocket):
         
 async def serve_wss(websocket, path):
     try:
-        firstMessage = await websocket.recv()
+        token = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
         return
-    if (not (firstMessage in Tokens)):
+    if (not token in Tokens):
         await websocket.close(1011, "Invalid token")
         return
+    else:
+        expire_token(token)
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
