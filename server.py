@@ -65,17 +65,7 @@ def create_lobby_key(lifetime=180):
     return lobbyKey
 
 # From https://cloud.google.com/recaptcha-enterprise/docs/create-assessment
-def create_assessment(
-        project_id: str, recaptcha_site_key: str, token: str, recaptcha_action: str
-) -> Assessment:
-    """Create an assessment to analyze the risk of a UI action.
-    Args:
-        project_id: GCloud Project ID
-        recaptcha_site_key: Site key obtained by registering a domain/app to use recaptcha services.
-        token: The token obtained from the client on passing the recaptchaSiteKey.
-        recaptcha_action: Action name corresponding to the token.
-    """
-
+def create_assessment(project_id, recaptcha_site_key, token):
     client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
     event = recaptchaenterprise_v1.Event()
     event.site_key = recaptcha_site_key
@@ -87,7 +77,6 @@ def create_assessment(
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
-
 
 async def serve_html(requrl, request_headers):
     parsed_url = urllib.parse.urlparse(requrl)
@@ -110,17 +99,17 @@ async def serve_html(requrl, request_headers):
             return StatusPages['bad-req-queries']
         if (len(queries['a']) == 0 or len(queries['t']) == 0):
             return StatusPages['bad-req-queries']
-        act_string = queries['a'][0]
-        recap_token = queries['t'][0]
-        assessment = create_assessment(projectID, recaptchaSiteKey, recap_token, act_string)
+        actionString = queries['a'][0]
+        recaptchaToken = queries['t'][0]
+        assessment = create_assessment(projectID, recaptchaSiteKey, recaptchaToken)
         if (not assessment.token_properties.valid or
-            assessment.token_properties.action != act_string or
+            assessment.token_properties.action != actionString or
             assessment.risk_analysis.score < 0.5):
             return StatusPages['bad-req-captcha']
-        if (act_string == "public"):
+        if (actionString == "public"):
             page = "play.html"
             token = create_token()
-        elif (act_string == "private"):
+        elif (actionString == "private"):
             page = "private.html"
             lobbyKey = create_lobby_key()
         else:
@@ -167,8 +156,8 @@ async def timerLoop(websocket):
             return
         except Exception as e:
             return
-        
-async def serve_wss(websocket, path):
+
+async def serve_websocket(websocket, path):
     try:
         token = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
@@ -290,7 +279,7 @@ async def main():
             path=htmlSocket,
             process_request=serve_html
     ), websockets.unix_serve(
-        serve_wss,
+        serve_websocket,
         path=wssSocket
     ):
         await stop

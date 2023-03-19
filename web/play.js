@@ -16,7 +16,7 @@ function loadGame(pstr, token) {
     var scale;
     if (window.mobileAndTabletCheck()) {
 	scale = Math.floor((window.innerWidth - gameWindowPadding)/gameSize);
-	gamePanelSize = window.innerHeight - (scale*gameSize*7)/6 - gameWindowPadding;
+	gamePanelSize = Math.floor(window.innerHeight - (scale*gameSize*7/6) - gameWindowPadding);
     } else {
 	gamePanelSize = 300;
 	scale = Math.min(
