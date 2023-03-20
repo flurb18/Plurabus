@@ -226,6 +226,10 @@ void Game::end(DoneStatus s) {
   case DONE_STATUS_OTHER:
     closeText = "What! You shouldn't see this text!";
     break;
+  case DONE_STATUS_TIMEOUT:
+    closeText = "Time out, game over!";
+    net->sendText("TIMEOUT");
+    break;
   case DONE_STATUS_BACKGROUND:
     net->sendText("DISCONNECT");
     break;

@@ -11,7 +11,7 @@ import secrets
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
 
-BlockedDirectPages = [ "play.html", "private.html" ]
+BlockedDirectPages = [ "dyn/play.html", "dyn/private.html" ]
 StatusPages = {
     "not-found" : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
     "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
@@ -40,6 +40,7 @@ CSP += "default-src 'self';"
 FRAME_DELAY = 0.010
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
+GAME_LIFETIME = 903
 
 Tokens = []
 SocketQueue = []
@@ -118,16 +119,16 @@ async def serve_html(requrl, request_headers):
             assessment.risk_analysis.score < 0.5):
             return StatusPages["failed-captcha"]
         if (actionString == "public"):
-            page = "play.html"
+            page = "dyn/play.html"
             token = await create_token()
         elif (actionString == "private"):
-            page = "private.html"
+            page = "dyn/private.html"
             lobbyKey = await create_lobby_key()
         else:
             return StatusPages["not-found"]
     elif (page in LobbyKeys):
         pstr = page
-        page = "play.html"
+        page = "dyn/play.html"
         token = await create_token()
     try:
         p = pathlib.Path(__file__).resolve()
@@ -174,9 +175,7 @@ async def serve_websocket(websocket, path):
             break
 
     if (not websocket.foundPartner):
-        await SocketLock.acquire()
-        SocketQueue.append(websocket)
-        SocketLock.release()
+        await append_shared(websocket, SocketLock, SocketQueue)
         try:
             ready = await websocket.recv()
         except websockets.exceptions.ConnectionClosed:
@@ -241,6 +240,10 @@ async def serve_websocket(websocket, path):
                 except websockets.exceptions.ConnectionClosed:
                     await websocket.wait_closed()
                     return
+            elif (data == "TIMEOUT"):
+                await websocket.wait_closed()
+                await websocket.pairedClient.wait_closed()
+                return
         try:
             await websocket.pairedClient.send(data)
         except websockets.exceptions.ConnectionClosed:
@@ -262,15 +265,21 @@ async def serve_websocket(websocket, path):
             pass
 
 async def timerLoop(websocket):
-    while (True):
+    secondsLeft = GAME_LIFETIME
+    for secondsLeft in range(GAME_LIFETIME, 0, -1):
         await asyncio.sleep(1)
         try:
-            await websocket.send("TIMER");
-            await websocket.pairedClient.send("TIMER");
+            await websocket.send("TIMER")
+            await websocket.pairedClient.send("TIMER")
         except websockets.exceptions.ConnectionClosed:
             return
         except Exception as e:
             return
+    await websocket.send("TIMEOUT")
+    await websocket.pairedClient.send("TIMEOUT")
+    await websocket.wait_closed()
+    await websocket.pairedClient.wait_closed()
+    return
 
 async def serve_nothing(websocket, path):
     pass

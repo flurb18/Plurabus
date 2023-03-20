@@ -222,6 +222,8 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
 	    game->sendEventsBuffer();
 	  }
 	}
+      } else if (strcmp((char*)data, "TIMEOUT") == 0) {
+	game->end(DONE_STATUS_TIMEOUT);
       } else if (strcmp((char*)data, "DISCONNECT") == 0) {
 	game->end(DONE_STATUS_DISCONNECT);
       } else if (strcmp((char*)data, "RESIGN") == 0) {

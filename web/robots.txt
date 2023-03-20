@@ -1,0 +1,5 @@
+User-agent:*
+Disallow:/dyn/
+Disallow:/hivemindweb/
+Disallow:/img/
+Disallow:/script/
