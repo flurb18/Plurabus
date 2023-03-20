@@ -21,6 +21,7 @@ StatusPages = {
 ContentTypes = {
     ".css": "text/css",
     ".html": "text/html; charset=utf-8",
+    ".txt": "text/plain",
     ".ico": "image/x-icon",
     ".png": "image/png",
     ".js": "text/javascript",
