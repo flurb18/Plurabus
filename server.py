@@ -29,7 +29,7 @@ ContentTypes = {
 }
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
-PROJECTID = "skillful-garden-379804"
+PROJECT_ID = "skillful-garden-379804"
 
 CSP = "script-src 'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
 CSP += "img-src 'self' blob:;"
@@ -113,7 +113,7 @@ async def serve_html(requrl, request_headers):
             return StatusPages['missing-queries']
         actionString = queries['a'][0]
         recaptchaToken = queries['t'][0]
-        assessment = create_assessment(PROJECTID, RECAPTCHA_SITE_KEY, recaptchaToken)
+        assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
         if (not assessment.token_properties.valid or
             assessment.token_properties.action != actionString or
             assessment.risk_analysis.score < 0.5):
