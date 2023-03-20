@@ -46,31 +46,36 @@ SocketQueue = []
 LobbyKeys = []
 
 TokenLock = asyncio.Lock()
+SocketLock = asyncio.Lock()
+LobbyKeysLock = asyncio.Lock()
 
+async def append_shared(element, lock, shared):
+    await lock.acquire()
+    shared.append(element)
+    lock.release()
+
+async def remove_shared(element, lock, shared):
+    await lock.acquire()
+    if element in shared:
+        shared.remove(element)
+    lock.release()
+
+async def remove_shared_later(element, lock, shared, lifetime):
+    await asyncio.sleep(lifetime)
+    await remove_shared(element, lock, shared)
+    
 async def create_token():
     token = uuid.uuid4().hex
-    await TokenLock.acquire()
-    Tokens.append(token)
-    TokenLock.release()
-    asyncio.ensure_future(remove_token_later(token))
+    await append_shared(token, TokenLock, Tokens)
+    asyncio.ensure_future(remove_shared_later(token, TokenLock, Tokens, TOKEN_LIFETIME))
     return token
 
-def create_lobby_key():
+async def create_lobby_key():
     lobbyKey = secrets.token_urlsafe(12)
-    LobbyKeys.append(lobbyKey)
-    asyncio.get_running_loop().call_later(LOBBY_KEY_LIFETIME, LobbyKeys.remove, lobbyKey)
+    await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
+    asyncio.ensure_future(remove_shared_later(lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME))
     return lobbyKey
 
-async def remove_token(token):
-    await TokenLock.acquire()
-    if token in Tokens:
-        Tokens.remove(token)
-    TokenLock.release()
-
-async def remove_token_later(token):
-    await asyncio.sleep(TOKEN_LIFETIME)
-    await remove_token(token)
-    
 # From https://cloud.google.com/recaptcha-enterprise/docs/create-assessment
 def create_assessment(project_id, recaptcha_site_key, token):
     client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
@@ -118,7 +123,7 @@ async def serve_html(requrl, request_headers):
             token = await create_token()
         elif (actionString == "private"):
             page = "private.html"
-            lobbyKey = create_lobby_key()
+            lobbyKey = await create_lobby_key()
         else:
             return StatusPages['not-found']
     elif (page in LobbyKeys):
@@ -154,30 +159,32 @@ async def serve_websocket(websocket, path):
         await websocket.close(1011, "Invalid token")
         return
     else:
-        await remove_token(token)
+        await remove_shared(token, TokenLock, Tokens)
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
     for waitingClient in SocketQueue:
         if (waitingClient.desiredPairedString == websocket.desiredPairedString):
+            await remove_shared(waitingClient, SocketLock, SocketQueue)
             websocket.pairedClient = waitingClient
             waitingClient.pairedClient = websocket
             websocket.player = 1
             waitingClient.player = 2
-            SocketQueue.remove(waitingClient)
             waitingClient.foundPartner = True
             websocket.foundPartner = True
             break
 
     if (not websocket.foundPartner):
+        await SocketLock.acquire()
         SocketQueue.append(websocket)
+        SocketLock.release()
         try:
             ready = await websocket.recv()
         except websockets.exceptions.ConnectionClosed:
-            SocketQueue.remove(websocket)
+            await remove_shared(websocket, SocketLock, SocketQueue)
             return
         except Exception as e:
-            SocketQueue.remove(websocket)
+            await remove_shared(websocket, SocketLock, SocketQueue)
             return
     else:
         try:
@@ -196,7 +203,7 @@ async def serve_websocket(websocket, path):
     # Threads merge
     if (not websocket.foundPartner):
         await websocket.close()
-        SocketQueue.remove(websocket)
+        await remove_shared(websocket, SocketLock, SocketQueue)
         return
         
     try:
