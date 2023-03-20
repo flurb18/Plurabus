@@ -13,10 +13,10 @@ from google.cloud.recaptchaenterprise_v1 import Assessment
 
 BlockedDirectPages = [ "play.html", "private.html" ]
 StatusPages = {
-    'not-found' : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
-    'too-long' : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
-    'missing-queries' : (http.HTTPStatus.BAD_REQUEST, {}, b"Missing queries\n"),
-    'failed-captcha' : (http.HTTPStatus.UNAUTHORIZED, {}, b"Failed captcha\n")
+    "not-found" : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
+    "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
+    "missing-queries" : (http.HTTPStatus.BAD_REQUEST, {}, b"Missing queries\n"),
+    "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, {}, b"Failed captcha\n")
 }
 ContentTypes = {
     ".css": "text/css",
@@ -95,29 +95,28 @@ async def serve_html(requrl, request_headers):
     pstr = "default"
     token = "default"
     lobbyKey = "default"
-    redirectToIndex = [ "/", "" ]
 
-    if (parsed_url.path in redirectToIndex):
+    if (parsed_url.path == "" or parsed_url.path == "/"):
         page = "index.html"
     else:
         page = parsed_url.path[1:]
     if (len(page) > 50):
-        return StatusPages['too-long']
+        return StatusPages["too-long"]
     if (page in BlockedDirectPages):
-        return StatusPages['not-found']
+        return StatusPages["not-found"]
     elif (page == "action"):
         queries = urllib.parse.parse_qs(parsed_url.query)
         if (not 'a' in queries or not 't' in queries):
-            return StatusPages['missing-queries']
+            return StatusPages["missing-queries"]
         if (len(queries['a']) == 0 or len(queries['t']) == 0):
-            return StatusPages['missing-queries']
+            return StatusPages["missing-queries"]
         actionString = queries['a'][0]
         recaptchaToken = queries['t'][0]
         assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
         if (not assessment.token_properties.valid or
             assessment.token_properties.action != actionString or
             assessment.risk_analysis.score < 0.5):
-            return StatusPages['failed-captcha']
+            return StatusPages["failed-captcha"]
         if (actionString == "public"):
             page = "play.html"
             token = await create_token()
@@ -125,7 +124,7 @@ async def serve_html(requrl, request_headers):
             page = "private.html"
             lobbyKey = await create_lobby_key()
         else:
-            return StatusPages['not-found']
+            return StatusPages["not-found"]
     elif (page in LobbyKeys):
         pstr = page
         page = "play.html"
@@ -142,13 +141,13 @@ async def serve_html(requrl, request_headers):
                 "Content-Security-Policy": CSP
             }
             body = template.read_bytes()
-            if (template.name == 'private.html'):
+            if (template.name == "private.html"):
                 body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
-            if (template.name == 'play.html'):
+            if (template.name == "play.html"):
                 body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode()).replace(b"TOKEN_PLACEHOLDER", token.encode())
             return http.HTTPStatus.OK, headers, body
 
-    return StatusPages['not-found']
+    return StatusPages["not-found"]
 
 async def serve_websocket(websocket, path):
     try:

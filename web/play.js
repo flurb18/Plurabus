@@ -42,7 +42,7 @@ function loadGame(pstr, token) {
 	Module['arguments'].push('mobile');
     }
     var mainscript = document.createElement('script');
-    mainscript.setAttribute('src','hivemindweb.js');
+    mainscript.setAttribute('src','/hivemindweb.js');
     document.body.appendChild(mainscript);
 }
 
