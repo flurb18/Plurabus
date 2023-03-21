@@ -44,6 +44,20 @@ img {
     margin-right: auto;
 }
 
+.center-img-50 {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 50%;
+}
+
+.center-img-75 {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 75%;
+}
+
 .block {
     display: block;
     width: 50%;

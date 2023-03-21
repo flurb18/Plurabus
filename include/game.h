@@ -4,6 +4,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <string>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rect.h>
 
@@ -64,6 +65,14 @@ typedef struct BombEffect {
   int x, y, counter;
 } BombEffect;
 
+typedef struct ColorScheme {
+  std::string p1name;
+  std::string p2name;
+  int p1r, p2r;
+  int p1g, p2g;
+  int p1b, p2b;
+} ColorScheme;
+
 class Game {
   friend class NetHandler;
   friend class Agent;
@@ -91,6 +100,7 @@ private:
   unsigned int numPlayerAgents;
   Context context;
   SelectionContext selectionContext;
+  ColorScheme colorScheme;
   double initScale;
   double scale;
   int gameSize;
@@ -104,8 +114,8 @@ private:
   int secondsRemaining;
   SDL_Rect selection;
   SDL_Rect view;
-  SDL_Texture* bombTextureGreen;
-  SDL_Texture* bombTextureRed;
+  SDL_Texture* p1bombTexture;
+  SDL_Texture* p2bombTexture;
   std::map<ObjectiveType, SDL_Texture*> objectiveInfoTextures;
   std::vector<MapUnit*> mapUnits;
   std::deque<MarkedCoord> markedCoords;
@@ -150,6 +160,7 @@ private:
   void clearScent();
   void resign();
   void confirmResign();
+  void setColors(std::string, std::string, int, int, int, int, int, int);
   void setTeamDrawColor(SpawnerID);
   void draw();
   void drawBuilding(Building*);
@@ -180,6 +191,13 @@ public:
   AgentID getNewAgentID();
   SpawnerID getPlayerSpawnID();
   int getSize();
+  void toggleShowObjectives();
+  void toggleShowScents();
+  void toggleOutlineBuildings();
+  void greenRed();
+  void blueOrange();
+  void purpleYellow();
+  void pinkBrown();
   void showBasicInfo();
   void showControls();
   void showCosts();

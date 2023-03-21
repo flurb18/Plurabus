@@ -266,7 +266,6 @@ async def serve_websocket(websocket, path):
             pass
 
 async def timerLoop(websocket):
-    secondsLeft = GAME_LIFETIME
     for secondsLeft in range(GAME_LIFETIME, 0, -1):
         await asyncio.sleep(1)
         try:

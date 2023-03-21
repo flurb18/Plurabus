@@ -99,12 +99,10 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool m
   view = {0,0,gameSize,gameSize};
   selectedUnit = mapUnitAt(0,0);
   menu = new Menu(this);
-  int rpos = SPAWNER_PADDING;
-  int gpos = gameSize - SPAWNER_PADDING - SPAWNER_SIZE;
-  Spawner *redspawn = new Spawner(this, SPAWNER_ID_RED, rpos, rpos);
-  Spawner *greenspawn = new Spawner(this, SPAWNER_ID_GREEN, gpos, gpos);
-  buildingLists[BUILDING_TYPE_SPAWNER].push_back(redspawn);
-  buildingLists[BUILDING_TYPE_SPAWNER].push_back(greenspawn);
+  int p1offset = gameSize - SPAWNER_PADDING - SPAWNER_SIZE;
+  int p2offset = SPAWNER_PADDING;
+  buildingLists[BUILDING_TYPE_SPAWNER].push_back(new Spawner(this, SPAWNER_ID_ONE, p1offset, p1offset));
+  buildingLists[BUILDING_TYPE_SPAWNER].push_back(new Spawner(this, SPAWNER_ID_TWO, p2offset, p2offset));
   objectiveInfoTextures[OBJECTIVE_TYPE_ATTACK] = disp->cacheTextWrapped("Objective - Attack", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_GOTO] = disp->cacheTextWrapped("Objective - Go To", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_WALL] = disp->cacheTextWrapped("Objective - Build Wall", 0);
@@ -112,8 +110,8 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool m
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_TOWER] = disp->cacheTextWrapped("Objective - Build Tower", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_SUBSPAWNER] = disp->cacheTextWrapped("Objective - Build Subspawner", 0);
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_BOMB] = disp->cacheTextWrapped("Objective - Build Bomb", 0);
-  bombTextureGreen = disp->cacheImageColored("assets/img/bomb.png", 0, 255, 0);
-  bombTextureRed = disp->cacheImageColored("assets/img/bomb.png", 255, 0, 0);
+  p1bombTexture = nullptr;
+  setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
   net = new NetHandler(this, pairString, uri);
   //pthread_create(&netThread, NULL, &Game::net_thread, this);
 }
@@ -143,8 +141,8 @@ Game::~Game() {
   }
   towerZaps.clear();
   bombEffects.clear();
-  SDL_DestroyTexture(bombTextureGreen);
-  SDL_DestroyTexture(bombTextureRed);
+  SDL_DestroyTexture(p1bombTexture);
+  SDL_DestroyTexture(p2bombTexture);
   objectiveInfoTextures.clear();
   agentDict.clear();
   mapUnits.clear();
@@ -193,11 +191,11 @@ void Game::end(DoneStatus s) {
   switch (s) {
   case DONE_STATUS_WINNER:
     switch (winnerSpawnID) {
-    case SPAWNER_ID_RED:
-      closeText = "RED team wins!";
+    case SPAWNER_ID_ONE:
+      closeText = colorScheme.p1name + " team wins!";
       break;
-    case SPAWNER_ID_GREEN:
-      closeText = "GREEN team wins!";
+    case SPAWNER_ID_TWO:
+      closeText = colorScheme.p2name + " team wins!";
       break;
     }
     break;
@@ -212,11 +210,11 @@ void Game::end(DoneStatus s) {
       net->sendText("RESIGN");
     }
     switch (winnerSpawnID) {
-    case SPAWNER_ID_RED:
-      closeText = "RED team wins by resignation!";
+    case SPAWNER_ID_ONE:
+      closeText = colorScheme.p1name + " team wins by resignation!";
       break;
-    case SPAWNER_ID_GREEN:
-      closeText = "GREEN team wins by resignation!";
+    case SPAWNER_ID_TWO:
+      closeText = colorScheme.p2name + " team wins by resignation!";
       break;
     }
     break;
@@ -276,11 +274,11 @@ void Game::checkSpawnersDestroyed() {
     Spawner *s = (Spawner*)build;
     if (s->isDestroyed()) {
       switch (s->sid) {
-      case SPAWNER_ID_GREEN:
-        winnerSpawnID = SPAWNER_ID_RED;
+      case SPAWNER_ID_ONE:
+        winnerSpawnID = SPAWNER_ID_TWO;
 	break;
-      case SPAWNER_ID_RED:
-	winnerSpawnID = SPAWNER_ID_GREEN;
+      case SPAWNER_ID_TWO:
+	winnerSpawnID = SPAWNER_ID_ONE;
 	break;
       }
       towerZaps.clear();
@@ -791,6 +789,70 @@ void Game::deleteSelectedObjective() {
 
 /*------------Interface functions---------------*/
 
+void Game::toggleShowObjectives() {
+  menu->items.at(3)->subMenu.toggleFlags.at(0) = !menu->items.at(3)->subMenu.toggleFlags.at(0);
+}
+
+void Game::toggleShowScents() {
+  menu->items.at(3)->subMenu.toggleFlags.at(1) = !menu->items.at(3)->subMenu.toggleFlags.at(1);
+}
+
+void Game::toggleOutlineBuildings() {
+  menu->items.at(3)->subMenu.toggleFlags.at(2) = !menu->items.at(3)->subMenu.toggleFlags.at(2);
+}
+
+void Game::greenRed() {
+  for (int i = 3; i < 7; i++) {
+    menu->items.at(3)->subMenu.toggleFlags.at(i) = false;
+  }
+  menu->items.at(3)->subMenu.toggleFlags.at(3) = true;
+  setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
+  if (playerSpawnID == SPAWNER_ID_ONE) {
+    panel->addText("You are the GREEN team.");
+  } else {
+    panel->addText("You are the RED team.");
+  }
+}
+
+void Game::blueOrange() {
+  for (int i = 3; i < 7; i++) {
+    menu->items.at(3)->subMenu.toggleFlags.at(i) = false;
+  }
+  menu->items.at(3)->subMenu.toggleFlags.at(4) = true;
+  setColors("BLUE", "ORANGE", 0, 0, 255, 255, 165, 0);
+  if (playerSpawnID == SPAWNER_ID_ONE) {
+    panel->addText("You are the BLUE team.");
+  } else {
+    panel->addText("You are the ORANGE team.");
+  }
+}
+
+void Game::purpleYellow() {
+  for (int i = 3; i < 7; i++) {
+    menu->items.at(3)->subMenu.toggleFlags.at(i) = false;
+  }
+  menu->items.at(3)->subMenu.toggleFlags.at(5) = true;
+  setColors("PURPLE", "YELLOW", 165, 0, 165, 255, 255, 0);
+  if (playerSpawnID == SPAWNER_ID_ONE) {
+    panel->addText("You are the PURPLE team.");
+  } else {
+    panel->addText("You are the YELLOW team.");
+  }
+}
+
+void Game::pinkBrown() {
+  for (int i = 3; i < 7; i++) {
+    menu->items.at(3)->subMenu.toggleFlags.at(i) = false;
+  }
+  menu->items.at(3)->subMenu.toggleFlags.at(6) = true;
+  setColors("PINK", "BROWN", 255, 0, 255, 123, 63, 0);
+  if (playerSpawnID == SPAWNER_ID_ONE) {
+    panel->addText("You are the PINK team.");
+  } else {
+    panel->addText("You are the BROWN team.");
+  }
+}
+
 void Game::zoomIn() {
   if (scale == MAX_SCALE) return;
   scale += 1.0;
@@ -971,12 +1033,7 @@ void Game::leftMouseUp(int x, int y) {
 	  y + panelYDrawOffset > it->subMenu.y &&
 	  y + panelYDrawOffset < it->subMenu.y + it->subMenu.h) {
 	int idy = (y + panelYDrawOffset - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
-	if (it->subMenu.isToggleSubMenu) {
-	  it->subMenu.toggleFlags.at(idy) = !it->subMenu.toggleFlags.at(idy);
-	} else {
-	  (this->*(it->subMenu.funcs.at(idy)))();
-	  menu->hideAllSubMenus();
-	}
+	(this->*(it->subMenu.funcs.at(idy)))();
 	return;
       }
     }
@@ -1017,13 +1074,30 @@ void Game::panViewDown() {
 
 /*----------------Display Functions------------------*/
 
+void Game::setColors(std::string p1n, std::string p2n, int p1r, int p1g, int p1b, int p2r, int p2g, int p2b) {
+  colorScheme.p1name = p1n;
+  colorScheme.p2name = p2n;
+  colorScheme.p1r = p1r;
+  colorScheme.p1g = p1g;
+  colorScheme.p1b = p1b;
+  colorScheme.p2r = p2r;
+  colorScheme.p2g = p2g;
+  colorScheme.p2b = p2b;
+  if (p1bombTexture != nullptr) {
+    SDL_DestroyTexture(p1bombTexture);
+    SDL_DestroyTexture(p2bombTexture);
+  }
+  p1bombTexture = disp->cacheImageColored("assets/img/bomb.png", p1r, p1g, p1b);
+  p2bombTexture = disp->cacheImageColored("assets/img/bomb.png", p2r, p2g, p2b);
+}
+
 void Game::setTeamDrawColor(SpawnerID sid) {
   switch (sid) {
-  case SPAWNER_ID_GREEN:
-    disp->setDrawColor(0,255,0);
+  case SPAWNER_ID_ONE:
+    disp->setDrawColor(colorScheme.p1r,colorScheme.p1g,colorScheme.p1b);
     break;
-  case SPAWNER_ID_RED:
-    disp->setDrawColor(255,0,0);
+  case SPAWNER_ID_TWO:
+    disp->setDrawColor(colorScheme.p2r,colorScheme.p2g,colorScheme.p2b);
     break;
   }
 }
@@ -1037,15 +1111,17 @@ void Game::drawStartupScreen() {
   int r, g;
   int b = 0;
   switch (playerSpawnID) {
-  case SPAWNER_ID_GREEN:
-    startupInfoL2 = "GREEN";
-    r = 0;
-    g = 255;
+  case SPAWNER_ID_ONE:
+    startupInfoL2 = colorScheme.p1name;
+    r = colorScheme.p1r;
+    g = colorScheme.p1g;
+    b = colorScheme.p1b;
     break;
-  case SPAWNER_ID_RED:
-    startupInfoL2 = "RED";
-    r = 255;
-    g = 0;
+  case SPAWNER_ID_TWO:
+    startupInfoL2 = colorScheme.p2name;
+    r = colorScheme.p2r;
+    g = colorScheme.p2g;
+    b = colorScheme.p2b;
     break;
   }
   int w1, h1, w2, h2, w3, h3, w4, h4;
@@ -1141,11 +1217,11 @@ void Game::drawBuilding(Building *build) {
   case BUILDING_TYPE_BOMB:
     b = (Bomb*)build;
     switch (b->sid) {
-    case SPAWNER_ID_GREEN:
-      texture = bombTextureGreen;
+    case SPAWNER_ID_ONE:
+      texture = p1bombTexture;
       break;
-    case SPAWNER_ID_RED:
-      texture = bombTextureRed;
+    case SPAWNER_ID_TWO:
+      texture = p2bombTexture;
       break;
     }
     double completion = (double)b->hp / (double)b->max_hp;
@@ -1366,11 +1442,11 @@ void Game::confirmResign() {
 
 void Game::resign()  {
   switch (playerSpawnID) {
-  case SPAWNER_ID_GREEN:
-    winnerSpawnID = SPAWNER_ID_RED;
+  case SPAWNER_ID_ONE:
+    winnerSpawnID = SPAWNER_ID_TWO;
     break;
-  case SPAWNER_ID_RED:
-    winnerSpawnID = SPAWNER_ID_GREEN;
+  case SPAWNER_ID_TWO:
+    winnerSpawnID = SPAWNER_ID_ONE;
     break;
   }
   end(DONE_STATUS_RESIGN);

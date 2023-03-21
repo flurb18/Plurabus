@@ -195,12 +195,12 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
   case NET_CONTEXT_READY:
     if (isText) {
       if (strcmp((char *)data, "P1") == 0) {
-	game->playerSpawnID = SPAWNER_ID_GREEN;
+	game->playerSpawnID = SPAWNER_ID_ONE;
 	game->panel->addText("You are the GREEN team.");
 	sendText("Set");
       } else if (strcmp((char *)data, "P2") == 0) {
 	ncon = NET_CONTEXT_PLAYING;
-	game->playerSpawnID = SPAWNER_ID_RED;
+	game->playerSpawnID = SPAWNER_ID_TWO;
 	game->panel->addText("You are the RED team.");
 	sendText("Set");
 	game->context = GAME_CONTEXT_STARTUPTIMER;
@@ -216,7 +216,7 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
       if (strcmp((char*)data, "TIMER") == 0) {
 	if (game->secondsRemaining-- - GAME_TIME_SECONDS == 0) {
 	  game->context = GAME_CONTEXT_PLAYING;
-	  if (game->playerSpawnID == SPAWNER_ID_GREEN) {
+	  if (game->playerSpawnID == SPAWNER_ID_ONE) {
 	    game->update();
 	    game->receiveEventsBuffer();
 	    game->sendEventsBuffer();
