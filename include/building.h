@@ -52,6 +52,7 @@ private:
   bool canSpawnAgent(int*, int*);
 public:
   Spawner(Game*, SpawnerID, int, int);
+  int getNumSpawnUnits();
   void update(SpawnerEvent*);
 };
 

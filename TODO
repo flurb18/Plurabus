@@ -1,4 +1,3 @@
--timeout tiebreaker
 -more on info page
 -fix local client and segfaults on end
 -figure out android authentication

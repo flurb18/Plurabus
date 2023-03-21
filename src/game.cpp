@@ -188,6 +188,7 @@ void Game::end(DoneStatus s) {
   context = GAME_CONTEXT_DONE;
   ended = true;
   std::string closeText = "Connection closed.";
+  int p1units, p2units;
   switch (s) {
   case DONE_STATUS_WINNER:
     switch (winnerSpawnID) {
@@ -225,7 +226,30 @@ void Game::end(DoneStatus s) {
     closeText = "What! You shouldn't see this text!";
     break;
   case DONE_STATUS_TIMEOUT:
-    closeText = "Time out, game over!";
+    Building *p1spawn;
+    Building *p2spawn;
+    for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
+      if (build->sid == SPAWNER_ID_ONE) {
+	p1spawn = build;
+      }
+      if (build->sid == SPAWNER_ID_TWO) {
+	p2spawn = build;
+      }
+    }
+    p1units = ((Spawner*)p1spawn)->getNumSpawnUnits();
+    p2units = ((Spawner*)p2spawn)->getNumSpawnUnits();
+    panel->addText("Timeout!");
+    if (p1units == p2units) {
+      closeText = "Draw! Both player have "+std::to_string(p1units)+" units left.";
+    } else {
+      if (p1units > p2units) {
+	winnerSpawnID = p1spawn->sid;
+	closeText = colorScheme.p1name + " team wins! They had " + std::to_string(p1units) + " Spawner units left, while " + colorScheme.p2name + " team had " + std::to_string(p2units) + ".";
+      } else {
+	winnerSpawnID = p2spawn->sid;
+	closeText = colorScheme.p2name + " team wins! They had " + std::to_string(p2units) + " Spawner units left, while " + colorScheme.p1name + " team had " + std::to_string(p1units) + ".";
+      }
+    }
     net->sendText("TIMEOUT");
     break;
   case DONE_STATUS_BACKGROUND:
@@ -237,10 +261,6 @@ void Game::end(DoneStatus s) {
   net->closeConnection("Normal");
   panel->addText(closeText.c_str());
   delete net;
-
-#ifdef ANDROID
-  game->jvm->DetachCurrentThread();
-#endif
 
 }
 

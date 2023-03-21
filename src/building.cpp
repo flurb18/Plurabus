@@ -89,6 +89,14 @@ void Spawner::update(SpawnerEvent *sevent) {
   }
 }
 
+int Spawner::getNumSpawnUnits() {
+  int count = 0;
+  for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
+    if (m->type == UNIT_TYPE_SPAWNER) count++;
+  }
+  return count;
+}
+
 bool Spawner::canSpawnAgent(int *retx, int *rety) {
   /* Set spawnX and spawnY to be random unit from the top left corner of the
      spawner to the bottom right */
