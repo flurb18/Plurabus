@@ -11,6 +11,9 @@ import secrets
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
 
+def create_csp(CSP):
+    return "".join("{} {}".format(k,v) for k,v in CSP.items())
+
 FRAME_DELAY = 0.010
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
@@ -22,21 +25,7 @@ PROJECT_ID = "skillful-garden-379804"
 CSP_SCRIPT_SRC_WASM = "'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
 CSP_IMG_SRC_WASM = "'self' blob:;"
 
-BlockedDirectPages = [ "dyn/play.html", "dyn/private.html" ]
-
-DefaultCSP = {
-    "script-src" : "'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;",
-    "img-src" : "'self';",
-    "frame-src" : "'self' https://www.google.com;",
-    "connect-src" : "'self';",
-    "default-src" : "'self';"
-}
-StatusPages = {
-    "not-found" : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
-    "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
-    "missing-queries" : (http.HTTPStatus.BAD_REQUEST, {}, b"Missing queries\n"),
-    "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, {}, b"Failed captcha\n")
-}
+BlockedPrefixes = [ "dyn/" ]
 ContentTypes = {
     ".css" : "text/css",
     ".html" : "text/html; charset=utf-8",
@@ -47,19 +36,36 @@ ContentTypes = {
     ".wasm" : "application/wasm",
     ".data" : "binary"
 }
+DefaultCSP = {
+    "script-src" : "'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;",
+    "img-src" : "'self';",
+    "frame-src" : "'self' https://www.google.com;",
+    "connect-src" : "'self';",
+    "default-src" : "'self';"
+}
 DefaultHeaders = {
+    "Content-Security-Policy" : create_csp(DefaultCSP),
     "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options" : "nosniff",
     "X-Frame-Options" : "DENY"
+}
+StatusPages = {
+    "not-found" : (http.HTTPStatus.NOT_FOUND, DefaultHeaders, b"Not found\n"),
+    "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, DefaultHeaders, b"Request URI too long\n"),
+    "missing-queries" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Missing queries\n"),
+    "invalid-action" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Missing queries\n"),
+    "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, DefaultHeaders, b"Failed captcha\n")
 }
 
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
+PlayerMetadata = {}
 
 TokenLock = asyncio.Lock()
 SocketLock = asyncio.Lock()
 LobbyKeysLock = asyncio.Lock()
+MetadataLock = asyncio.Lock()
 
 ServerRoot = pathlib.Path(__file__).parent.resolve()
 
@@ -68,21 +74,44 @@ async def append_shared(element, lock, shared):
     shared.append(element)
     lock.release()
 
-async def remove_shared(element, lock, shared):
+async def set_shared(key, value, lock, shared):
     await lock.acquire()
-    if element in shared:
-        shared.remove(element)
+    shared[key] = value
     lock.release()
+
+async def get_shared(key, lock, shared):
+    await lock.acquire()
+    val = shared[key]
+    lock.release()
+    return val
 
 async def check_shared(element, lock, shared):
     await lock.acquire()
     in_shared = (element in shared)
     lock.release()
     return in_shared
-    
+
+async def len_shared(lock, shared):
+    await lock.acquire()
+    val = len(shared)
+    lock.release()
+    return val
+
+async def remove_shared(element, lock, shared):
+    await lock.acquire()
+    if element in shared:
+        shared.remove(element)
+    lock.release()
+
 async def remove_shared_later(element, lock, shared, lifetime):
     await asyncio.sleep(lifetime)
     await remove_shared(element, lock, shared)
+    
+async def pop_shared(key, lock, shared):
+    await lock.acquire()
+    val = shared.pop(key, None)
+    lock.release()
+    return val
     
 async def create_token():
     token = uuid.uuid4().hex
@@ -111,6 +140,7 @@ def create_assessment(project_id, recaptcha_site_key, token):
     return response
 
 async def serve_html(requrl, request_headers):
+    
     parsed_url = urllib.parse.urlparse(requrl)
     pstr = "default"
     token = "default"
@@ -122,6 +152,9 @@ async def serve_html(requrl, request_headers):
         page = parsed_url.path[1:]
     if (len(page) > 50):
         return StatusPages["too-long"]
+    for prefix in BlockedPrefixes:
+        if (page.startswith(prefix)):
+            return StatusPages["not-found"]
     if (page == "action"):
         queries = urllib.parse.parse_qs(parsed_url.query)
         if (not 'a' in queries or not 't' in queries):
@@ -142,7 +175,7 @@ async def serve_html(requrl, request_headers):
             page = "dyn/private.html"
             lobbyKey = await create_lobby_key()
         else:
-            return StatusPages["not-found"]
+            return StatusPages["invalid-action"]
     else:
         pageIsLobbyKey = await check_shared(page, LobbyKeysLock, LobbyKeys)
         if (pageIsLobbyKey):
@@ -152,23 +185,25 @@ async def serve_html(requrl, request_headers):
     try:
         template = ServerRoot.joinpath("web").joinpath(page).resolve()
     except ValueError:
-        pass
-    else:
-        if template.is_file():
-            CSP = DefaultCSP.copy()
-            body = template.read_bytes()
-            if (template.name == "private.html"):
-                body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
-            if (template.name == "play.html"):
-                CSP["script-src"] = CSP_SCRIPT_SRC_WASM
-                CSP["img-src"] = CSP_IMG_SRC_WASM
-                body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode()).replace(b"TOKEN_PLACEHOLDER", token.encode())
-            headers = DefaultHeaders.copy()
-            headers["Content-Type"] = ContentTypes[template.suffix]
-            headers["Content-Security-Policy"] = "".join("{} {}".format(k,v) for k,v in CSP.items())
-            return http.HTTPStatus.OK, headers, body
-
-    return StatusPages["not-found"]
+        return StatusPages["not-found"]
+    if (not template.is_file()):
+        return StatusPages["not-found"]
+    CSP = DefaultCSP.copy()
+    body = template.read_bytes()
+    if (template.name == "index.html"):
+        numplayers = await len_shared(MetadataLock, PlayerMetadata)
+        body = body.replace(b"NUMPLAYERS_PLACEHOLDER", ("Players Online: "+str(numplayers)).encode())
+    if (template.name == "private.html"):
+        body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
+    if (template.name == "play.html"):
+        CSP["script-src"] = CSP_SCRIPT_SRC_WASM
+        CSP["img-src"] = CSP_IMG_SRC_WASM
+        body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
+        body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
+    headers = DefaultHeaders.copy()
+    headers["Content-Type"] = ContentTypes[template.suffix]
+    headers["Content-Security-Policy"] = create_csp(CSP)
+    return http.HTTPStatus.OK, headers, body
 
 async def serve_websocket(websocket, path):
     try:
@@ -295,11 +330,23 @@ async def timerLoop(websocket):
             return
         except Exception as e:
             return
-    await websocket.send("TIMEOUT")
-    await websocket.pairedClient.send("TIMEOUT")
-    await websocket.wait_closed()
-    await websocket.pairedClient.wait_closed()
+    try:
+        await websocket.send("TIMEOUT")
+        await websocket.pairedClient.send("TIMEOUT")
+        await websocket.wait_closed()
+        await websocket.pairedClient.wait_closed()
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    except Exception as e:
+        await websocket.close()
+        await websocket.pairedClient.close()
     return
+
+async def serve_websocket_wrapper(websocket, path):
+    websocket.identifier = uuid.uuid4().hex
+    await set_shared(websocket.identifier, websocket, MetadataLock, PlayerMetadata) 
+    await serve_websocket(websocket, path)
+    await pop_shared(websocket.identifier, MetadataLock, PlayerMetadata)
 
 async def serve_nothing(websocket, path):
     pass
@@ -311,7 +358,7 @@ async def main():
     htmlSocket = str(ServerRoot.joinpath("web.sock"))
     wssSocket = str(ServerRoot.joinpath("wss.sock"))
     async with websockets.unix_serve(
-            serve_websocket, path=wssSocket
+            serve_websocket_wrapper, path=wssSocket
     ), websockets.unix_serve(
         serve_nothing, path=htmlSocket, process_request=serve_html
     ):

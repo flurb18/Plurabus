@@ -1,5 +1,4 @@
 -more on info page
--server status (players online, num tokens maybe)
 -fix local client and segfaults on end
 -figure out android authentication
 -better zooming and panning on mobile

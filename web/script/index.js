@@ -1,3 +1,4 @@
+document.getElementById('numPlayers').setAttribute('value', document.body.dataset.numplayers);
 document.forms['publicform'].addEventListener('submit', function (event) {
     event.preventDefault();
     grecaptcha.enterprise.ready(async () => {

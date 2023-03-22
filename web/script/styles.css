@@ -32,6 +32,15 @@ canvas{
 .gamelink {
     width:48ch;
     text-align: center;
+    margin: 0 auto;
+    margin-left: 50%;
+    transform: translateX(-50%);
+
+}
+
+.numPlayers {
+    width: 32ch;
+    text-align: left;
 }
 
 img {
@@ -82,9 +91,6 @@ div.horizontalgap {
 input[type="text"] {
     position: relative;
     display: block;
-    margin: 0 auto;
-    margin-left: 50%;
-    transform: translateX(-50%);
     border: none;
     background-color: #000000;
     color: #FFFFFF;
