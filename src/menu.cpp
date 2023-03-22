@@ -114,7 +114,7 @@ Menu::Menu(Game *g): game(g) {
   viewSubMenu.strings.push_back("Show Scents");
   viewSubMenu.strings.push_back("Outline Buildings");
   viewSubMenu.strings.push_back("Green - Red");
-  viewSubMenu.strings.push_back("Blue - Orange");
+  viewSubMenu.strings.push_back("Orange - Blue");
   viewSubMenu.strings.push_back("Purple - Yellow");
   viewSubMenu.strings.push_back("Pink - Brown");
   viewSubMenu.isToggleSubMenu = true;
@@ -129,7 +129,7 @@ Menu::Menu(Game *g): game(g) {
   viewSubMenu.funcs.push_back(&Game::toggleShowScents);
   viewSubMenu.funcs.push_back(&Game::toggleOutlineBuildings);
   viewSubMenu.funcs.push_back(&Game::greenRed);
-  viewSubMenu.funcs.push_back(&Game::blueOrange);
+  viewSubMenu.funcs.push_back(&Game::orangeBlue);
   viewSubMenu.funcs.push_back(&Game::purpleYellow);
   viewSubMenu.funcs.push_back(&Game::pinkBrown);
   viewSubMenu.size(game->disp, viewSubIdx);

@@ -195,7 +195,7 @@ public:
   void toggleShowScents();
   void toggleOutlineBuildings();
   void greenRed();
-  void blueOrange();
+  void orangeBlue();
   void purpleYellow();
   void pinkBrown();
   void showBasicInfo();

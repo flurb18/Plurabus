@@ -11,7 +11,26 @@ import secrets
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
 
+FRAME_DELAY = 0.010
+TOKEN_LIFETIME = 15
+LOBBY_KEY_LIFETIME = 180
+GAME_LIFETIME = 903
+
+RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
+PROJECT_ID = "skillful-garden-379804"
+
+CSP_SCRIPT_SRC_WASM = "'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
+CSP_IMG_SRC_WASM = "'self' blob:;"
+
 BlockedDirectPages = [ "dyn/play.html", "dyn/private.html" ]
+
+DefaultCSP = {
+    "script-src" : "'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;",
+    "img-src" : "'self';",
+    "frame-src" : "'self' https://www.google.com;",
+    "connect-src" : "'self';",
+    "default-src" : "'self';"
+}
 StatusPages = {
     "not-found" : (http.HTTPStatus.NOT_FOUND, {}, b"Not found\n"),
     "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, {}, b"Request URI too long\n"),
@@ -19,29 +38,20 @@ StatusPages = {
     "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, {}, b"Failed captcha\n")
 }
 ContentTypes = {
-    ".css": "text/css",
-    ".html": "text/html; charset=utf-8",
-    ".txt": "text/plain",
-    ".ico": "image/x-icon",
-    ".png": "image/png",
-    ".js": "text/javascript",
-    ".wasm": "application/wasm",
-    ".data": "binary"
+    ".css" : "text/css",
+    ".html" : "text/html; charset=utf-8",
+    ".txt" : "text/plain",
+    ".ico" : "image/x-icon",
+    ".png" : "image/png",
+    ".js" : "text/javascript",
+    ".wasm" : "application/wasm",
+    ".data" : "binary"
 }
-
-RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
-PROJECT_ID = "skillful-garden-379804"
-
-CSP = "script-src 'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
-CSP += "img-src 'self' blob:;"
-CSP += "frame-src 'self' https://www.google.com;"
-CSP += "connect-src 'self';"
-CSP += "default-src 'self';"
-
-FRAME_DELAY = 0.010
-TOKEN_LIFETIME = 15
-LOBBY_KEY_LIFETIME = 180
-GAME_LIFETIME = 903
+DefaultHeaders = {
+    "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options" : "nosniff",
+    "X-Frame-Options" : "DENY"
+}
 
 Tokens = []
 SocketQueue = []
@@ -50,6 +60,8 @@ LobbyKeys = []
 TokenLock = asyncio.Lock()
 SocketLock = asyncio.Lock()
 LobbyKeysLock = asyncio.Lock()
+
+ServerRoot = pathlib.Path(__file__).parent.resolve()
 
 async def append_shared(element, lock, shared):
     await lock.acquire()
@@ -62,6 +74,12 @@ async def remove_shared(element, lock, shared):
         shared.remove(element)
     lock.release()
 
+async def check_shared(element, lock, shared):
+    await lock.acquire()
+    in_shared = (element in shared)
+    lock.release()
+    return in_shared
+    
 async def remove_shared_later(element, lock, shared, lifetime):
     await asyncio.sleep(lifetime)
     await remove_shared(element, lock, shared)
@@ -91,7 +109,7 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
-        
+
 async def serve_html(requrl, request_headers):
     parsed_url = urllib.parse.urlparse(requrl)
     pstr = "default"
@@ -104,9 +122,7 @@ async def serve_html(requrl, request_headers):
         page = parsed_url.path[1:]
     if (len(page) > 50):
         return StatusPages["too-long"]
-    if (page in BlockedDirectPages):
-        return StatusPages["not-found"]
-    elif (page == "action"):
+    if (page == "action"):
         queries = urllib.parse.parse_qs(parsed_url.query)
         if (not 'a' in queries or not 't' in queries):
             return StatusPages["missing-queries"]
@@ -127,26 +143,29 @@ async def serve_html(requrl, request_headers):
             lobbyKey = await create_lobby_key()
         else:
             return StatusPages["not-found"]
-    elif (page in LobbyKeys):
-        pstr = page
-        page = "dyn/play.html"
-        token = await create_token()
+    else:
+        pageIsLobbyKey = await check_shared(page, LobbyKeysLock, LobbyKeys)
+        if (pageIsLobbyKey):
+            pstr = page
+            page = "dyn/play.html"
+            token = await create_token()
     try:
-        p = pathlib.Path(__file__).resolve()
-        template = p.parent.joinpath("web").joinpath(page)
+        template = ServerRoot.joinpath("web").joinpath(page).resolve()
     except ValueError:
         pass
     else:
         if template.is_file():
-            headers = {
-                "Content-Type": ContentTypes[template.suffix],
-                "Content-Security-Policy": CSP
-            }
+            CSP = DefaultCSP.copy()
             body = template.read_bytes()
             if (template.name == "private.html"):
                 body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
             if (template.name == "play.html"):
+                CSP["script-src"] = CSP_SCRIPT_SRC_WASM
+                CSP["img-src"] = CSP_IMG_SRC_WASM
                 body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode()).replace(b"TOKEN_PLACEHOLDER", token.encode())
+            headers = DefaultHeaders.copy()
+            headers["Content-Type"] = ContentTypes[template.suffix]
+            headers["Content-Security-Policy"] = "".join("{} {}".format(k,v) for k,v in CSP.items())
             return http.HTTPStatus.OK, headers, body
 
     return StatusPages["not-found"]
@@ -156,7 +175,8 @@ async def serve_websocket(websocket, path):
         token = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
         return
-    if (not token in Tokens):
+    tokenValid = await check_shared(token, TokenLock, Tokens)
+    if (not tokenValid):
         await websocket.close(1011, "Invalid token")
         return
     else:
@@ -288,8 +308,8 @@ async def main():
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
     loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
-    htmlSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("web.sock"))
-    wssSocket = str(pathlib.Path(__file__).resolve().parent.joinpath("wss.sock"))
+    htmlSocket = str(ServerRoot.joinpath("web.sock"))
+    wssSocket = str(ServerRoot.joinpath("wss.sock"))
     async with websockets.unix_serve(
             serve_websocket, path=wssSocket
     ), websockets.unix_serve(

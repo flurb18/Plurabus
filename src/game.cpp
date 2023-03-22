@@ -145,12 +145,12 @@ Game::~Game() {
   SDL_DestroyTexture(p2bombTexture);
   objectiveInfoTextures.clear();
   agentDict.clear();
+  buildingLists.clear();
   mapUnits.clear();
   delete disp;
   delete menu;
   delete panel;
   free(eventsBuffer);
-  free(token);
 }
 
 /*-------------------Main net thread------------------------*/
@@ -834,16 +834,16 @@ void Game::greenRed() {
   }
 }
 
-void Game::blueOrange() {
+void Game::orangeBlue() {
   for (int i = 3; i < 7; i++) {
     menu->items.at(3)->subMenu.toggleFlags.at(i) = false;
   }
   menu->items.at(3)->subMenu.toggleFlags.at(4) = true;
-  setColors("BLUE", "ORANGE", 0, 0, 255, 255, 165, 0);
+  setColors("ORANGE", "BLUE", 255, 128, 0, 0, 0, 255);
   if (playerSpawnID == SPAWNER_ID_ONE) {
-    panel->addText("You are the BLUE team.");
-  } else {
     panel->addText("You are the ORANGE team.");
+  } else {
+    panel->addText("You are the BLUE team.");
   }
 }
 
@@ -1054,6 +1054,7 @@ void Game::leftMouseUp(int x, int y) {
 	  y + panelYDrawOffset < it->subMenu.y + it->subMenu.h) {
 	int idy = (y + panelYDrawOffset - it->subMenu.y)/(it->subMenu.h / it->subMenu.strings.size());
 	(this->*(it->subMenu.funcs.at(idy)))();
+	menu->hideAllSubMenus();
 	return;
       }
     }
@@ -1626,8 +1627,12 @@ void Game::mainLoop(void) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
     disp->drawText("Connecting...",0,0);
-    if (net->ncon == NET_CONTEXT_CONNECTED || net->ncon == NET_CONTEXT_READY)
+    if (net->ncon == NET_CONTEXT_CONNECTED || net->ncon == NET_CONTEXT_READY || net->ncon == NET_CONTEXT_CLOSED) {
       disp->drawText("Waiting for opponent...",0,40);
+    }
+    if (net->ncon == NET_CONTEXT_CLOSED) {
+      disp->drawText("Connection closed, likely bad token",0,80);
+    }
     break;
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();
