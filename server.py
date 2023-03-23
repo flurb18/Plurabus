@@ -213,7 +213,7 @@ async def serve_websocket(websocket, path):
         token = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
         return
-    tokenValid = (token in GlobalTokens) or (await check_shared(token, TokenLock, Tokens))
+    tokenValid = await check_shared(token, TokenLock, Tokens)
     if (not tokenValid):
         await websocket.close(1011, "Invalid token")
         return
