@@ -3,7 +3,6 @@
 #include "agent.h"
 #include "building.h"
 #include "constants.h"
-#include "door.h"
 #include "game.h"
 
 MapUnit::MapUnit(Game* g): type(UNIT_TYPE_OUTSIDE), game(g), marked(true) {

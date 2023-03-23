@@ -3,7 +3,6 @@
 #include <random>
 
 #include "constants.h"
-#include "door.h"
 #include "game.h"
 #include "mapunit.h"
 

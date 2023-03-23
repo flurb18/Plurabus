@@ -1,7 +1,7 @@
 #include "objective.h"
 
 #include "constants.h"
-#include "door.h"
+#include "mapunit.h"
 #include "game.h"
 
 Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \

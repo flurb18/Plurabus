@@ -1,6 +1,8 @@
 #ifndef MAPUNIT_H
 #define MAPUNIT_H
 
+#include "event.h"
+
 enum UnitType {
   UNIT_TYPE_EMPTY,
   UNIT_TYPE_BUILDING,
@@ -16,7 +18,12 @@ class Building;
 class Game;
 struct Objective;
 class Spawner;
-struct Door;
+
+struct Door {
+  SpawnerID sid;
+  int hp;
+  bool isEmpty;
+};
 
 struct MapUnit {
   /* An iterator for traversing through a predefined rectangle of mapunits */
