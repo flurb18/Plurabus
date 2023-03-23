@@ -60,7 +60,6 @@ StatusPages = {
     "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, DefaultHeaders, b"Failed captcha\n")
 }
 
-GlobalTokens = [ '91f9d4e71db9492b91f8369a96b9b59e' ]
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
