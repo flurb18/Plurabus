@@ -138,7 +138,7 @@ private:
   MapUnit* selectedUnit;
   Objective *selectedObjective;
 #ifndef __EMSCRIPTEN__
-  pthread_mutex_t *threadLock;
+  pthread_mutex_t threadLock;
 #endif
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
