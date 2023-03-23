@@ -45,6 +45,9 @@ DefaultCSP = {
 }
 DefaultHeaders = {
     "Content-Security-Policy" : create_csp(DefaultCSP),
+    "Cross-Origin-Embedder-Policy" : "require-corp",
+    "Cross-Origin-Opener-Policy" : "same-origin",
+    "Cross-Origin-Resource-Policy" : "same-origin",
     "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options" : "nosniff",
     "X-Frame-Options" : "DENY"
@@ -219,9 +222,10 @@ async def serve_websocket(websocket, path):
     websocket.desiredPairedString = await websocket.recv()
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
+    await SocketLock.acquire()
     for waitingClient in SocketQueue:
         if (waitingClient.desiredPairedString == websocket.desiredPairedString):
-            await remove_shared(waitingClient, SocketLock, SocketQueue)
+            SocketQueue.remove(waitingClient)
             websocket.pairedClient = waitingClient
             waitingClient.pairedClient = websocket
             websocket.player = 1
@@ -229,6 +233,7 @@ async def serve_websocket(websocket, path):
             waitingClient.foundPartner = True
             websocket.foundPartner = True
             break
+    SocketLock.release()
 
     if (not websocket.foundPartner):
         await append_shared(websocket, SocketLock, SocketQueue)
