@@ -1,6 +1,10 @@
 #ifndef GAME_H
 #define GAME_H
 
+#ifndef __EMSCRIPTEN__
+#include <pthread.h>
+#endif
+
 #include <vector>
 #include <list>
 #include <map>
@@ -133,6 +137,9 @@ private:
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
+#ifndef __EMSCRIPTEN__
+  pthread_mutex_t *threadLock;
+#endif
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
   bool potentialSelectionCollidesWithBuilding(int, int, int, int);

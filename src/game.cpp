@@ -2,6 +2,8 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#include <pthread.h>
 #endif
 
 #include <SDL2/SDL_events.h>
@@ -113,7 +115,9 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool m
   p1bombTexture = nullptr;
   setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
   net = new NetHandler(this, pairString, uri);
-  //pthread_create(&netThread, NULL, &Game::net_thread, this);
+#ifndef __EMSCRIPTEN__
+  pthread_mutex_init(&threadLock, NULL);
+#endif
 }
 
 Game::~Game() {
@@ -151,38 +155,10 @@ Game::~Game() {
   delete menu;
   delete panel;
   free(eventsBuffer);
-}
-
-/*-------------------Main net thread------------------------*/
-
-/*
-void *Game::net_thread(void *g) {
-  Game *game = (Game*)g;
-
-#ifdef ANDROID
-  JNIEnv *env;
-  game->jvm->AttachCurrentThread(&env, NULL);
+#ifndef __EMSCRIPTEN__
+  pthread_mutex_destroy(&threadLock);
 #endif
-  
-  NetHandler *net = new NetHandler(game, game->pairString);
-  pthread_mutex_lock(&net->netLock);
-  game->context = GAME_CONTEXT_STARTUPTIMER;
-  pthread_mutex_lock(&game->threadLock);
-  
-  while (game->secondsRemaining - GAME_TIME_SECONDS > 0)
-    pthread_cond_wait(&game->startupCond, &game->threadLock);
-  
-  game->context = GAME_CONTEXT_PLAYING;
-  if (game->playerSpawnID == SPAWNER_ID_GREEN) {
-    game->update();
-    game->receiveEventsBuffer();
-    game->sendEventsBuffer(net);
-  }
-  
-  while (game->context != GAME_CONTEXT_DONE)
-    pthread_cond_wait(&game->endCond, &game->threadLock);
 }
-*/
 
 void Game::end(DoneStatus s) {
   context = GAME_CONTEXT_DONE;
@@ -263,19 +239,6 @@ void Game::end(DoneStatus s) {
   delete net;
 
 }
-
-/*
-void Game::endNetThread(DoneStatus s) {
-  pthread_mutex_lock(&threadLock);
-  secondsRemaining = 0;
-  context = GAME_CONTEXT_DONE;
-  doneStatus = s;
-  pthread_cond_signal(&startupCond);
-  pthread_cond_signal(&endCond);
-  pthread_mutex_unlock(&threadLock);
-  pthread_join(netThread, NULL);
-}
-*/
 
 /*--------------Game state functions-------------*/
 
@@ -1622,7 +1585,9 @@ void Game::handleSDLEvent(SDL_Event *e) {
 }
 
 void Game::mainLoop(void) {
-  //pthread_mutex_lock(&threadLock);
+#ifndef __EMSCRIPTEN__
+  pthread_mutex_lock(&threadLock);
+#endif
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1650,6 +1615,9 @@ void Game::mainLoop(void) {
       handleSDLEvent(&e);
     }
   }
-  //pthread_mutex_unlock(&threadLock);
+  
   disp->update();
+#ifndef __EMSCRIPTEN__
+  pthread_mutex_unlock(&threadLock);
+#endif
 }
