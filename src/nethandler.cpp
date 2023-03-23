@@ -260,13 +260,9 @@ void NetHandler::closeConnection(const char *reason) {
 void NetHandler::notifyOpen() {
   ncon = NET_CONTEXT_CONNECTED;
 
-#ifdef __EMSCRIPTEN__
   sendText(game->token);
-#else
-  sendText("aidantest");
-  sendText("518john");
-#endif
   sendText(pairString);
+
 }
 
 void NetHandler::notifyClosed(const char *reason) {
