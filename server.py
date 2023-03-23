@@ -56,7 +56,7 @@ StatusPages = {
     "not-found" : (http.HTTPStatus.NOT_FOUND, DefaultHeaders, b"Not found\n"),
     "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, DefaultHeaders, b"Request URI too long\n"),
     "missing-queries" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Missing queries\n"),
-    "invalid-action" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Missing queries\n"),
+    "invalid-action" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Invalid action\n"),
     "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, DefaultHeaders, b"Failed captcha\n")
 }
 
@@ -326,7 +326,7 @@ async def serve_websocket(websocket, path):
             pass
 
 async def timerLoop(websocket):
-    for secondsLeft in range(GAME_LIFETIME, 0, -1):
+    for seconds in range(GAME_LIFETIME):
         await asyncio.sleep(1)
         try:
             await websocket.send("TIMER")
