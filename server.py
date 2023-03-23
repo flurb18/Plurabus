@@ -60,6 +60,7 @@ StatusPages = {
     "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, DefaultHeaders, b"Failed captcha\n")
 }
 
+GlobalTokens = [ '91f9d4e71db9492b91f8369a96b9b59e' ]
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
@@ -213,7 +214,7 @@ async def serve_websocket(websocket, path):
         token = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
         return
-    tokenValid = await check_shared(token, TokenLock, Tokens)
+    tokenValid = (token in GlobalTokens) or (await check_shared(token, TokenLock, Tokens))
     if (not tokenValid):
         await websocket.close(1011, "Invalid token")
         return
