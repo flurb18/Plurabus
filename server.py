@@ -8,6 +8,7 @@ import http
 import pathlib
 import uuid
 import secrets
+import random
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
 
@@ -228,8 +229,8 @@ async def serve_websocket(websocket, path):
             SocketQueue.remove(waitingClient)
             websocket.pairedClient = waitingClient
             waitingClient.pairedClient = websocket
-            websocket.player = 1
-            waitingClient.player = 2
+            websocket.player = random.randint(0,1)
+            waitingClient.player = 1 - websocket.player
             waitingClient.foundPartner = True
             websocket.foundPartner = True
             break
@@ -266,9 +267,9 @@ async def serve_websocket(websocket, path):
         return
         
     try:
-        if (websocket.player == 1):
+        if (websocket.player == 0):
             await websocket.send("P1")
-        if (websocket.player == 2):
+        if (websocket.player == 1):
             await websocket.send("P2")
         set1 = await websocket.recv()
     except websockets.exceptions.ConnectionClosed:
@@ -278,7 +279,7 @@ async def serve_websocket(websocket, path):
     websocket.readyForGame.set()
     await websocket.pairedClient.readyForGame.wait()
     
-    if (websocket.player == 1):
+    if (websocket.player == 0):
         try:
             await websocket.send("Go")
             start = await websocket.recv()
