@@ -23,8 +23,9 @@ GAME_LIFETIME = 903
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-CSP_SCRIPT_SRC_WASM = "'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
+CSP_SCRIPT_SRC_WASM = "'self' 'unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
 CSP_IMG_SRC_WASM = "'self' blob:;"
+CSP_CONNECT_SRC_WASM = "'self' wss://hivemindga.me/websocket;"
 
 BlockedPrefixes = [ "dyn/" ]
 ContentTypes = {
@@ -202,6 +203,7 @@ async def serve_html(requrl, request_headers):
     if (template.name == "play.html"):
         CSP["script-src"] = CSP_SCRIPT_SRC_WASM
         CSP["img-src"] = CSP_IMG_SRC_WASM
+        CSP["connect-src"] = CSP_CONNECT_SRC_WASM
         body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
         body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
     headers = DefaultHeaders.copy()
@@ -289,7 +291,21 @@ async def serve_websocket(websocket, path):
         asyncio.ensure_future(timerLoop(websocket))
 
     websocket.gameStatus = "DISCONNECT"
-    async for data in websocket:
+    while (True):
+        try:
+            data = await websocket.recv()
+        except websockets.exceptions.ConnectionClosed:
+            try:
+                await websocket.pairedClient.send(websocket.gameStatus)
+                await websocket.pairedClient.wait_closed()
+            except websockets.exceptions.ConnectionClosed:
+                pass
+            except Exception as e:
+                await websocket.close()
+                await websocket.pairedClient.close()
+            finally:
+                break
+#    async for data in websocket:
         await asyncio.sleep(FRAME_DELAY)
         if (isinstance(data, str)):
             if (data == "DISCONNECT" or data == "RESIGN"):
@@ -298,10 +314,10 @@ async def serve_websocket(websocket, path):
                     await websocket.pairedClient.send(data)
                     await websocket.pairedClient.wait_closed()
                     await websocket.wait_closed()
-                    return
                 except websockets.exceptions.ConnectionClosed:
                     await websocket.wait_closed()
-                    return
+                finally:
+                    break
             elif (data == "TIMEOUT"):
                 await websocket.wait_closed()
                 await websocket.pairedClient.wait_closed()
@@ -312,12 +328,17 @@ async def serve_websocket(websocket, path):
             try:
                 await websocket.send(websocket.pairedClient.gameStatus)
                 await websocket.wait_closed()
-                return
             except websockets.exceptions.ConnectionClosed:
-                return
+                pass
+            except Exception as e:
+                await websocket.close()
+                await websocket.pairedClient.close()
+            finally:
+                break
         except Exception as e:
             await websocket.close()
             await websocket.pairedClient.close()
+            break
 
     if (websocket.close_code == 1001):
         try:
@@ -346,13 +367,18 @@ async def timerLoop(websocket):
     except Exception as e:
         await websocket.close()
         await websocket.pairedClient.close()
-    return
+    finally:
+        return
 
 async def serve_websocket_wrapper(websocket, path):
     websocket.identifier = uuid.uuid4().hex
-    await set_shared(websocket.identifier, websocket, MetadataLock, PlayerMetadata) 
-    await serve_websocket(websocket, path)
-    await pop_shared(websocket.identifier, MetadataLock, PlayerMetadata)
+    await set_shared(websocket.identifier, websocket, MetadataLock, PlayerMetadata)
+    try:
+        await serve_websocket(websocket, path)
+    except Exception as e:
+        print(str(e))
+    finally:
+        await pop_shared(websocket.identifier, MetadataLock, PlayerMetadata)
 
 async def serve_nothing(websocket, path):
     pass
