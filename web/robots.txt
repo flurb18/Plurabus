@@ -3,3 +3,5 @@ Disallow:/dyn/
 Disallow:/hivemindweb/
 Disallow:/img/
 Disallow:/script/
+Disallow:/style/
+
