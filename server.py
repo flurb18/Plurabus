@@ -15,6 +15,9 @@ from google.cloud.recaptchaenterprise_v1 import Assessment
 def create_csp(CSP):
     return "".join("{} {}".format(k,v) for k,v in CSP.items())
 
+def append_to_csp(CSP, key, source):
+    CSP[key] = source + " " + CSP[key]
+
 FRAME_DELAY = 0.010
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
@@ -22,10 +25,6 @@ GAME_LIFETIME = 903
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
-
-CSP_SCRIPT_SRC_WASM = "'self' 'unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;"
-CSP_IMG_SRC_WASM = "'self' blob:;"
-CSP_CONNECT_SRC_WASM = "'self' wss://hivemindga.me/websocket;"
 
 BlockedPrefixes = [ "dyn/" ]
 ContentTypes = {
@@ -39,9 +38,9 @@ ContentTypes = {
     ".data" : "binary"
 }
 DefaultCSP = {
-    "script-src" : "'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;",
+    "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
     "img-src" : "'self';",
-    "frame-src" : "'self' https://www.google.com;",
+    "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
     "connect-src" : "'self';",
     "default-src" : "'self';"
 }
@@ -201,9 +200,9 @@ async def serve_html(requrl, request_headers):
     if (template.name == "private.html"):
         body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
     if (template.name == "play.html"):
-        CSP["script-src"] = CSP_SCRIPT_SRC_WASM
-        CSP["img-src"] = CSP_IMG_SRC_WASM
-        CSP["connect-src"] = CSP_CONNECT_SRC_WASM
+        append_to_csp(CSP, "script-src", "'unsafe-eval'")
+        append_to_csp(CSP, "img-src", "blob://hivemindga.me/")
+        append_to_csp(CSP, "connect-src", "wss://hivemindga.me/websocket")
         body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
         body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
     headers = DefaultHeaders.copy()
