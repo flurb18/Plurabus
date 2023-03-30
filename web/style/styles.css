@@ -107,5 +107,6 @@ input[type="submit"] {
     position:relative;
     display: block;
     margin: 0 auto;
+    font-family: 'Noto Sans Mono', monospace;
 }
 
