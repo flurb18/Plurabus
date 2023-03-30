@@ -1,6 +1,6 @@
 User-agent:*
 Disallow:/dyn/
-Disallow:/hivemindweb/
+Disallow:/game/
 Disallow:/img/
 Disallow:/script/
 Disallow:/style/

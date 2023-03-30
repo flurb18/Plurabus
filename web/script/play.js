@@ -40,5 +40,5 @@ if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');
 }
 var mainscript = document.createElement('script');
-mainscript.setAttribute('src','/hivemindweb/hivemindweb.js');
+mainscript.setAttribute('src','/game/plurabus.js');
 document.head.appendChild(mainscript);

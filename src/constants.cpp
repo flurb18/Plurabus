@@ -1,3 +1,3 @@
 #include "constants.h"
 
-const char *TITLE = "Hive Mind";
+const char *TITLE = "Plurabus";
