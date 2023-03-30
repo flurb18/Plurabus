@@ -1,7 +1,7 @@
 CC=g++
 FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_ -pthread
 LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread -lboost_random -lssl -lcrypto
-EXECNAME=plurabus
+EXECNAME=plurabus-bin
 
 WEBCC=/usr/lib/emsdk/upstream/emscripten/emcc
 WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall
