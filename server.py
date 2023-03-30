@@ -41,7 +41,8 @@ DefaultCSP = {
     "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
     "img-src" : "'self';",
     "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
-    "connect-src" : "'self';",
+    "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
+    "style-src" : "'self' https://fonts.googleapis.com/;",
     "default-src" : "'self';"
 }
 DefaultHeaders = {
