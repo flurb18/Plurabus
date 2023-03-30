@@ -43,7 +43,7 @@ DefaultCSP = {
     "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
     "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
     "style-src" : "'self' https://fonts.googleapis.com/;",
-    "default-src" : "'self';"
+    "default-src" : "'self' https://fonts.gstatic.com/;"
 }
 DefaultHeaders = {
     "Content-Security-Policy" : create_csp(DefaultCSP),
