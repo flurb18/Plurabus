@@ -81,8 +81,7 @@ context_ptr on_tls_init() {
 NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr):  ncon(NET_CONTEXT_INIT), game(g) {
   //  pthread_mutex_init(&netLock, NULL);
   //pthread_mutex_lock(&netLock);
-  pairString = new char[strlen(pstr)];
-  strcpy(pairString, pstr);
+  pairString = pstr;
   
   std::string uri(uriCstr);
   
