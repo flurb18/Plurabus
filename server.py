@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import aiohttp
+import aiohttp.web
 import asyncio
 import signal
 import websockets
@@ -26,7 +28,11 @@ GAME_LIFETIME = 1203
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-BlockedPrefixes = [ "dyn/" ]
+DynamicPages = [
+    "index.html",
+    "play.html",
+    "private.html"
+]
 ContentTypes = {
     ".css" : "text/css",
     ".html" : "text/html; charset=utf-8",
@@ -143,86 +149,22 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
-
-async def serve_html(requrl, request_headers):
     
-    parsed_url = urllib.parse.urlparse(requrl)
-    pstr = "default"
-    token = "default"
-    lobbyKey = "default"
-
-    if (parsed_url.path == "" or parsed_url.path == "/"):
-        page = "index.html"
-    else:
-        page = parsed_url.path[1:]
-    if (len(page) > 50):
-        return StatusPages["too-long"]
-    for prefix in BlockedPrefixes:
-        if (page.startswith(prefix)):
-            return StatusPages["not-found"]
-    if (page == "action"):
-        queries = urllib.parse.parse_qs(parsed_url.query)
-        if (not 'a' in queries or not 't' in queries):
-            return StatusPages["missing-queries"]
-        if (len(queries['a']) == 0 or len(queries['t']) == 0):
-            return StatusPages["missing-queries"]
-        actionString = queries['a'][0]
-        recaptchaToken = queries['t'][0]
-        assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
-        if (not assessment.token_properties.valid or
-            assessment.token_properties.action != actionString or
-            assessment.risk_analysis.score < 0.5):
-            return StatusPages["failed-captcha"]
-        if (actionString == "public"):
-            page = "dyn/play.html"
-            token = await create_token()
-        elif (actionString == "private"):
-            page = "dyn/private.html"
-            lobbyKey = await create_lobby_key()
-        else:
-            return StatusPages["invalid-action"]
-    else:
-        pageIsLobbyKey = await check_shared(page, LobbyKeysLock, LobbyKeys)
-        if (pageIsLobbyKey):
-            pstr = page
-            page = "dyn/play.html"
-            token = await create_token()
-    try:
-        template = ServerRoot.joinpath("web").joinpath(page).resolve()
-    except ValueError:
-        return StatusPages["not-found"]
-    if (not template.is_file()):
-        return StatusPages["not-found"]
-    CSP = DefaultCSP.copy()
-    body = template.read_bytes()
-    if (template.name == "index.html"):
-        numplayers = await len_shared(MetadataLock, PlayerMetadata)
-        body = body.replace(b"NUMPLAYERS_PLACEHOLDER", ("Players Online: "+str(numplayers)).encode())
-    if (template.name == "private.html"):
-        body = body.replace(b"KEY_PLACEHOLDER", lobbyKey.encode())
-    if (template.name == "play.html"):
-        append_to_csp(CSP, "script-src", "'unsafe-eval'")
-        append_to_csp(CSP, "img-src", "blob://hivemindga.me/")
-        append_to_csp(CSP, "connect-src", "wss://hivemindga.me/websocket")
-        body = body.replace(b"PSTR_PLACEHOLDER", pstr.encode())
-        body = body.replace(b"TOKEN_PLACEHOLDER", token.encode())
-    headers = DefaultHeaders.copy()
-    headers["Content-Type"] = ContentTypes[template.suffix]
-    headers["Content-Security-Policy"] = create_csp(CSP)
-    return http.HTTPStatus.OK, headers, body
-
-async def serve_websocket(websocket, path):
-    try:
-        token = await websocket.recv()
-    except websockets.exceptions.ConnectionClosed:
+async def serve_websocket(websocket):
+    firstMessage = await websocket.receive()
+    if (not firstMessage.type == aiohttp.WSMsgType.TEXT):
+        return
+    token = firstMessage.data
+    if (len(token) > 100):
         return
     tokenValid = await check_shared(token, TokenLock, Tokens)
     if (not tokenValid):
-        await websocket.close(1011, "Invalid token")
+        await websocket.close()
         return
     else:
         await remove_shared(token, TokenLock, Tokens)
-    websocket.desiredPairedString = await websocket.recv()
+    secondMessage = await websocket.receive()
+    websocket.desiredPairedString = secondMessage.data
     websocket.foundPartner = False
     websocket.readyForGame = asyncio.Event()
     await SocketLock.acquire()
@@ -241,26 +183,14 @@ async def serve_websocket(websocket, path):
     if (not websocket.foundPartner):
         await append_shared(websocket, SocketLock, SocketQueue)
         try:
-            ready = await websocket.recv()
-        except websockets.exceptions.ConnectionClosed:
-            await remove_shared(websocket, SocketLock, SocketQueue)
-            return
+            ready = await websocket.receive()
         except Exception as e:
             await remove_shared(websocket, SocketLock, SocketQueue)
             return
     else:
-        try:
-            await websocket.send(str(websocket.pairedClient.desiredPairedString))
-            await websocket.pairedClient.send(str(websocket.desiredPairedString))
-            ready = await websocket.recv()
-        except websockets.exceptions.ConnectionClosed:
-            await websocket.close()
-            await websocket.pairedClient.close()
-            return
-        except Exception as e:
-            await websocket.close()
-            await websocket.pairedClient.close()
-            return
+        await websocket.send_str(str(websocket.pairedClient.desiredPairedString))
+        await websocket.pairedClient.send_str(str(websocket.desiredPairedString))
+        ready = await websocket.receive()
             
     # Threads merge
     if (not websocket.foundPartner):
@@ -268,98 +198,64 @@ async def serve_websocket(websocket, path):
         await remove_shared(websocket, SocketLock, SocketQueue)
         return
         
-    try:
-        if (websocket.player == 0):
-            await websocket.send("P1")
-        if (websocket.player == 1):
-            await websocket.send("P2")
-        set1 = await websocket.recv()
-    except websockets.exceptions.ConnectionClosed:
-        await websocket.pairedClient.close()
-        return
+    if (websocket.player == 0):
+        await websocket.send_str("P1")
+    if (websocket.player == 1):
+        await websocket.send_str("P2")
+    set1 = await websocket.receive()
 
     websocket.readyForGame.set()
     await websocket.pairedClient.readyForGame.wait()
     
     if (websocket.player == 0):
-        try:
-            await websocket.send("Go")
-            start = await websocket.recv()
-        except websockets.exceptions.ConnectionClosed:
-            await websocket.pairedClient.close()
-            return
+        await websocket.send_str("Go")
+        start = await websocket.receive()
         asyncio.ensure_future(timerLoop(websocket))
 
     websocket.gameStatus = "DISCONNECT"
     while (True):
         try:
-            data = await websocket.recv()
-        except websockets.exceptions.ConnectionClosed:
-            try:
-                await websocket.pairedClient.send(websocket.gameStatus)
-                await websocket.pairedClient.wait_closed()
-            except websockets.exceptions.ConnectionClosed:
-                pass
-            except Exception as e:
-                await websocket.close()
-                await websocket.pairedClient.close()
-            finally:
-                break
-#    async for data in websocket:
+            msg = await websocket.receive()
+        except Exception as e:
+            await websocket.close()
+            await websocket.pairedClient.close()
+            return
         await asyncio.sleep(FRAME_DELAY)
-        if (isinstance(data, str)):
-            if (data == "DISCONNECT" or data == "RESIGN"):
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            if (msg.data == "DISCONNECT" or msg.data == "RESIGN"):
                 try:
-                    websocket.gameStatus = data
-                    await websocket.pairedClient.send(data)
+                    websocket.gameStatus = msg.data
+                    await websocket.pairedClient.send_str(msg.data)
                     await websocket.pairedClient.wait_closed()
                     await websocket.wait_closed()
-                except websockets.exceptions.ConnectionClosed:
+                except Exception as e:
                     await websocket.wait_closed()
                 finally:
-                    break
-            elif (data == "TIMEOUT"):
+                    return
+            elif (msg.data == "TIMEOUT"):
                 await websocket.wait_closed()
                 await websocket.pairedClient.wait_closed()
                 return
         try:
-            await websocket.pairedClient.send(data)
-        except websockets.exceptions.ConnectionClosed:
-            try:
-                await websocket.send(websocket.pairedClient.gameStatus)
-                await websocket.wait_closed()
-            except websockets.exceptions.ConnectionClosed:
-                pass
-            except Exception as e:
-                await websocket.close()
-                await websocket.pairedClient.close()
-            finally:
-                break
+            await websocket.pairedClient.send_bytes(msg.data)
         except Exception as e:
             await websocket.close()
             await websocket.pairedClient.close()
-            break
-
-    if (websocket.close_code == 1001):
-        try:
-            await websocket.pairedClient.send(websocket.gameStatus)
-            await websocket.pairedClient.wait_closed()
-        except websockets.exceptions.ConnectionClosed:
-            pass
+            return
 
 async def timerLoop(websocket):
     for seconds in range(GAME_LIFETIME):
         await asyncio.sleep(1)
         try:
-            await websocket.send("TIMER")
-            await websocket.pairedClient.send("TIMER")
+            await websocket.send_str("TIMER")
+            await websocket.pairedClient.send_str("TIMER")
         except websockets.exceptions.ConnectionClosed:
             return
         except Exception as e:
             return
     try:
-        await websocket.send("TIMEOUT")
-        await websocket.pairedClient.send("TIMEOUT")
+        await websocket.send_str("TIMEOUT")
+        await websocket.pairedClient.send_str("TIMEOUT")
         await websocket.wait_closed()
         await websocket.pairedClient.wait_closed()
     except websockets.exceptions.ConnectionClosed:
@@ -370,31 +266,101 @@ async def timerLoop(websocket):
     finally:
         return
 
-async def serve_websocket_wrapper(websocket, path):
-    websocket.identifier = uuid.uuid4().hex
-    await set_shared(websocket.identifier, websocket, MetadataLock, PlayerMetadata)
+async def serve_websocket_wrapper(request):
+    request.identifier = uuid.uuid4().hex
+    await set_shared(request.identifier, request, MetadataLock, PlayerMetadata)
     try:
-        await serve_websocket(websocket, path)
+        websocket = aiohttp.web.WebSocketResponse()
+        await websocket.prepare(request)
+        await serve_websocket(websocket)
     except Exception as e:
         print(str(e))
     finally:
-        await pop_shared(websocket.identifier, MetadataLock, PlayerMetadata)
+        await pop_shared(request.identifier, MetadataLock, PlayerMetadata)
+        return websocket
 
-async def serve_nothing(websocket, path):
-    pass
+async def serve_http(request):
+    if request.path == "/action":
+        path = "action"
+    else:
+        reqpath = request.match_info.get("file_path", "")
+        path = "index.html" if (reqpath == "" or reqpath == "/") else reqpath
+    if (path.startswith("dyn/")):
+        return aiohttp.web.HTTPNotFound()
+    pstr = "default"
+    token = "default"
+    lobbyKey = "default"
+    pathIsLobbyKey = await check_shared(path, LobbyKeysLock, LobbyKeys)
+    if (pathIsLobbyKey):
+        token = await create_token()
+        pstr = path
+        path = "dyn/play.html"
+    if (path == "action"):
+        if (request.method != "POST"):
+            return aiohttp.web.HTTPNotFound()
+        actionString = request.query.get("a", "")
+        postData = await request.post()
+        recaptchaToken = postData.get("recaptcha-token", "")
+        assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
+        if (not assessment.token_properties.valid or
+            assessment.token_properties.action != actionString or
+            assessment.risk_analysis.score < 0.5):
+            return aiohttp.web.HTTPUnauthorized()
+        if (actionString == "public"):
+            path = "dyn/play.html"
+            token = await create_token()
+        elif (actionString == "private"):
+            path = "dyn/private.html"
+            lobbyKey = await create_lobby_key()
+        else:
+            return aiohttp.web.HTTPNotFound()
+    try:
+        template = ServerRoot.joinpath("web").joinpath(path).resolve()
+    except ValueError:
+        return aiohttp.web.HTTPNotFound()
+    if (not template.is_file()):
+        print(str(template))
+        return aiohttp.web.HTTPNotFound()
+    CSP = DefaultCSP.copy()
+    head = DefaultHeaders.copy()
+    head["Content-Type"] = ContentTypes[template.suffix]
+    if (template.name in DynamicPages):
+        textMap = {}
+        if (template.name == "index.html"):
+            numplayers = await len_shared(MetadataLock, PlayerMetadata)
+            textMap["NUMPLAYERS_PLACEHOLDER"] =  "Players Online: "+str(numplayers)
+        if (template.name == "private.html"):
+            textMap["KEY_PLACEHOLDER"] = lobbyKey
+        if (template.name == "play.html"):
+            append_to_csp(CSP, "script-src", "'unsafe-eval'")
+            append_to_csp(CSP, "img-src", "blob://plurabus.me/")
+            append_to_csp(CSP, "connect-src", "wss://plurabus.me/websocket")
+            head["Content-Security-Policy"] = create_csp(CSP)
+            textMap["PSTR_PLACEHOLDER"] = pstr
+            textMap["TOKEN_PLACEHOLDER"] = token
+        body = b""
+        with open(str(template)) as f:
+            for line in f:
+                for key in textMap:
+                    if key in line:
+                        line = line.replace(key, textMap[key])
+                body += line.encode()
+        response = aiohttp.web.Response(body=body, headers=head)
+    else:
+        response = aiohttp.web.FileResponse(str(template), headers=head)
+    return response
 
-async def main():
-    loop = asyncio.get_running_loop()
-    stop = loop.create_future()
-    loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
-    htmlSocket = str(ServerRoot.joinpath("web.sock"))
-    wssSocket = str(ServerRoot.joinpath("wss.sock"))
-    async with websockets.unix_serve(
-            serve_websocket_wrapper, path=wssSocket
-    ), websockets.unix_serve(
-        serve_nothing, path=htmlSocket, process_request=serve_html
-    ):
-        await stop
-        
+def main():
+    webPath = str(ServerRoot.joinpath("web.sock"))
+    app = aiohttp.web.Application()
+    routes = [
+        aiohttp.web.route(method="GET", path="/", handler=serve_http),
+        aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http),
+        aiohttp.web.route(method="POST", path="/action", handler=serve_http),
+        aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper)
+    ]
+    app.add_routes(routes)
+    aiohttp.web.run_app(app, path=webPath)
+    
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

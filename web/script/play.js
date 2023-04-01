@@ -40,5 +40,5 @@ if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');
 }
 var mainscript = document.createElement('script');
-mainscript.setAttribute('src','/game/plurabus.js');
+mainscript.setAttribute('src','/d/game/plurabus.js');
 document.head.appendChild(mainscript);

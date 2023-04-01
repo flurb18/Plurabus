@@ -1,5 +1,5 @@
 var lobbyKey = document.body.dataset.lobbykey;
-document.getElementById('gamelink').setAttribute('value', window.location.origin+'/'+lobbyKey);
+document.getElementById('gamelink').setAttribute('value', window.location.origin+'/d/'+lobbyKey);
 document.getElementById('copybutton').addEventListener("click", function() {
     var copyText = document.getElementById('gamelink');
     copyText.select();
@@ -8,5 +8,5 @@ document.getElementById('copybutton').addEventListener("click", function() {
 });
 document.forms['playprivateform'].addEventListener('submit', function (event) {
     event.preventDefault();
-    window.location.href = '/'+lobbyKey;
+    window.location.href = '/d/'+lobbyKey;
 });
