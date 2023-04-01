@@ -32,7 +32,14 @@ DynamicPages = [
     "play.html",
     "private.html"
 ]
-DirectPagesRegex = "(index\.html|info\.html|about\.html|favicon\.ico|robots\.txt)"
+DirectPages = [
+    "index.html",
+    "info.html",
+    "about.html",
+    "favicon.ico",
+    "robots.txt"
+]
+DirectPagesRegex = "(" + "|".join(DirectPages).replace(".","\.") + ")"
 ContentTypes = {
     ".css" : "text/css",
     ".html" : "text/html; charset=utf-8",
@@ -294,7 +301,7 @@ async def serve_http(request):
         if (not assessment.token_properties.valid or
             assessment.token_properties.action != actionString or
             assessment.risk_analysis.score < 0.5):
-            return aiohttp.web.HTTPUnauthorized()
+            return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
         if (actionString == "public"):
             path = "dyn/play.html"
             token = await create_token()
@@ -314,9 +321,6 @@ async def serve_http(request):
     head["Content-Type"] = ContentTypes[template.suffix]
     if (template.name in DynamicPages):
         textMap = {}
-        if (template.name == "counter.html"):
-            numplayers = await len_shared(MetadataLock, PlayerMetadata)
-            textMap["NUMPLAYERS_PLACEHOLDER"] = "Players Online: " + str(numplayers)
         if (template.name == "private.html"):
             textMap["KEY_PLACEHOLDER"] = lobbyKey
         if (template.name == "play.html"):
