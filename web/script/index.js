@@ -5,6 +5,9 @@ function buttonClick(actionType) {
 	document.getElementById(actionType+"form").submit();
     });
 }
-document.getElementById('numPlayers').setAttribute('value', document.body.dataset.numplayers);
 document.getElementById('publicformbutton').onclick = function () { buttonClick("public") };
 document.getElementById('privateformbutton').onclick = function () { buttonClick("private") };
+window.setInterval(function () {
+    var i = document.getElementById("counteriframe");
+    i.src = i.src;
+}, 30000);

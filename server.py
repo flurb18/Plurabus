@@ -3,10 +3,7 @@
 import aiohttp
 import aiohttp.web
 import asyncio
-import signal
-import websockets
 import urllib.parse
-import http
 import pathlib
 import uuid
 import secrets
@@ -29,7 +26,7 @@ RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
 DynamicPages = [
-    "index.html",
+    "counter.html",
     "play.html",
     "private.html"
 ]
@@ -49,7 +46,8 @@ DefaultCSP = {
     "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
     "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
     "style-src" : "'self' https://fonts.googleapis.com/;",
-    "default-src" : "'self' https://fonts.gstatic.com/;"
+    "default-src" : "'self' https://fonts.gstatic.com/;",
+    "frame-ancestors" : "'self'"
 }
 DefaultHeaders = {
     "Content-Security-Policy" : create_csp(DefaultCSP),
@@ -58,14 +56,6 @@ DefaultHeaders = {
     "Cross-Origin-Resource-Policy" : "same-origin",
     "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options" : "nosniff",
-    "X-Frame-Options" : "DENY"
-}
-StatusPages = {
-    "not-found" : (http.HTTPStatus.NOT_FOUND, DefaultHeaders, b"Not found\n"),
-    "too-long" : (http.HTTPStatus.REQUEST_URI_TOO_LONG, DefaultHeaders, b"Request URI too long\n"),
-    "missing-queries" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Missing queries\n"),
-    "invalid-action" : (http.HTTPStatus.BAD_REQUEST, DefaultHeaders, b"Invalid action\n"),
-    "failed-captcha" : (http.HTTPStatus.UNAUTHORIZED, DefaultHeaders, b"Failed captcha\n")
 }
 
 Tokens = []
@@ -319,16 +309,15 @@ async def serve_http(request):
     except ValueError:
         return aiohttp.web.HTTPNotFound()
     if (not template.is_file()):
-        print(str(template))
         return aiohttp.web.HTTPNotFound()
     CSP = DefaultCSP.copy()
     head = DefaultHeaders.copy()
     head["Content-Type"] = ContentTypes[template.suffix]
     if (template.name in DynamicPages):
         textMap = {}
-        if (template.name == "index.html"):
+        if (template.name == "counter.html"):
             numplayers = await len_shared(MetadataLock, PlayerMetadata)
-            textMap["NUMPLAYERS_PLACEHOLDER"] =  "Players Online: "+str(numplayers)
+            textMap["NUMPLAYERS_PLACEHOLDER"] = "Players Online: " + str(numplayers)
         if (template.name == "private.html"):
             textMap["KEY_PLACEHOLDER"] = lobbyKey
         if (template.name == "play.html"):

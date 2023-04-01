@@ -38,10 +38,17 @@ canvas{
     font-size: 32px;
 }
 
-.numPlayers {
+.counter {
     width: 32ch;
     text-align: left;
     font-size: 16px;
+}
+
+.counteriframe {
+    width: 32ch;
+    height: 40px;
+    border: none;
+    overflow: hidden;
 }
 
 img {
