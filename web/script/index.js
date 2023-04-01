@@ -7,7 +7,7 @@ function buttonClick(actionType) {
 }
 document.getElementById('publicformbutton').onclick = function () { buttonClick("public") };
 document.getElementById('privateformbutton').onclick = function () { buttonClick("private") };
-const countersocket = new WebSocket("wss://plurabus.me/playercount");
+const countersocket = new WebSocket((window.location.origin+"/playercount").replace(/^https(.*)/, 'wss$1'));
 countersocket.onmessage = function(event) {
     document.getElementById("counterDiv").innerText = event.data;
 }
