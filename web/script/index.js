@@ -7,7 +7,7 @@ function buttonClick(actionType) {
 }
 document.getElementById('publicformbutton').onclick = function () { buttonClick("public") };
 document.getElementById('privateformbutton').onclick = function () { buttonClick("private") };
-window.setInterval(function () {
-    var i = document.getElementById("counteriframe");
-    i.src = i.src;
-}, 30000);
+const countersocket = new WebSocket("wss://plurabus.me/playercount");
+countersocket.onmessage = function(event) {
+    document.getElementById("counterDiv").innerText = event.data;
+}

@@ -2,3 +2,4 @@ User-agent:*
 Disallow:/d/
 Disallow:/action
 Disallow:/websocket
+Disallow:/playercount

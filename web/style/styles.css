@@ -44,13 +44,6 @@ canvas{
     font-size: 16px;
 }
 
-.counteriframe {
-    width: 32ch;
-    height: 40px;
-    border: none;
-    overflow: hidden;
-}
-
 img {
     max-width: 100%;
 }

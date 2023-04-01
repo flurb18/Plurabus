@@ -18,6 +18,8 @@ def append_to_csp(CSP, key, source):
     CSP[key] = source + " " + CSP[key]
 
 FRAME_DELAY = 0.010
+NUMPLAYERS_REFRESH_TIME = 10
+MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
 GAME_LIFETIME = 1203
@@ -240,8 +242,6 @@ async def timerLoop(websocket):
         try:
             await websocket.send_str("TIMER")
             await websocket.pairedClient.send_str("TIMER")
-        except websockets.exceptions.ConnectionClosed:
-            return
         except Exception as e:
             return
     try:
@@ -249,8 +249,6 @@ async def timerLoop(websocket):
         await websocket.pairedClient.send_str("TIMEOUT")
         await websocket.wait_closed()
         await websocket.pairedClient.wait_closed()
-    except websockets.exceptions.ConnectionClosed:
-        pass
     except Exception as e:
         await websocket.close()
         await websocket.pairedClient.close()
@@ -340,6 +338,19 @@ async def serve_http(request):
         response = aiohttp.web.FileResponse(str(template), headers=head)
     return response
 
+async def serve_playercount_websocket(request):
+    try:
+        websocket = aiohttp.web.WebSocketResponse()
+        await websocket.prepare(request)
+        for i in range(MAX_NUMPLAYERS_REFRESHES):
+            numplayers = await len_shared(MetadataLock, PlayerMetadata)
+            await websocket.send_str("Players Online: " + str(numplayers))
+            await asyncio.sleep(NUMPLAYERS_REFRESH_TIME)
+    except Exception as e:
+        pass
+    finally:
+        return websocket
+
 def main():
     webPath = str(ServerRoot.joinpath("web.sock"))
     app = aiohttp.web.Application()
@@ -349,7 +360,8 @@ def main():
         aiohttp.web.route(method="GET", path=directPagesPath, handler=serve_http),
         aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http),
         aiohttp.web.route(method="POST", path="/action", handler=serve_http),
-        aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper)
+        aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper),
+        aiohttp.web.route(method="GET", path="/playercount", handler=serve_playercount_websocket)
     ]
     app.add_routes(routes)
     aiohttp.web.run_app(app, path=webPath)
