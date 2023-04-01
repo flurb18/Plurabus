@@ -30,6 +30,7 @@ DynamicPages = [
     "play.html",
     "private.html"
 ]
+DirectPagesRegex = "(index\.html|info\.html|about\.html|favicon\.ico|robots\.txt)"
 ContentTypes = {
     ".css" : "text/css",
     ".html" : "text/html; charset=utf-8",
@@ -342,8 +343,10 @@ async def serve_http(request):
 def main():
     webPath = str(ServerRoot.joinpath("web.sock"))
     app = aiohttp.web.Application()
+    directPagesPath = "/{file_path:" + DirectPagesRegex + "}"
     routes = [
         aiohttp.web.route(method="GET", path="/", handler=serve_http),
+        aiohttp.web.route(method="GET", path=directPagesPath, handler=serve_http),
         aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http),
         aiohttp.web.route(method="POST", path="/action", handler=serve_http),
         aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper)

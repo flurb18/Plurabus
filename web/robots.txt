@@ -1,7 +1,4 @@
 User-agent:*
-Disallow:/dyn/
-Disallow:/game/
-Disallow:/img/
-Disallow:/script/
-Disallow:/style/
-
+Disallow:/d/
+Disallow:/action
+Disallow:/websocket
