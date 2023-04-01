@@ -28,7 +28,6 @@ RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
 DynamicPages = [
-    "counter.html",
     "play.html",
     "private.html"
 ]
@@ -149,7 +148,52 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
-    
+
+async def serve_playercount_websocket(request):
+    try:
+        websocket = aiohttp.web.WebSocketResponse()
+        await websocket.prepare(request)
+        for i in range(MAX_NUMPLAYERS_REFRESHES):
+            numplayers = await len_shared(MetadataLock, PlayerMetadata)
+            await websocket.send_str("Players Online: " + str(numplayers))
+            await asyncio.sleep(NUMPLAYERS_REFRESH_TIME)
+    except Exception as e:
+        pass
+    finally:
+        return websocket
+
+async def timerLoop(websocket):
+    for seconds in range(GAME_LIFETIME):
+        await asyncio.sleep(1)
+        try:
+            await websocket.send_str("TIMER")
+            await websocket.pairedClient.send_str("TIMER")
+        except Exception as e:
+            return
+    try:
+        await websocket.send_str("TIMEOUT")
+        await websocket.pairedClient.send_str("TIMEOUT")
+        await websocket.wait_closed()
+        await websocket.pairedClient.wait_closed()
+    except Exception as e:
+        await websocket.close()
+        await websocket.pairedClient.close()
+    finally:
+        return
+
+async def serve_websocket_wrapper(request):
+    request.identifier = uuid.uuid4().hex
+    await set_shared(request.identifier, request, MetadataLock, PlayerMetadata)
+    try:
+        websocket = aiohttp.web.WebSocketResponse()
+        await websocket.prepare(request)
+        await serve_websocket(websocket)
+    except Exception as e:
+        print(str(e))
+    finally:
+        await pop_shared(request.identifier, MetadataLock, PlayerMetadata)
+        return websocket
+
 async def serve_websocket(websocket):
     firstMessage = await websocket.receive()
     if (not firstMessage.type == aiohttp.WSMsgType.TEXT):
@@ -243,38 +287,6 @@ async def serve_websocket(websocket):
             await websocket.pairedClient.close()
             return
 
-async def timerLoop(websocket):
-    for seconds in range(GAME_LIFETIME):
-        await asyncio.sleep(1)
-        try:
-            await websocket.send_str("TIMER")
-            await websocket.pairedClient.send_str("TIMER")
-        except Exception as e:
-            return
-    try:
-        await websocket.send_str("TIMEOUT")
-        await websocket.pairedClient.send_str("TIMEOUT")
-        await websocket.wait_closed()
-        await websocket.pairedClient.wait_closed()
-    except Exception as e:
-        await websocket.close()
-        await websocket.pairedClient.close()
-    finally:
-        return
-
-async def serve_websocket_wrapper(request):
-    request.identifier = uuid.uuid4().hex
-    await set_shared(request.identifier, request, MetadataLock, PlayerMetadata)
-    try:
-        websocket = aiohttp.web.WebSocketResponse()
-        await websocket.prepare(request)
-        await serve_websocket(websocket)
-    except Exception as e:
-        print(str(e))
-    finally:
-        await pop_shared(request.identifier, MetadataLock, PlayerMetadata)
-        return websocket
-
 async def serve_http(request):
     if request.path == "/action":
         path = "action"
@@ -342,22 +354,7 @@ async def serve_http(request):
         response = aiohttp.web.FileResponse(str(template), headers=head)
     return response
 
-async def serve_playercount_websocket(request):
-    try:
-        websocket = aiohttp.web.WebSocketResponse()
-        await websocket.prepare(request)
-        for i in range(MAX_NUMPLAYERS_REFRESHES):
-            numplayers = await len_shared(MetadataLock, PlayerMetadata)
-            await websocket.send_str("Players Online: " + str(numplayers))
-            await asyncio.sleep(NUMPLAYERS_REFRESH_TIME)
-    except Exception as e:
-        pass
-    finally:
-        return websocket
-
 def main():
-    webPath = str(ServerRoot.joinpath("web.sock"))
-    app = aiohttp.web.Application()
     directPagesPath = "/{file_path:" + DirectPagesRegex + "}"
     routes = [
         aiohttp.web.route(method="GET", path="/", handler=serve_http),
@@ -367,7 +364,9 @@ def main():
         aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper),
         aiohttp.web.route(method="GET", path="/playercount", handler=serve_playercount_websocket)
     ]
+    app = aiohttp.web.Application()
     app.add_routes(routes)
+    webPath = str(ServerRoot.joinpath("web.sock"))
     aiohttp.web.run_app(app, path=webPath)
     
 if __name__ == "__main__":
