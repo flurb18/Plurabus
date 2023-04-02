@@ -22,15 +22,12 @@ NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
+LOBBY_KEY_LENGTH = 12
 GAME_LIFETIME = 1203
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-DynamicPages = [
-    "play.html",
-    "private.html"
-]
 DirectPages = [
     "index.html",
     "info.html",
@@ -130,12 +127,11 @@ async def create_token():
     return token
 
 async def create_lobby_key():
-    lobbyKey = secrets.token_urlsafe(12)
+    lobbyKey = secrets.token_urlsafe(LOBBY_KEY_LENGTH)
     await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     asyncio.ensure_future(remove_shared_later(lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME))
     return lobbyKey
 
-# From https://cloud.google.com/recaptcha-enterprise/docs/create-assessment
 def create_assessment(project_id, recaptcha_site_key, token):
     client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
     event = recaptchaenterprise_v1.Event()
@@ -148,6 +144,8 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request.parent = f"projects/{project_id}"
     response = client.create_assessment(request)
     return response
+
+#--------------------Websocket handlers---------------------------------#
 
 async def serve_playercount_websocket(request):
     try:
@@ -236,7 +234,6 @@ async def serve_websocket(websocket):
         await websocket.pairedClient.send_str(str(websocket.desiredPairedString))
         ready = await websocket.receive()
             
-    # Threads merge
     if (not websocket.foundPartner):
         await websocket.close()
         await remove_shared(websocket, SocketLock, SocketQueue)
@@ -287,61 +284,64 @@ async def serve_websocket(websocket):
             await websocket.pairedClient.close()
             return
 
-async def serve_http(request):
-    if request.path == "/action":
-        path = "action"
+#---------------------HTTP Handlers-------------------------#
+        
+async def serve_http_dynamic(request):
+    if (request.method != "POST"):
+        return aiohttp.web.HTTPNotFound()
+    actionString = request.query.get("a", "")
+    postData = await request.post()
+    recaptchaToken = postData.get("recaptcha-token", "")
+    assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
+    if (not assessment.token_properties.valid or
+        assessment.token_properties.action != actionString or
+        assessment.risk_analysis.score < 0.5):
+        return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
+    if (actionString == "public"):
+        t = await create_token()
+        return await serve_file("dyn/play.html", token=t)
+    elif (actionString == "private"):
+        k = await create_lobby_key()
+        return await serve_file("dyn/private.html", lobbyKey=k)
     else:
-        reqpath = request.match_info.get("file_path", "")
-        path = "index.html" if (reqpath == "" or reqpath == "/") else reqpath
+        return aiohttp.web.HTTPNotFound()
+
+async def serve_http_lobbykey(request):
+    key = request.match_info.get("key", "")
+    keyValid = await check_shared(key, LobbyKeysLock, LobbyKeys)
+    if keyValid:
+        t = await create_token()
+        return await serve_file("dyn/play.html", token=t, pstr=key)
+    else:
+        return aiohttp.web.HTTPNotFound()
+        
+async def serve_http_direct(request):
+    reqpath = request.match_info.get("file_path", "")
+    path = "index.html" if (reqpath == "" or reqpath == "/") else reqpath
     if (path.startswith("dyn/")):
         return aiohttp.web.HTTPNotFound()
-    pstr = "default"
-    token = "default"
-    lobbyKey = "default"
-    pathIsLobbyKey = await check_shared(path, LobbyKeysLock, LobbyKeys)
-    if (pathIsLobbyKey):
-        token = await create_token()
-        pstr = path
-        path = "dyn/play.html"
-    if (path == "action"):
-        if (request.method != "POST"):
-            return aiohttp.web.HTTPNotFound()
-        actionString = request.query.get("a", "")
-        postData = await request.post()
-        recaptchaToken = postData.get("recaptcha-token", "")
-        assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
-        if (not assessment.token_properties.valid or
-            assessment.token_properties.action != actionString or
-            assessment.risk_analysis.score < 0.5):
-            return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
-        if (actionString == "public"):
-            path = "dyn/play.html"
-            token = await create_token()
-        elif (actionString == "private"):
-            path = "dyn/private.html"
-            lobbyKey = await create_lobby_key()
-        else:
-            return aiohttp.web.HTTPNotFound()
+    return await serve_file(path)
+
+async def serve_file(path, lobbyKey="default", pstr="default", token="default"):
+    dynamic = (lobbyKey != "default" or pstr != "default" or token != "default")
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
         return aiohttp.web.HTTPNotFound()
     if (not template.is_file()):
         return aiohttp.web.HTTPNotFound()
-    CSP = DefaultCSP.copy()
     head = DefaultHeaders.copy()
     head["Content-Type"] = ContentTypes[template.suffix]
-    if (template.name in DynamicPages):
-        textMap = {}
-        if (template.name == "private.html"):
-            textMap["KEY_PLACEHOLDER"] = lobbyKey
+    if (dynamic):
+        CSP = DefaultCSP.copy()
+        textMap = {
+            "KEY_PLACEHOLDER" : lobbyKey,
+            "PSTR_PLACEHOLDER" : pstr,
+            "TOKEN_PLACEHOLDER" : token
+        }
         if (template.name == "play.html"):
             append_to_csp(CSP, "script-src", "'unsafe-eval'")
-            append_to_csp(CSP, "img-src", "blob://plurabus.me/")
-            append_to_csp(CSP, "connect-src", "wss://plurabus.me/websocket")
             head["Content-Security-Policy"] = create_csp(CSP)
-            textMap["PSTR_PLACEHOLDER"] = pstr
-            textMap["TOKEN_PLACEHOLDER"] = token
         body = b""
         with open(str(template)) as f:
             for line in f:
@@ -354,13 +354,16 @@ async def serve_http(request):
         response = aiohttp.web.FileResponse(str(template), headers=head)
     return response
 
+#-----------------------Main------------------------------------#
+
 def main():
     directPagesPath = "/{file_path:" + DirectPagesRegex + "}"
     routes = [
-        aiohttp.web.route(method="GET", path="/", handler=serve_http),
-        aiohttp.web.route(method="GET", path=directPagesPath, handler=serve_http),
-        aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http),
-        aiohttp.web.route(method="POST", path="/action", handler=serve_http),
+        aiohttp.web.route(method="GET", path="/", handler=serve_http_direct),
+        aiohttp.web.route(method="GET", path=directPagesPath, handler=serve_http_direct),
+        aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http_direct),
+        aiohttp.web.route(method="GET", path="/g/{key:.+}", handler=serve_http_lobbykey),
+        aiohttp.web.route(method="POST", path="/action", handler=serve_http_dynamic),
         aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper),
         aiohttp.web.route(method="GET", path="/playercount", handler=serve_playercount_websocket)
     ]
