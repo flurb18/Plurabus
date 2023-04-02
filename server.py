@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import aiohttp
 import aiohttp.web
+import aiofiles
 import asyncio
 import urllib.parse
 import pathlib
@@ -10,12 +11,6 @@ import secrets
 import random
 from google.cloud import recaptchaenterprise_v1
 from google.cloud.recaptchaenterprise_v1 import Assessment
-
-def create_csp(CSP):
-    return "".join("{} {}".format(k,v) for k,v in CSP.items())
-
-def append_to_csp(CSP, key, source):
-    CSP[key] = source + " " + CSP[key]
 
 FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
@@ -28,14 +23,6 @@ GAME_LIFETIME = 1203
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-DirectPages = [
-    "index.html",
-    "info.html",
-    "about.html",
-    "favicon.ico",
-    "robots.txt"
-]
-DirectPagesRegex = "(" + "|".join(DirectPages).replace(".","\.") + ")"
 ContentTypes = {
     ".css" : "text/css",
     ".html" : "text/html; charset=utf-8",
@@ -46,6 +33,13 @@ ContentTypes = {
     ".wasm" : "application/wasm",
     ".data" : "binary"
 }
+
+def create_csp(CSP):
+    return "".join("{} {}".format(k,v) for k,v in CSP.items())
+
+def append_to_csp(CSP, key, source):
+    CSP[key] = source + " " + CSP[key]
+
 DefaultCSP = {
     "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
     "img-src" : "'self';",
@@ -63,6 +57,10 @@ DefaultHeaders = {
     "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options" : "nosniff",
 }
+WasmCSP = DefaultCSP.copy()
+append_to_csp(WasmCSP, "script-src", "'unsafe-eval'")
+WasmHeaders = DefaultHeaders.copy()
+WasmHeaders["Content-Security-Policy"] = create_csp(WasmCSP)
 
 Tokens = []
 SocketQueue = []
@@ -298,11 +296,11 @@ async def serve_http_dynamic(request):
         assessment.risk_analysis.score < 0.5):
         return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
     if (actionString == "public"):
-        t = await create_token()
-        return await serve_file("dyn/play.html", token=t)
+        token = await create_token()
+        return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
     elif (actionString == "private"):
-        k = await create_lobby_key()
-        return await serve_file("dyn/private.html", lobbyKey=k)
+        lobbyKey = await create_lobby_key()
+        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
 
@@ -310,67 +308,38 @@ async def serve_http_lobbykey(request):
     key = request.match_info.get("key", "")
     keyValid = await check_shared(key, LobbyKeysLock, LobbyKeys)
     if keyValid:
-        t = await create_token()
-        return await serve_file("dyn/play.html", token=t, pstr=key)
+        token = await create_token()
+        return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : key }, WasmHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
         
-async def serve_http_direct(request):
-    reqpath = request.match_info.get("file_path", "")
-    path = "index.html" if (reqpath == "" or reqpath == "/") else reqpath
-    if (path.startswith("dyn/")):
-        return aiohttp.web.HTTPNotFound()
-    return await serve_file(path)
-
-async def serve_file(path, lobbyKey="default", pstr="default", token="default"):
-    dynamic = (lobbyKey != "default" or pstr != "default" or token != "default")
+async def serve_file_dynamic(path, textMap, head):
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
         return aiohttp.web.HTTPNotFound()
     if (not template.is_file()):
         return aiohttp.web.HTTPNotFound()
-    head = DefaultHeaders.copy()
+    async with aiofiles.open(str(template), mode="rb") as f:
+        body = await f.read()
+    for key in textMap:
+        body = body.replace(key.encode(), textMap[key].encode())
     head["Content-Type"] = ContentTypes[template.suffix]
-    if (dynamic):
-        CSP = DefaultCSP.copy()
-        textMap = {
-            "KEY_PLACEHOLDER" : lobbyKey,
-            "PSTR_PLACEHOLDER" : pstr,
-            "TOKEN_PLACEHOLDER" : token
-        }
-        if (template.name == "play.html"):
-            append_to_csp(CSP, "script-src", "'unsafe-eval'")
-            head["Content-Security-Policy"] = create_csp(CSP)
-        body = b""
-        with open(str(template)) as f:
-            for line in f:
-                for key in textMap:
-                    if key in line:
-                        line = line.replace(key, textMap[key])
-                body += line.encode()
-        response = aiohttp.web.Response(body=body, headers=head)
-    else:
-        response = aiohttp.web.FileResponse(str(template), headers=head)
+    response = aiohttp.web.Response(body=body, headers=head)
     return response
 
 #-----------------------Main------------------------------------#
 
 def main():
-    directPagesPath = "/{file_path:" + DirectPagesRegex + "}"
     routes = [
-        aiohttp.web.route(method="GET", path="/", handler=serve_http_direct),
-        aiohttp.web.route(method="GET", path=directPagesPath, handler=serve_http_direct),
-        aiohttp.web.route(method="GET", path="/d/{file_path:.+}", handler=serve_http_direct),
         aiohttp.web.route(method="GET", path="/g/{key:.+}", handler=serve_http_lobbykey),
-        aiohttp.web.route(method="POST", path="/action", handler=serve_http_dynamic),
-        aiohttp.web.route(method="GET", path="/websocket", handler=serve_websocket_wrapper),
-        aiohttp.web.route(method="GET", path="/playercount", handler=serve_playercount_websocket)
+        aiohttp.web.route(method="POST", path="/d/action", handler=serve_http_dynamic),
+        aiohttp.web.route(method="GET", path="/d/websocket", handler=serve_websocket_wrapper),
+        aiohttp.web.route(method="GET", path="/d/playercount", handler=serve_playercount_websocket)
     ]
     app = aiohttp.web.Application()
     app.add_routes(routes)
-    webPath = str(ServerRoot.joinpath("web.sock"))
-    aiohttp.web.run_app(app, path=webPath)
+    aiohttp.web.run_app(app, path=str(ServerRoot.joinpath("web.sock")))
     
 if __name__ == "__main__":
     main()

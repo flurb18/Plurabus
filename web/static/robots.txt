@@ -1,0 +1,5 @@
+User-agent:*
+Disallow:/d/
+Disallow:/script/
+Disallow:/game/
+Disallow:/stlye/

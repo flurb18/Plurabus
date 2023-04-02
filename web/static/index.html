@@ -8,23 +8,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono&display=swap">
-    <link rel="stylesheet" href="/d/style/styles.css">
+    <link rel="stylesheet" href="/style/styles.css">
     <script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"></script>
 </head>
 
 <body>
   <div class="counter" id="counterDiv"></div>
   <div class="bodyText" id="bodyDiv">
-    <img src="/d/img/webtitle.png" alt="Plurabus">
+    <img src="/img/webtitle.png" alt="Plurabus">
     <br><br>
-    <form id="publicform" action="/action?a=public" method="POST">
+    <form id="publicform" action="/d/action?a=public" method="POST">
       <input id="publicforminput" type="hidden" name="recaptcha-token" value="">
       <div>
 	<button id="publicformbutton" type="button" class="block">Public Game</button>
       </div>
     </form>
     <br>
-    <form id="privateform" action="/action?a=private" method="POST">
+    <form id="privateform" action="/d/action?a=private" method="POST">
       <input id="privateforminput" type="hidden" name="recaptcha-token" value="">
       <div>
 	<button id="privateformbutton" type="button" class="block">Private Game</button>
@@ -35,6 +35,6 @@
     <br>
     <a href="/about.html">Privacy, Cookies & About</a>
   </div>
-  <script src="/d/script/index.js"></script>
+  <script src="/script/index.js"></script>
 </body>
 </html>

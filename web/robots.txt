@@ -1,6 +1,0 @@
-User-agent:*
-Disallow:/d/
-Disallow:/g/
-Disallow:/action
-Disallow:/websocket
-Disallow:/playercount
