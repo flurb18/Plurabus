@@ -55,25 +55,16 @@ DefaultCSP = {
     "default-src" : "'self' https://fonts.gstatic.com/;",
     "frame-ancestors" : "'self'"
 }
-DefaultHeaders = {
-    "Cross-Origin-Embedder-Policy" : "require-corp",
-    "Cross-Origin-Opener-Policy" : "same-origin",
-    "Cross-Origin-Resource-Policy" : "same-origin",
-    "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
-    "X-Content-Type-Options" : "nosniff",
-}
 
-def set_csp(headers, CSP):
-    headers["Content-Security-Policy"] = "".join("{} {}".format(k,v) for k,v in CSP.items())
+def create_csp(CSP):
+    return "".join("{} {}".format(k,v) for k,v in CSP.items())
 
-def append_to_csp(CSP, key, source):
-    CSP[key] = source + " " + CSP[key]
-
-set_csp(DefaultHeaders, DefaultCSP)
 WasmCSP = DefaultCSP.copy()
+WasmCSP["script-src"] = "'unsafe-eval' " + DefaultCSP["script-src"]
+DefaultHeaders = {}
+DefaultHeaders["Content-Security-Policy"] = create_csp(DefaultCSP)
 WasmHeaders = {}
-append_to_csp(WasmCSP, "script-src", "'unsafe-eval'")
-set_csp(WasmHeaders, WasmCSP)
+WasmHeaders["Content-Security-Policy"] = create_csp(WasmCSP)
 
 #-------------------------Shared resource access------------------------------
 
@@ -305,7 +296,7 @@ async def serve_http_dynamic(request):
         return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
     elif (actionString == "private"):
         lobbyKey = await create_lobby_key()
-        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
+        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
 
@@ -318,7 +309,7 @@ async def serve_http_lobbykey(request):
     else:
         return aiohttp.web.HTTPNotFound()
         
-async def serve_file_dynamic(path, textMap, head = {}):
+async def serve_file_dynamic(path, textMap, head):
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
@@ -330,6 +321,7 @@ async def serve_file_dynamic(path, textMap, head = {}):
     for key in textMap:
         body = body.replace(key.encode(), textMap[key].encode())
     head["Content-Type"] = ContentTypes[template.suffix]
+    head["Content-Length"] = str(len(body))
     response = aiohttp.web.Response(body=body, headers=head)
     return response
 
