@@ -71,7 +71,7 @@ def append_to_csp(CSP, key, source):
 
 set_csp(DefaultHeaders, DefaultCSP)
 WasmCSP = DefaultCSP.copy()
-WasmHeaders = DefaultHeaders.copy()
+WasmHeaders = {}
 append_to_csp(WasmCSP, "script-src", "'unsafe-eval'")
 set_csp(WasmHeaders, WasmCSP)
 
@@ -305,7 +305,7 @@ async def serve_http_dynamic(request):
         return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
     elif (actionString == "private"):
         lobbyKey = await create_lobby_key()
-        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
+        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
     else:
         return aiohttp.web.HTTPNotFound()
 
@@ -318,7 +318,7 @@ async def serve_http_lobbykey(request):
     else:
         return aiohttp.web.HTTPNotFound()
         
-async def serve_file_dynamic(path, textMap, head):
+async def serve_file_dynamic(path, textMap, head = {}):
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
