@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
+import asyncio
 import aiohttp
 import aiohttp.web
 import aiofiles
-import asyncio
-import urllib.parse
 import pathlib
 import uuid
 import secrets
@@ -23,45 +22,6 @@ GAME_LIFETIME = 1203
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-ContentTypes = {
-    ".css" : "text/css",
-    ".html" : "text/html; charset=utf-8",
-    ".txt" : "text/plain",
-    ".ico" : "image/x-icon",
-    ".png" : "image/png",
-    ".js" : "text/javascript",
-    ".wasm" : "application/wasm",
-    ".data" : "binary"
-}
-
-def create_csp(CSP):
-    return "".join("{} {}".format(k,v) for k,v in CSP.items())
-
-def append_to_csp(CSP, key, source):
-    CSP[key] = source + " " + CSP[key]
-
-DefaultCSP = {
-    "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
-    "img-src" : "'self';",
-    "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
-    "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
-    "style-src" : "'self' https://fonts.googleapis.com/;",
-    "default-src" : "'self' https://fonts.gstatic.com/;",
-    "frame-ancestors" : "'self'"
-}
-DefaultHeaders = {
-    "Content-Security-Policy" : create_csp(DefaultCSP),
-    "Cross-Origin-Embedder-Policy" : "require-corp",
-    "Cross-Origin-Opener-Policy" : "same-origin",
-    "Cross-Origin-Resource-Policy" : "same-origin",
-    "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
-    "X-Content-Type-Options" : "nosniff",
-}
-WasmCSP = DefaultCSP.copy()
-append_to_csp(WasmCSP, "script-src", "'unsafe-eval'")
-WasmHeaders = DefaultHeaders.copy()
-WasmHeaders["Content-Security-Policy"] = create_csp(WasmCSP)
-
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
@@ -73,6 +33,49 @@ LobbyKeysLock = asyncio.Lock()
 MetadataLock = asyncio.Lock()
 
 ServerRoot = pathlib.Path(__file__).parent.resolve()
+
+#----------------------Header Definitions---------------------------
+
+ContentTypes = {
+    ".css" : "text/css",
+    ".html" : "text/html; charset=utf-8",
+    ".txt" : "text/plain",
+    ".ico" : "image/x-icon",
+    ".png" : "image/png",
+    ".js" : "text/javascript",
+    ".wasm" : "application/wasm",
+    ".data" : "binary"
+}
+DefaultCSP = {
+    "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
+    "img-src" : "'self';",
+    "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
+    "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
+    "style-src" : "'self' https://fonts.googleapis.com/;",
+    "default-src" : "'self' https://fonts.gstatic.com/;",
+    "frame-ancestors" : "'self'"
+}
+DefaultHeaders = {
+    "Cross-Origin-Embedder-Policy" : "require-corp",
+    "Cross-Origin-Opener-Policy" : "same-origin",
+    "Cross-Origin-Resource-Policy" : "same-origin",
+    "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options" : "nosniff",
+}
+
+def set_csp(headers, CSP):
+    headers["Content-Security-Policy"] = "".join("{} {}".format(k,v) for k,v in CSP.items())
+
+def append_to_csp(CSP, key, source):
+    CSP[key] = source + " " + CSP[key]
+
+set_csp(DefaultHeaders, DefaultCSP)
+WasmCSP = DefaultCSP.copy()
+WasmHeaders = DefaultHeaders.copy()
+append_to_csp(WasmCSP, "script-src", "'unsafe-eval'")
+set_csp(WasmHeaders, WasmCSP)
+
+#-------------------------Shared resource access------------------------------
 
 async def append_shared(element, lock, shared):
     await lock.acquire()
@@ -129,6 +132,8 @@ async def create_lobby_key():
     await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     asyncio.ensure_future(remove_shared_later(lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME))
     return lobbyKey
+
+#---------------------------------Captcha--------------------------------------
 
 def create_assessment(project_id, recaptcha_site_key, token):
     client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
