@@ -22,16 +22,6 @@ GAME_LIFETIME = 1203
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
-Tokens = []
-SocketQueue = []
-LobbyKeys = []
-PlayerMetadata = {}
-
-TokenLock = asyncio.Lock()
-SocketLock = asyncio.Lock()
-LobbyKeysLock = asyncio.Lock()
-MetadataLock = asyncio.Lock()
-
 ServerRoot = pathlib.Path(__file__).parent.resolve()
 
 #----------------------Header Definitions---------------------------
@@ -53,20 +43,30 @@ DefaultCSP = {
     "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
     "style-src" : "'self' https://fonts.googleapis.com/;",
     "default-src" : "'self' https://fonts.gstatic.com/;",
-    "frame-ancestors" : "'self'"
+    "frame-ancestors" : "'self';"
 }
 
 def create_csp(CSP):
-    return "".join("{} {}".format(k,v) for k,v in CSP.items())
+    return " ".join("{} {}".format(k,v) for k,v in CSP.items())
 
-WasmCSP = DefaultCSP.copy()
-WasmCSP["script-src"] = "'unsafe-eval' " + DefaultCSP["script-src"]
 DefaultHeaders = {}
 DefaultHeaders["Content-Security-Policy"] = create_csp(DefaultCSP)
+WasmCSP = DefaultCSP.copy()
+WasmCSP["script-src"] = "'unsafe-eval' " + DefaultCSP["script-src"]
 WasmHeaders = {}
 WasmHeaders["Content-Security-Policy"] = create_csp(WasmCSP)
 
 #-------------------------Shared resource access------------------------------
+
+Tokens = []
+SocketQueue = []
+LobbyKeys = []
+PlayerMetadata = {}
+
+TokenLock = asyncio.Lock()
+SocketLock = asyncio.Lock()
+LobbyKeysLock = asyncio.Lock()
+MetadataLock = asyncio.Lock()
 
 async def append_shared(element, lock, shared):
     await lock.acquire()
@@ -302,6 +302,8 @@ async def serve_http_dynamic(request):
 
 async def serve_http_lobbykey(request):
     key = request.match_info.get("key", "")
+    if len(key) != LOBBY_KEY_LENGTH:
+        return aiohttp.web.HTTPNotFound()
     keyValid = await check_shared(key, LobbyKeysLock, LobbyKeys)
     if keyValid:
         token = await create_token()
