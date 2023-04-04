@@ -152,6 +152,11 @@ async def serve_playercount_websocket(request):
     except Exception as e:
         pass
     finally:
+        try:
+            if not websocket.closed:
+                await websocket.close()
+        except:
+            pass
         return websocket
 
 async def timerLoop(websocket):
@@ -181,7 +186,11 @@ async def serve_websocket_wrapper(request):
         await websocket.prepare(request)
         await serve_websocket(websocket)
     except Exception as e:
-        print(str(e))
+        try:
+            if not websocket.closed:
+                await websocket.close()
+        except:
+            pass
     finally:
         await pop_shared(request.identifier, MetadataLock, PlayerMetadata)
         return websocket
@@ -293,25 +302,25 @@ async def serve_http_dynamic(request):
         return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
     if (actionString == "public"):
         token = await create_token()
-        return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
+        return await serve_http_file("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
     elif (actionString == "private"):
         lobbyKey = await create_lobby_key()
-        return await serve_file_dynamic("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
+        return await serve_http_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
 
 async def serve_http_lobbykey(request):
-    key = request.match_info.get("key", "")
-    if len(key) != LOBBY_KEY_LENGTH:
+    lobbyKey = request.match_info.get("key", "")
+    if len(lobbyKey) != LOBBY_KEY_LENGTH:
         return aiohttp.web.HTTPNotFound()
-    keyValid = await check_shared(key, LobbyKeysLock, LobbyKeys)
+    keyValid = await check_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     if keyValid:
         token = await create_token()
-        return await serve_file_dynamic("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : key }, WasmHeaders.copy())
+        return await serve_http_file("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }, WasmHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
         
-async def serve_file_dynamic(path, textMap, head):
+async def serve_http_file(path, textMap, head):
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
@@ -320,8 +329,9 @@ async def serve_file_dynamic(path, textMap, head):
         return aiohttp.web.HTTPNotFound()
     async with aiofiles.open(str(template), mode="rb") as f:
         body = await f.read()
-    for key in textMap:
-        body = body.replace(key.encode(), textMap[key].encode())
+    if textMap:
+        for key in textMap:
+            body = body.replace(key.encode(), textMap[key].encode())
     head["Content-Type"] = ContentTypes[template.suffix]
     head["Content-Length"] = str(len(body))
     response = aiohttp.web.Response(body=body, headers=head)
