@@ -4,7 +4,6 @@ import asyncio
 import aiohttp
 import aiohttp.web
 import aiofiles
-import uvicorn
 import pathlib
 import uuid
 import secrets
