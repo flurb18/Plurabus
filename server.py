@@ -4,19 +4,19 @@ import asyncio
 import aiohttp
 import aiohttp.web
 import aiofiles
+import uvicorn
 import pathlib
 import uuid
 import secrets
 import random
 from google.cloud import recaptchaenterprise_v1
-from google.cloud.recaptchaenterprise_v1 import Assessment
 
 FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
 LOBBY_KEY_LIFETIME = 180
-LOBBY_KEY_LENGTH = 12
+LOBBY_KEY_BYTES = 12
 GAME_LIFETIME = 1203
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
@@ -119,15 +119,15 @@ async def create_token():
     return token
 
 async def create_lobby_key():
-    lobbyKey = secrets.token_urlsafe(LOBBY_KEY_LENGTH)
+    lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
     await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     asyncio.ensure_future(remove_shared_later(lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME))
     return lobbyKey
 
 #---------------------------------Captcha--------------------------------------
 
-def create_assessment(project_id, recaptcha_site_key, token):
-    client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
+async def create_assessment(project_id, recaptcha_site_key, token):
+    client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceAsyncClient()
     event = recaptchaenterprise_v1.Event()
     event.site_key = recaptcha_site_key
     event.token = token
@@ -136,7 +136,7 @@ def create_assessment(project_id, recaptcha_site_key, token):
     request = recaptchaenterprise_v1.CreateAssessmentRequest()
     request.assessment = assessment
     request.parent = f"projects/{project_id}"
-    response = client.create_assessment(request)
+    response = await client.create_assessment(request)
     return response
 
 #--------------------Websocket handlers---------------------------------#
@@ -291,36 +291,45 @@ async def serve_websocket(websocket):
         
 async def serve_http_dynamic(request):
     if (request.method != "POST"):
-        return aiohttp.web.HTTPNotFound()
+        return aiohttp.web.HTTPBadRequest()
     actionString = request.query.get("a", "")
-    postData = await request.post()
+    try:
+        postData = await request.post()
+    except:
+        return aiohttp.web.HTTPBadRequest()
     recaptchaToken = postData.get("recaptcha-token", "")
-    assessment = create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
+    if actionString == "" or recaptchaToken == "":
+        return aiohttp.web.BadRequest()
+    try:
+        assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
+    except:
+        return aiohttp.web.BadRequest()
     if (not assessment.token_properties.valid or
         assessment.token_properties.action != actionString or
         assessment.risk_analysis.score < 0.5):
         return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
-    if (actionString == "public"):
-        token = await create_token()
-        return await serve_http_file("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
-    elif (actionString == "private"):
-        lobbyKey = await create_lobby_key()
-        return await serve_http_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
     else:
-        return aiohttp.web.HTTPNotFound()
+        if (actionString == "public"):
+            token = await create_token()
+            return await serve_http_file(request, "play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
+        elif (actionString == "private"):
+            lobbyKey = await create_lobby_key()
+            return await serve_http_file(request, "private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
+        else:
+            return aiohttp.web.HTTPNotFound()
 
 async def serve_http_lobbykey(request):
     lobbyKey = request.match_info.get("key", "")
-    if len(lobbyKey) != LOBBY_KEY_LENGTH:
+    if len(lobbyKey) > 100:
         return aiohttp.web.HTTPNotFound()
     keyValid = await check_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     if keyValid:
         token = await create_token()
-        return await serve_http_file("play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }, WasmHeaders.copy())
+        return await serve_http_file(request, "play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }, WasmHeaders.copy())
     else:
         return aiohttp.web.HTTPNotFound()
         
-async def serve_http_file(path, textMap, head):
+async def serve_http_file(request, path, textMap, head):
     try:
         template = ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
@@ -335,6 +344,7 @@ async def serve_http_file(path, textMap, head):
     head["Content-Type"] = ContentTypes[template.suffix]
     head["Content-Length"] = str(len(body))
     response = aiohttp.web.Response(body=body, headers=head)
+    await response.prepare(request)
     return response
 
 #-----------------------Main------------------------------------#
