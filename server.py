@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import trio
 import asyncio
-import aiohttp
-import aiohttp.web
-import aiofiles
+import trio_asyncio
+import quart
+import quart_trio
+import hypercorn
+from urllib.parse import parse_qs
 import pathlib
 import uuid
 import secrets
@@ -14,14 +17,23 @@ FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
+TOKEN_LENGTH = 32
 LOBBY_KEY_LIFETIME = 180
 LOBBY_KEY_BYTES = 12
 GAME_LIFETIME = 1203
+STARTUP_TIMEOUT = 300
+FRAME_TIMEOUT = 5
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 
 ServerRoot = pathlib.Path(__file__).parent.resolve()
+
+app = quart_trio.QuartTrio(__name__)
+
+cfg = hypercorn.config.Config()
+cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
+cfg.workers = 1
 
 #----------------------Header Definitions---------------------------
 
@@ -35,7 +47,7 @@ ContentTypes = {
     ".wasm" : "application/wasm",
     ".data" : "binary"
 }
-DefaultCSP = {
+CSPDict = {
     "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
     "img-src" : "'self';",
     "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
@@ -44,83 +56,76 @@ DefaultCSP = {
     "default-src" : "'self' https://fonts.gstatic.com/;",
     "frame-ancestors" : "'self';"
 }
+WasmCSPDict = CSPDict.copy()
+WasmCSPDict["script-src"] = "'unsafe-eval' " + CSPDict["script-src"]
 
 def create_csp(CSP):
     return " ".join("{} {}".format(k,v) for k,v in CSP.items())
 
-DefaultHeaders = {}
-DefaultHeaders["Content-Security-Policy"] = create_csp(DefaultCSP)
-WasmCSP = DefaultCSP.copy()
-WasmCSP["script-src"] = "'unsafe-eval' " + DefaultCSP["script-src"]
-WasmHeaders = {}
-WasmHeaders["Content-Security-Policy"] = create_csp(WasmCSP)
+DefaultCSP = create_csp(CSPDict)
+WasmCSP = create_csp(WasmCSPDict)
 
 #-------------------------Shared resource access------------------------------
 
 Tokens = []
 SocketQueue = []
 LobbyKeys = []
-PlayerMetadata = {}
+PlayerCount = 0
 
-TokenLock = asyncio.Lock()
-SocketLock = asyncio.Lock()
-LobbyKeysLock = asyncio.Lock()
-MetadataLock = asyncio.Lock()
+TokenLock = trio.Lock()
+SocketLock = trio.Lock()
+LobbyKeysLock = trio.Lock()
+MetadataLock = trio.Lock()
+CountLock = trio.Lock()
+
+async def add_player():
+    global PlayerCount
+    async with CountLock:
+        PlayerCount += 1
+
+async def remove_player():
+    global PlayerCount
+    async with CountLock:
+        PlayerCount -= 1
 
 async def append_shared(element, lock, shared):
-    await lock.acquire()
-    shared.append(element)
-    lock.release()
-
-async def set_shared(key, value, lock, shared):
-    await lock.acquire()
-    shared[key] = value
-    lock.release()
-
-async def get_shared(key, lock, shared):
-    await lock.acquire()
-    val = shared[key]
-    lock.release()
-    return val
+    async with lock:
+        shared.append(element)
 
 async def check_shared(element, lock, shared):
-    await lock.acquire()
-    in_shared = (element in shared)
-    lock.release()
+    async with lock:
+        in_shared = (element in shared)
     return in_shared
 
 async def len_shared(lock, shared):
-    await lock.acquire()
-    val = len(shared)
-    lock.release()
+    async with lock:
+        val = len(shared)
     return val
 
 async def remove_shared(element, lock, shared):
-    await lock.acquire()
-    if element in shared:
-        shared.remove(element)
-    lock.release()
+    async with lock:
+        if element in shared:
+            shared.remove(element)
 
 async def remove_shared_later(element, lock, shared, lifetime):
-    await asyncio.sleep(lifetime)
+    await trio.sleep(lifetime)
     await remove_shared(element, lock, shared)
     
 async def pop_shared(key, lock, shared):
-    await lock.acquire()
-    val = shared.pop(key, None)
-    lock.release()
+    async with lock:
+        val = shared.pop(key, None)
     return val
     
 async def create_token():
     token = uuid.uuid4().hex
     await append_shared(token, TokenLock, Tokens)
-    asyncio.ensure_future(remove_shared_later(token, TokenLock, Tokens, TOKEN_LIFETIME))
+    app.nursery.start_soon(remove_shared_later, token, TokenLock, Tokens, TOKEN_LIFETIME)
     return token
 
 async def create_lobby_key():
     lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
     await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
-    asyncio.ensure_future(remove_shared_later(lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME))
+    app.nursery.start_soon(remove_shared_later, lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME)
     return lobbyKey
 
 #---------------------------------Captcha--------------------------------------
@@ -135,229 +140,163 @@ async def create_assessment(project_id, recaptcha_site_key, token):
     request = recaptchaenterprise_v1.CreateAssessmentRequest()
     request.assessment = assessment
     request.parent = f"projects/{project_id}"
-    response = await client.create_assessment(request)
+    response = await trio_asyncio.aio_as_trio(client.create_assessment)(request)
     return response
 
-#--------------------Websocket handlers---------------------------------#
+#-----------------------Dynamic file responder-----------------------
 
-async def serve_playercount_websocket(request):
-    try:
-        websocket = aiohttp.web.WebSocketResponse()
-        await websocket.prepare(request)
-        for i in range(MAX_NUMPLAYERS_REFRESHES):
-            numplayers = await len_shared(MetadataLock, PlayerMetadata)
-            await websocket.send_str("Players Online: " + str(numplayers))
-            await asyncio.sleep(NUMPLAYERS_REFRESH_TIME)
-    except Exception as e:
-        pass
-    finally:
-        try:
-            if not websocket.closed:
-                await websocket.close()
-        except:
-            pass
-        return websocket
+async def serve_dynamic_file(path, textMap, wasm = True):
+    template = ServerRoot.joinpath("web").joinpath(path).resolve()
+    async with await trio.Path(str(template)).open("rb") as f:
+        body = await f.read()
+    for key in textMap:
+        body = body.replace(key.encode(), textMap[key].encode())
+    response = await quart.make_response(body)
+    response.headers["Content-Type"] = ContentTypes[template.suffix]
+    response.headers["Content-Security-Policy"] = WasmCSP if wasm else DefaultCSP
+    return response
 
-async def timerLoop(websocket):
-    for seconds in range(GAME_LIFETIME):
-        await asyncio.sleep(1)
-        try:
-            await websocket.send_str("TIMER")
-            await websocket.pairedClient.send_str("TIMER")
-        except Exception as e:
-            return
-    try:
-        await websocket.send_str("TIMEOUT")
-        await websocket.pairedClient.send_str("TIMEOUT")
-        await websocket.wait_closed()
-        await websocket.pairedClient.wait_closed()
-    except Exception as e:
-        await websocket.close()
-        await websocket.pairedClient.close()
-    finally:
-        return
+#--------------------Main game Websocket methods--------------------
 
-async def serve_websocket_wrapper(request):
-    request.identifier = uuid.uuid4().hex
-    await set_shared(request.identifier, request, MetadataLock, PlayerMetadata)
-    try:
-        websocket = aiohttp.web.WebSocketResponse()
-        await websocket.prepare(request)
-        await serve_websocket(websocket)
-    except Exception as e:
-        try:
-            if not websocket.closed:
-                await websocket.close()
-        except:
-            pass
-    finally:
-        await pop_shared(request.identifier, MetadataLock, PlayerMetadata)
-        return websocket
+async def timer_loop(websocket):
+    for _ in range(GAME_LIFETIME):
+        await trio.sleep(1)
+        await websocket.send("TIMER")
+        await websocket.pairedClient.send("TIMER")
+    await websocket.send("TIMEOUT")
+    await websocket.pairedClient.send("TIMEOUT")
 
-async def serve_websocket(websocket):
-    firstMessage = await websocket.receive()
-    if (not firstMessage.type == aiohttp.WSMsgType.TEXT):
-        return
-    token = firstMessage.data
-    if (len(token) > 100):
-        return
-    tokenValid = await check_shared(token, TokenLock, Tokens)
-    if (not tokenValid):
-        await websocket.close()
-        return
-    else:
-        await remove_shared(token, TokenLock, Tokens)
-    secondMessage = await websocket.receive()
-    websocket.desiredPairedString = secondMessage.data
-    websocket.foundPartner = False
-    websocket.readyForGame = asyncio.Event()
-    await SocketLock.acquire()
-    for waitingClient in SocketQueue:
-        if (waitingClient.desiredPairedString == websocket.desiredPairedString):
-            SocketQueue.remove(waitingClient)
-            websocket.pairedClient = waitingClient
-            waitingClient.pairedClient = websocket
-            websocket.player = random.randint(0,1)
-            waitingClient.player = 1 - websocket.player
-            waitingClient.foundPartner = True
-            websocket.foundPartner = True
-            break
-    SocketLock.release()
-
-    if (not websocket.foundPartner):
-        await append_shared(websocket, SocketLock, SocketQueue)
-        try:
-            ready = await websocket.receive()
-        except Exception as e:
-            await remove_shared(websocket, SocketLock, SocketQueue)
-            return
-    else:
-        await websocket.send_str(str(websocket.pairedClient.desiredPairedString))
-        await websocket.pairedClient.send_str(str(websocket.desiredPairedString))
-        ready = await websocket.receive()
-            
-    if (not websocket.foundPartner):
-        await websocket.close()
-        await remove_shared(websocket, SocketLock, SocketQueue)
-        return
-        
-    if (websocket.player == 0):
-        await websocket.send_str("P1")
-    if (websocket.player == 1):
-        await websocket.send_str("P2")
-    set1 = await websocket.receive()
-
-    websocket.readyForGame.set()
-    await websocket.pairedClient.readyForGame.wait()
-    
-    if (websocket.player == 0):
-        await websocket.send_str("Go")
-        start = await websocket.receive()
-        asyncio.ensure_future(timerLoop(websocket))
-
-    websocket.gameStatus = "DISCONNECT"
+async def game_loop(websocket):
     while (True):
-        try:
-            msg = await websocket.receive()
-        except Exception as e:
-            await websocket.close()
-            await websocket.pairedClient.close()
+        await trio.sleep(FRAME_DELAY)
+        msg = await websocket.receive()
+        await websocket.pairedClient.send(msg)
+    
+async def serve_websocket(websocket):
+    with trio.CancelScope() as cancel_scope:
+        firstMessage = await websocket.receive()
+        if not isinstance(firstMessage, str):
             return
-        await asyncio.sleep(FRAME_DELAY)
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            if (msg.data == "DISCONNECT" or msg.data == "RESIGN"):
-                try:
-                    websocket.gameStatus = msg.data
-                    await websocket.pairedClient.send_str(msg.data)
-                    await websocket.pairedClient.wait_closed()
-                    await websocket.wait_closed()
-                except Exception as e:
-                    await websocket.wait_closed()
-                finally:
+        if (len(firstMessage) != TOKEN_LENGTH):
+            return
+        tokenValid = await check_shared(firstMessage, TokenLock, Tokens)
+        if (not tokenValid):
+            return
+        await remove_shared(firstMessage, TokenLock, Tokens)
+        websocket.desiredPairedString = await websocket.receive()
+        websocket.foundPartner = False
+        websocket.readyForGame = trio.Event()
+        async with SocketLock:
+            for waitingClient in SocketQueue:
+                if (waitingClient.desiredPairedString == websocket.desiredPairedString):
+                    SocketQueue.remove(waitingClient)
+                    websocket.pairedClient = waitingClient
+                    waitingClient.pairedClient = websocket
+                    websocket.player = random.randint(0,1)
+                    waitingClient.player = 1 - websocket.player
+                    waitingClient.foundPartner = True
+                    websocket.foundPartner = True
+                    break
+        try:
+            if (not websocket.foundPartner):
+                await append_shared(websocket, SocketLock, SocketQueue)
+                readymsg = await websocket.receive()
+            else:
+                await websocket.send(str(websocket.pairedClient.desiredPairedString))
+                await websocket.pairedClient.send(str(websocket.desiredPairedString))
+                readymsg = await websocket.receive()
+        finally:
+            with trio.CancelScope(shield = True):
+                if (not websocket.foundPartner):
+                    await remove_shared(websocket, SocketLock, SocketQueue)
                     return
-            elif (msg.data == "TIMEOUT"):
-                await websocket.wait_closed()
-                await websocket.pairedClient.wait_closed()
-                return
-        try:
-            await websocket.pairedClient.send_bytes(msg.data)
-        except Exception as e:
-            await websocket.close()
-            await websocket.pairedClient.close()
-            return
 
-#---------------------HTTP Handlers-------------------------#
-        
-async def serve_http_dynamic(request):
-    if (request.method != "POST"):
-        return aiohttp.web.HTTPBadRequest()
-    actionString = request.query.get("a", "")
+        await websocket.send("P"+str(websocket.player + 1))
+        setmsg = await websocket.receive()
+
+        websocket.readyForGame.set()
+        await websocket.pairedClient.readyForGame.wait()
+    
+        if (websocket.player == 0):
+            await websocket.send("Go")
+            startmsg = await websocket.receive()
+
+    if not cancel_scope.cancelled_caught:
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(game_loop, websocket)
+            if (websocket.player == 0):
+                nursery.start_soon(timer_loop, websocket)
+
+    
+#---------------------Route Handlers-------------------------#
+
+@app.websocket("/d/playercount")
+async def serve_playercount_websocket():
+    for _ in range(MAX_NUMPLAYERS_REFRESHES):
+        async with CountLock:
+            message = "Players Online: " + str(PlayerCount)
+        await quart.websocket.send(message)
+        await trio.sleep(NUMPLAYERS_REFRESH_TIME)
+
+@app.websocket("/d/websocket")
+async def serve_websocket_wrapper():
+    await add_player()
     try:
-        postData = await request.post()
-    except:
-        return aiohttp.web.HTTPBadRequest()
-    recaptchaToken = postData.get("recaptcha-token", "")
-    if actionString == "" or recaptchaToken == "":
-        return aiohttp.web.BadRequest()
+        await serve_websocket(quart.websocket._get_current_object())
+    finally:
+        with trio.CancelScope(shield = True):
+            await remove_player()
+
+@app.route("/d/action", methods=["POST"])
+async def serve_http_dynamic():
+    actionString = parse_qs(quart.request.query_string.decode("utf-8")).get("a", [""])[0]
     try:
-        assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
-    except:
-        return aiohttp.web.BadRequest()
+        postData = await quart.request.get_data()
+    except Exception as e:
+        quart.abort(400)
+    recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
+    if actionString == "" or recaptchaToken == None or recaptchaToken == "":
+        quart.abort(400)
+    assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
     if (not assessment.token_properties.valid or
         assessment.token_properties.action != actionString or
         assessment.risk_analysis.score < 0.5):
-        return aiohttp.web.HTTPUnauthorized(text="Failed captcha")
+        quart.abort(401, "Failed captcha")
     else:
         if (actionString == "public"):
             token = await create_token()
-            return await serve_http_file(request, "play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }, WasmHeaders.copy())
+            return await serve_dynamic_file(
+                "play.html",
+                { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }
+            )
         elif (actionString == "private"):
             lobbyKey = await create_lobby_key()
-            return await serve_http_file(request, "private.html", { "KEY_PLACEHOLDER" : lobbyKey }, DefaultHeaders.copy())
+            return await serve_dynamic_file(
+                "private.html",
+                { "KEY_PLACEHOLDER" : lobbyKey },
+                wasm = False
+            )
         else:
-            return aiohttp.web.HTTPNotFound()
+            quart.abort(404)
 
-async def serve_http_lobbykey(request):
-    lobbyKey = request.match_info.get("key", "")
+@app.route("/g/<string:lobbyKey>")
+async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 100:
-        return aiohttp.web.HTTPNotFound()
+        quart.abort(404)
     keyValid = await check_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     if keyValid:
         token = await create_token()
-        return await serve_http_file(request, "play.html", { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }, WasmHeaders.copy())
+        return await serve_dynamic_file(
+            "play.html",
+            { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }
+        )
     else:
-        return aiohttp.web.HTTPNotFound()
+        quart.abort(404)
         
-async def serve_http_file(request, path, textMap, head):
-    try:
-        template = ServerRoot.joinpath("web").joinpath(path).resolve()
-    except ValueError:
-        return aiohttp.web.HTTPNotFound()
-    if (not template.is_file()):
-        return aiohttp.web.HTTPNotFound()
-    async with aiofiles.open(str(template), mode="rb") as f:
-        body = await f.read()
-    if textMap:
-        for key in textMap:
-            body = body.replace(key.encode(), textMap[key].encode())
-    head["Content-Type"] = ContentTypes[template.suffix]
-    head["Content-Length"] = str(len(body))
-    response = aiohttp.web.Response(body=body, headers=head)
-    await response.prepare(request)
-    return response
-
 #-----------------------Main------------------------------------#
 
-def main():
-    routes = [
-        aiohttp.web.route(method="GET", path="/g/{key:.+}", handler=serve_http_lobbykey),
-        aiohttp.web.route(method="POST", path="/d/action", handler=serve_http_dynamic),
-        aiohttp.web.route(method="GET", path="/d/websocket", handler=serve_websocket_wrapper),
-        aiohttp.web.route(method="GET", path="/d/playercount", handler=serve_playercount_websocket)
-    ]
-    app = aiohttp.web.Application()
-    app.add_routes(routes)
-    aiohttp.web.run_app(app, path=str(ServerRoot.joinpath("web.sock")))
+async def main():
+    await hypercorn.trio.serve(app, cfg)
     
 if __name__ == "__main__":
-    main()
+    trio_asyncio.run(main)
