@@ -2,6 +2,6 @@ icons in menu - FontAwesome
 font for banner - noto sans mono
 
 Emscripten for web compilation
-aiohttp for server
+trio/quart/hypercorn for server
 websocketpp for app connection
 SDL for graphics
