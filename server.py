@@ -26,6 +26,7 @@ FRAME_TIMEOUT = 5
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
+PUBLIC_PAIRSTRING = "default"
 
 ServerRoot = pathlib.Path(__file__).parent.resolve()
 
@@ -68,14 +69,15 @@ WasmCSP = create_csp(WasmCSPDict)
 #-------------------------Shared resource access------------------------------
 
 Tokens = []
-SocketQueue = []
 LobbyKeys = []
+PublicQueue = []
+PrivateGames = {}
 PlayerCount = 0
 
 TokenLock = trio.Lock()
-SocketLock = trio.Lock()
 LobbyKeysLock = trio.Lock()
-MetadataLock = trio.Lock()
+PublicLock = trio.Lock()
+PrivateLock = trio.Lock()
 CountLock = trio.Lock()
 
 async def add_player():
@@ -110,11 +112,6 @@ async def remove_shared(element, lock, shared):
 async def remove_shared_later(element, lock, shared, lifetime):
     await trio.sleep(lifetime)
     await remove_shared(element, lock, shared)
-    
-async def pop_shared(key, lock, shared):
-    async with lock:
-        val = shared.pop(key, None)
-    return val
     
 async def create_token():
     token = uuid.uuid4().hex
@@ -157,7 +154,7 @@ async def serve_dynamic_file(path, textMap, wasm = True):
     return response
 
 #--------------------Main game Websocket methods--------------------
-
+    
 async def timer_loop(websocket):
     for _ in range(GAME_LIFETIME):
         await trio.sleep(1)
@@ -168,47 +165,49 @@ async def timer_loop(websocket):
 
 async def game_loop(websocket):
     while (True):
-        await trio.sleep(FRAME_DELAY)
-        msg = await websocket.receive()
-        await websocket.pairedClient.send(msg)
+        with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+            await trio.sleep(FRAME_DELAY)
+            msg = await websocket.receive()
+            await websocket.pairedClient.send(msg)
+        if cancel_scope.cancelled_caught:
+            await websocket.send("FRAME_TIMEOUT")
+            return
     
-async def serve_websocket(websocket):
-    with trio.CancelScope() as cancel_scope:
+async def serve_game_websocket(websocket):
+    with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
         firstMessage = await websocket.receive()
         if not isinstance(firstMessage, str):
             return
-        if (len(firstMessage) != TOKEN_LENGTH):
+        if len(firstMessage) != TOKEN_LENGTH:
             return
         tokenValid = await check_shared(firstMessage, TokenLock, Tokens)
-        if (not tokenValid):
+        if not tokenValid:
             return
         await remove_shared(firstMessage, TokenLock, Tokens)
-        websocket.desiredPairedString = await websocket.receive()
+        pairString = await websocket.receive()
         websocket.foundPartner = False
         websocket.readyForGame = trio.Event()
-        async with SocketLock:
-            for waitingClient in SocketQueue:
-                if (waitingClient.desiredPairedString == websocket.desiredPairedString):
-                    SocketQueue.remove(waitingClient)
-                    websocket.pairedClient = waitingClient
-                    waitingClient.pairedClient = websocket
-                    websocket.player = random.randint(0,1)
-                    waitingClient.player = 1 - websocket.player
-                    waitingClient.foundPartner = True
-                    websocket.foundPartner = True
-                    break
-        try:
-            if (not websocket.foundPartner):
-                await append_shared(websocket, SocketLock, SocketQueue)
-                readymsg = await websocket.receive()
+        public = (pairString == PUBLIC_PAIRSTRING)
+        async with (PublicLock if public else PrivateLock):
+            if (public and PublicQueue) or (not public and pairString in PrivateGames):
+                partner = PublicQueue.pop(0) if public else PrivateGames.pop(pairString)
+                websocket.pairedClient = partner
+                partner.pairedClient = websocket
+                websocket.player = random.randint(0,1)
+                partner.player = 1 - websocket.player
+                websocket.foundPartner = True
+                partner.foundPartner = True
             else:
-                await websocket.send(str(websocket.pairedClient.desiredPairedString))
-                await websocket.pairedClient.send(str(websocket.desiredPairedString))
-                readymsg = await websocket.receive()
+                PublicQueue.append(websocket) if public else PrivateGames.update({pairString : websocket})
+        if websocket.foundPartner:
+            await websocket.send(pairString)
+            await websocket.pairedClient.send(pairString)
+        try:
+            readymsg = await websocket.receive()
         finally:
             with trio.CancelScope(shield = True):
-                if (not websocket.foundPartner):
-                    await remove_shared(websocket, SocketLock, SocketQueue)
+                if not websocket.foundPartner:
+                    await remove_shared(websocket, PublicLock, PublicQueue)
                     return
 
         await websocket.send("P"+str(websocket.player + 1))
@@ -238,11 +237,11 @@ async def serve_playercount_websocket():
         await quart.websocket.send(message)
         await trio.sleep(NUMPLAYERS_REFRESH_TIME)
 
-@app.websocket("/d/websocket")
-async def serve_websocket_wrapper():
+@app.websocket("/d/game")
+async def serve_game_websocket_wrapper():
     await add_player()
     try:
-        await serve_websocket(quart.websocket._get_current_object())
+        await serve_game_websocket(quart.websocket._get_current_object())
     finally:
         with trio.CancelScope(shield = True):
             await remove_player()
@@ -255,7 +254,7 @@ async def serve_http_dynamic():
     except Exception as e:
         quart.abort(400)
     recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
-    if actionString == "" or recaptchaToken == None or recaptchaToken == "":
+    if actionString == "" or recaptchaToken == "":
         quart.abort(400)
     assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
     if (not assessment.token_properties.valid or
@@ -267,7 +266,7 @@ async def serve_http_dynamic():
             token = await create_token()
             return await serve_dynamic_file(
                 "play.html",
-                { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : "default" }
+                { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING }
             )
         elif (actionString == "private"):
             lobbyKey = await create_lobby_key()
@@ -281,7 +280,7 @@ async def serve_http_dynamic():
 
 @app.route("/g/<string:lobbyKey>")
 async def serve_http_lobbykey(lobbyKey):
-    if len(lobbyKey) > 100:
+    if len(lobbyKey) > 32:
         quart.abort(404)
     keyValid = await check_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
     if keyValid:

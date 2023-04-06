@@ -231,6 +231,8 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
       } else if (strcmp((char*)data, "RESIGN") == 0) {
 	game->winnerSpawnID = game->playerSpawnID;
 	game->end(DONE_STATUS_RESIGN);
+      } else if (strcmp((char*)data, "FRAME_TIMEOUT") == 0) {
+	game->end(DONE_STATUS_FRAME_TIMEOUT);
       }
     } else {
       game->receiveData(data, numBytes);

@@ -34,7 +34,7 @@ Module['arguments'] = [
     scale.toString(),
     document.body.dataset.pstr,
     document.body.dataset.token,
-    (window.location.origin+"/d/websocket").replace(/^https(.*)/, 'wss$1')
+    (window.location.origin+"/d/game").replace(/^https(.*)/, 'wss$1')
 ];
 if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');

@@ -228,6 +228,9 @@ void Game::end(DoneStatus s) {
     }
     net->sendText("TIMEOUT");
     break;
+  case DONE_STATUS_FRAME_TIMEOUT:
+    closeText = "Network error, took too long.";
+    break;
   case DONE_STATUS_BACKGROUND:
     net->sendText("DISCONNECT");
     break;
