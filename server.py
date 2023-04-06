@@ -207,7 +207,7 @@ async def serve_game_websocket(websocket):
         finally:
             with trio.CancelScope(shield = True):
                 if not websocket.foundPartner:
-                    await remove_shared(websocket, PublicLock, PublicQueue)
+                    await remove_shared(websocket, PublicLock, PublicQueue) if public else PrivateGames.pop(pairString)
                     return
 
         await websocket.send("P"+str(websocket.player + 1))
@@ -278,6 +278,24 @@ async def serve_http_dynamic():
         else:
             quart.abort(404)
 
+@app.route("/d/serverinfo")
+async def serve_http_serverinfo():
+    lines = []
+    async with CountLock:
+        lines.append("Players online: " + str(PlayerCount))
+    lines.append("Tokens active: " + str(await len_shared(TokenLock, Tokens)))
+    lines.append("Lobby keys active: " + str(await len_shared(LobbyKeysLock, LobbyKeys)))
+    lines.append("Queue size: " + str(await len_shared(PublicLock, PublicQueue)))
+    lines.append("Private games waiting: " + str(await len_shared(PrivateLock, PrivateGames)))
+    body = b""
+    for line in lines:
+        body += (line + "\n").encode()
+    response = await quart.make_response(body)
+    response.headers["Content-Type"] = ContentTypes[".txt"]
+    response.headers["Content-Security-Policy"] = DefaultCSP
+    return response
+
+            
 @app.route("/g/<string:lobbyKey>")
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 32:
