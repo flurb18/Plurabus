@@ -73,6 +73,7 @@ LobbyKeys = []
 PublicQueue = []
 PrivateGames = {}
 PlayerCount = 0
+HomepageViewerCount = 0
 
 TokenLock = trio.Lock()
 LobbyKeysLock = trio.Lock()
@@ -80,48 +81,23 @@ PublicLock = trio.Lock()
 PrivateLock = trio.Lock()
 CountLock = trio.Lock()
 
-async def add_player():
-    global PlayerCount
-    async with CountLock:
-        PlayerCount += 1
-
-async def remove_player():
-    global PlayerCount
-    async with CountLock:
-        PlayerCount -= 1
-
-async def append_shared(element, lock, shared):
-    async with lock:
-        shared.append(element)
-
-async def check_shared(element, lock, shared):
-    async with lock:
-        in_shared = (element in shared)
-    return in_shared
-
-async def len_shared(lock, shared):
-    async with lock:
-        val = len(shared)
-    return val
-
-async def remove_shared(element, lock, shared):
+async def remove_shared_later(element, lock, shared, lifetime):
+    await trio.sleep(lifetime)
     async with lock:
         if element in shared:
             shared.remove(element)
 
-async def remove_shared_later(element, lock, shared, lifetime):
-    await trio.sleep(lifetime)
-    await remove_shared(element, lock, shared)
-    
 async def create_token():
     token = uuid.uuid4().hex
-    await append_shared(token, TokenLock, Tokens)
+    async with TokenLock:
+        Tokens.append(token)
     app.nursery.start_soon(remove_shared_later, token, TokenLock, Tokens, TOKEN_LIFETIME)
     return token
 
 async def create_lobby_key():
     lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
-    await append_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
+    async with LobbyKeysLock:
+        LobbyKeys.append(lobbyKey)
     app.nursery.start_soon(remove_shared_later, lobbyKey, LobbyKeysLock, LobbyKeys, LOBBY_KEY_LIFETIME)
     return lobbyKey
 
@@ -180,15 +156,18 @@ async def serve_game_websocket(websocket):
             return
         if len(firstMessage) != TOKEN_LENGTH:
             return
-        tokenValid = await check_shared(firstMessage, TokenLock, Tokens)
+        async with TokenLock:
+            tokenValid = firstMessage in Tokens
+            if tokenValid:
+                Tokens.remove(firstMessage)
         if not tokenValid:
             return
-        await remove_shared(firstMessage, TokenLock, Tokens)
         pairString = await websocket.receive()
         websocket.foundPartner = False
         websocket.readyForGame = trio.Event()
         public = (pairString == PUBLIC_PAIRSTRING)
-        async with (PublicLock if public else PrivateLock):
+        lock = PublicLock if public else PrivateLock
+        async with lock:
             if (public and PublicQueue) or (not public and pairString in PrivateGames):
                 partner = PublicQueue.pop(0) if public else PrivateGames.pop(pairString)
                 websocket.pairedClient = partner
@@ -207,7 +186,8 @@ async def serve_game_websocket(websocket):
         finally:
             with trio.CancelScope(shield = True):
                 if not websocket.foundPartner:
-                    await remove_shared(websocket, PublicLock, PublicQueue) if public else PrivateGames.pop(pairString)
+                    async with lock:
+                        PublicQueue.remove(websocket) if public else PrivateGames.pop(pairString)
                     return
 
         await websocket.send("P"+str(websocket.player + 1))
@@ -231,20 +211,31 @@ async def serve_game_websocket(websocket):
 
 @app.websocket("/d/playercount")
 async def serve_playercount_websocket():
-    for _ in range(MAX_NUMPLAYERS_REFRESHES):
-        async with CountLock:
-            message = "Players Online: " + str(PlayerCount)
-        await quart.websocket.send(message)
-        await trio.sleep(NUMPLAYERS_REFRESH_TIME)
+    global HomepageViewerCount
+    async with CountLock:
+        HomepageViewerCount += 1
+    try:
+        for _ in range(MAX_NUMPLAYERS_REFRESHES):
+            async with CountLock:
+                message = "Players Online: " + str(PlayerCount)
+            await quart.websocket.send(message)
+            await trio.sleep(NUMPLAYERS_REFRESH_TIME)
+    finally:
+        with trio.CancelScope(shield = True):
+            async with CountLock:
+                HomepageViewerCount -= 1
 
 @app.websocket("/d/game")
 async def serve_game_websocket_wrapper():
-    await add_player()
+    global PlayerCount
+    async with CountLock:
+        PlayerCount += 1
     try:
         await serve_game_websocket(quart.websocket._get_current_object())
     finally:
         with trio.CancelScope(shield = True):
-            await remove_player()
+            async with CountLock:
+                PlayerCount -= 1
 
 @app.route("/d/action", methods=["POST"])
 async def serve_http_dynamic():
@@ -283,10 +274,15 @@ async def serve_http_serverinfo():
     lines = []
     async with CountLock:
         lines.append("Players online: " + str(PlayerCount))
-    lines.append("Tokens active: " + str(await len_shared(TokenLock, Tokens)))
-    lines.append("Lobby keys active: " + str(await len_shared(LobbyKeysLock, LobbyKeys)))
-    lines.append("Queue size: " + str(await len_shared(PublicLock, PublicQueue)))
-    lines.append("Private games waiting: " + str(await len_shared(PrivateLock, PrivateGames)))
+        lines.append("On homepage: " + str(HomepageViewerCount))
+    async with TokenLock:
+        lines.append("Tokens active: " + str(len(Tokens)))
+    async with LobbyKeysLock:
+        lines.append("Lobby keys active: " + str(len(LobbyKeys)))
+    async with PublicLock:
+        lines.append("Queue size: " + str(len(PublicQueue)))
+    async with PrivateLock:
+        lines.append("Private games waiting: " + str(len(PrivateGames)))
     body = b""
     for line in lines:
         body += (line + "\n").encode()
@@ -300,7 +296,8 @@ async def serve_http_serverinfo():
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 32:
         quart.abort(404)
-    keyValid = await check_shared(lobbyKey, LobbyKeysLock, LobbyKeys)
+    async with LobbyKeysLock:
+        keyValid = lobbyKey in LobbyKeys
     if keyValid:
         token = await create_token()
         return await serve_dynamic_file(
