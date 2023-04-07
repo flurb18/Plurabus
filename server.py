@@ -6,12 +6,19 @@ import trio_asyncio
 import quart
 import quart_trio
 import hypercorn
+import json
 from urllib.parse import parse_qs
+import argparse
 import pathlib
 import uuid
 import secrets
 import random
-from google.cloud import recaptchaenterprise_v1
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--nocaptcha", help="disable captcha (needs to serve /static)", action="store_true")
+args = parser.parse_args()
+if not args.nocaptcha:
+    from google.cloud import recaptchaenterprise_v1
 
 FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
@@ -28,13 +35,14 @@ RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 PUBLIC_PAIRSTRING = "default"
 
-ServerRoot = pathlib.Path(__file__).parent.resolve()
+ServerRoot = trio.Path(str(pathlib.Path(__file__).parent.resolve()))
 
 app = quart_trio.QuartTrio(__name__)
 
 cfg = hypercorn.config.Config()
 cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
 cfg.workers = 1
+cfg.websocket_ping_interval = 5.0
 
 #----------------------Header Definitions---------------------------
 
@@ -45,8 +53,8 @@ ContentTypes = {
     ".ico" : "image/x-icon",
     ".png" : "image/png",
     ".js" : "text/javascript",
-    ".wasm" : "application/wasm",
-    ".data" : "binary"
+    ".json" : "application/json",
+    ".wasm" : "application/wasm"
 }
 CSPDict = {
     "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
@@ -65,6 +73,18 @@ def create_csp(CSP):
 
 DefaultCSP = create_csp(CSPDict)
 WasmCSP = create_csp(WasmCSPDict)
+
+#---------------Definitions for captcha-disabled version---------------------
+
+NoCaptchaRewriteFiles = [
+    "script/index.js",
+    "index.html"
+]
+NoCaptchaRewrites = {
+    'buttonClick("public")' : "document.getElementById('publicform').submit()",
+    'buttonClick("private")' : "document.getElementById('privateform').submit()",
+    '<script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"></script>' : ""
+}
 
 #-------------------------Shared resource access------------------------------
 
@@ -119,8 +139,13 @@ async def create_assessment(project_id, recaptcha_site_key, token):
 #-----------------------Dynamic file responder-----------------------
 
 async def serve_dynamic_file(path, textMap, wasm = True):
-    template = ServerRoot.joinpath("web").joinpath(path).resolve()
-    async with await trio.Path(str(template)).open("rb") as f:
+    try:
+        template = await ServerRoot.joinpath("web").joinpath(path).resolve()
+    except ValueError:
+        quart.abort(404)
+    if not await template.is_file():
+        quart.abort(404)
+    async with await template.open("rb") as f:
         body = await f.read()
     for key in textMap:
         body = body.replace(key.encode(), textMap[key].encode())
@@ -237,6 +262,25 @@ async def serve_game_websocket_wrapper():
             async with CountLock:
                 PlayerCount -= 1
 
+@app.route("/d/serverinfo", methods=["GET"])
+async def serve_http_serverinfo():
+    info = {}
+    async with CountLock:
+        info.update({"players_online" : str(PlayerCount)})
+        info.update({"on_homepage" : str(HomepageViewerCount)})
+    async with TokenLock:
+        info.update({"tokens_active" : str(len(Tokens))})
+    async with LobbyKeysLock:
+        info.update({"lobby_keys_active" : str(len(LobbyKeys))})
+    async with PublicLock:
+        info.update({"queue_size" : str(len(PublicQueue))})
+    async with PrivateLock:
+        info.update({"private_games_waiting" : str(len(PrivateGames))})
+    response = await quart.make_response(json.dumps(info).encode())
+    response.headers["Content-Type"] = ContentTypes[".json"]
+    response.headers["Content-Security-Policy"] = DefaultCSP
+    return response
+                
 @app.route("/d/action", methods=["POST"])
 async def serve_http_dynamic():
     actionString = parse_qs(quart.request.query_string.decode("utf-8")).get("a", [""])[0]
@@ -245,54 +289,24 @@ async def serve_http_dynamic():
     except Exception as e:
         quart.abort(400)
     recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
-    if actionString == "" or recaptchaToken == "":
-        quart.abort(400)
-    assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
-    if (not assessment.token_properties.valid or
-        assessment.token_properties.action != actionString or
-        assessment.risk_analysis.score < 0.5):
-        quart.abort(401, "Failed captcha")
+    if not args.nocaptcha:
+        if actionString == "" or recaptchaToken == "":
+            quart.abort(400)
+        assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
+        if (not assessment.token_properties.valid or
+            assessment.token_properties.action != actionString or
+            assessment.risk_analysis.score < 0.5):
+            quart.abort(401, "Failed captcha")
+    if (actionString == "public"):
+        token = await create_token()
+        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING })
+    elif (actionString == "private"):
+        lobbyKey = await create_lobby_key()
+        return await serve_dynamic_file("private.html",{ "KEY_PLACEHOLDER" : lobbyKey }, wasm = False)
     else:
-        if (actionString == "public"):
-            token = await create_token()
-            return await serve_dynamic_file(
-                "play.html",
-                { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING }
-            )
-        elif (actionString == "private"):
-            lobbyKey = await create_lobby_key()
-            return await serve_dynamic_file(
-                "private.html",
-                { "KEY_PLACEHOLDER" : lobbyKey },
-                wasm = False
-            )
-        else:
-            quart.abort(404)
-
-@app.route("/d/serverinfo")
-async def serve_http_serverinfo():
-    lines = []
-    async with CountLock:
-        lines.append("Players online: " + str(PlayerCount))
-        lines.append("On homepage: " + str(HomepageViewerCount))
-    async with TokenLock:
-        lines.append("Tokens active: " + str(len(Tokens)))
-    async with LobbyKeysLock:
-        lines.append("Lobby keys active: " + str(len(LobbyKeys)))
-    async with PublicLock:
-        lines.append("Queue size: " + str(len(PublicQueue)))
-    async with PrivateLock:
-        lines.append("Private games waiting: " + str(len(PrivateGames)))
-    body = b""
-    for line in lines:
-        body += (line + "\n").encode()
-    response = await quart.make_response(body)
-    response.headers["Content-Type"] = ContentTypes[".txt"]
-    response.headers["Content-Security-Policy"] = DefaultCSP
-    return response
-
+        quart.abort(404)
             
-@app.route("/g/<string:lobbyKey>")
+@app.route("/g/<string:lobbyKey>", methods=["GET"])
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 32:
         quart.abort(404)
@@ -300,13 +314,21 @@ async def serve_http_lobbykey(lobbyKey):
         keyValid = lobbyKey in LobbyKeys
     if keyValid:
         token = await create_token()
-        return await serve_dynamic_file(
-            "play.html",
-            { "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }
-        )
+        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
-        
+
+@app.route("/<path:filePath>", methods=["GET"])
+async def serve_static_file(filePath):
+    if not args.nocaptcha:
+        quart.abort(404)
+    rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
+    return await serve_dynamic_file("static/" + filePath, rewrites)
+
+@app.route("/", methods=["GET"])
+async def serve_homepage():
+    return await serve_static_file("index.html")
+    
 #-----------------------Main------------------------------------#
 
 async def main():

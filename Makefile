@@ -8,19 +8,13 @@ WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORM
 WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --embed-file assets --use-preload-plugins -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1073741824
 WEBEXECNAME=plurabus
 WEBEXECOUTPUTDIR=web/static/game
-WEBEXECOUTPUTEXT=.js .wasm
-WEBEXECOUTPUTFILES=$(patsubst %,$(WEBEXECNAME)%,$(WEBEXECOUTPUTEXT))
-WEBEXECOUTPUTFILESPATH=$(patsubst %,$(WEBEXECOUTPUTDIR)/%,$(WEBEXECOUTPUTFILES))
 
 ODIR = obj
 WEBODIR = webobj
 SDIR = src
 IDIR = include
 
-LIBS=-lSDL2 -lSDL2_ttf -lSDL2_image 
-
 DEPS = $(wildcard $(IDIR)/*.h)
-
 SRC = $(wildcard $(SDIR)/*.cpp)
 
 _OBJ = $(patsubst $(SDIR)/%.cpp, %.o, $(SRC))
@@ -48,8 +42,7 @@ all: $(EXECNAME) $(WEBEXECNAME)
 clean:
 	rm -f $(ODIR)/*.o
 	rm -f $(WEBODIR)/*.o
-	rm -f $(WEBEXECOUTPUTFILESPATH)
-	rm -f $(WEBEXECOUTPUTDIR)/*~
+	rm -f $(WEBEXECOUTPUTDIR)/*
 	rm -f $(EXECNAME)
 	rm -f *~
 	rm -f $(SDIR)/*~
