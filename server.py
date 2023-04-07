@@ -15,9 +15,9 @@ import secrets
 import random
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--nocaptcha", help="disable captcha (needs to serve /static)", action="store_true")
+parser.add_argument("--test", help="disable captcha and serve static", action="store_true")
 args = parser.parse_args()
-if not args.nocaptcha:
+if not args.test:
     from google.cloud import recaptchaenterprise_v1
 
 FRAME_DELAY = 0.010
@@ -289,7 +289,7 @@ async def serve_http_dynamic():
     except Exception as e:
         quart.abort(400)
     recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
-    if not args.nocaptcha:
+    if not args.test:
         if actionString == "" or recaptchaToken == "":
             quart.abort(400)
         assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
@@ -320,7 +320,7 @@ async def serve_http_lobbykey(lobbyKey):
 
 @app.route("/<path:filePath>", methods=["GET"])
 async def serve_static_file(filePath):
-    if not args.nocaptcha:
+    if not args.test:
         quart.abort(404)
     rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
     return await serve_dynamic_file("static/" + filePath, rewrites)
