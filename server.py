@@ -81,9 +81,9 @@ NoCaptchaRewriteFiles = [
     "index.html"
 ]
 NoCaptchaRewrites = {
-    'buttonClick("public")' : "document.getElementById('publicform').submit()",
-    'buttonClick("private")' : "document.getElementById('privateform').submit()",
-    '<script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"></script>' : ""
+    'buttonClick("public")' : 'document.getElementById("publicform").submit()',
+    'buttonClick("private")' : 'document.getElementById("privateform").submit()',
+    '<script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"></script>' : ''
 }
 
 #-------------------------Shared resource access------------------------------
@@ -147,8 +147,8 @@ async def serve_dynamic_file(path, textMap, wasm = True):
         quart.abort(404)
     async with await template.open("rb") as f:
         body = await f.read()
-    for key in textMap:
-        body = body.replace(key.encode(), textMap[key].encode())
+    for key, value in textMap.items():
+        body = body.replace(key.encode(), value.encode())
     response = await quart.make_response(body)
     response.headers["Content-Type"] = ContentTypes[template.suffix]
     response.headers["Content-Security-Policy"] = WasmCSP if wasm else DefaultCSP
@@ -323,7 +323,7 @@ async def serve_static_file(filePath):
     if not args.test:
         quart.abort(404)
     rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-    return await serve_dynamic_file("static/" + filePath, rewrites)
+    return await serve_dynamic_file("static/" + filePath, rewrites, wasm = False)
 
 @app.route("/", methods=["GET"])
 async def serve_homepage():
