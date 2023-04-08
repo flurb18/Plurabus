@@ -98,7 +98,7 @@ class SharedResource:
         self.var = initvar
         self.lock = trio.Lock()
 
-Tokens = SharedResource([])
+Tokens = SharedResource({})
 LobbyKeys = SharedResource([])
 PublicQueue = SharedResource([])
 PrivateGames = SharedResource({})
@@ -110,12 +110,12 @@ async def remove_shared_later(element, shared, lifetime):
     await trio.sleep(lifetime)
     async with shared.lock:
         if element in shared.var:
-            shared.var.remove(element)
+            shared.var.remove(element) if isinstance(shared.var, list) else shared.var.pop(element)
 
-async def create_token():
+async def create_token(remote):
     token = uuid.uuid4().hex
     async with Tokens.lock:
-        Tokens.var.append(token)
+        Tokens.var.update({ token : remote })
     app.nursery.start_soon(remove_shared_later, token, Tokens, TOKEN_LIFETIME)
     return token
 
@@ -189,7 +189,7 @@ async def serve_game_websocket(websocket):
         async with Tokens.lock:
             tokenValid = firstMessage in Tokens.var
             if tokenValid:
-                Tokens.var.remove(firstMessage)
+                tokenValid = tokenValid and (Tokens.var.pop(firstMessage) == websocket.remote_addr)
         if not tokenValid:
             return
         pairString = await websocket.receive()
@@ -310,7 +310,7 @@ async def serve_http_dynamic():
             assessment.risk_analysis.score < 0.5):
             quart.abort(401, "Failed captcha")
     if (actionString == "public"):
-        token = await create_token()
+        token = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING })
     elif (actionString == "private"):
         lobbyKey = await create_lobby_key()
@@ -325,7 +325,7 @@ async def serve_http_lobbykey(lobbyKey):
     async with LobbyKeys.lock:
         keyValid = lobbyKey in LobbyKeys.var
     if keyValid:
-        token = await create_token()
+        token = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
