@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 
 import trio
+import warnings
+
+warnings.filterwarnings(action="ignore", category=trio.TrioDeprecationWarning)
+
 import asyncio
 import trio_asyncio
 import quart
 import quart_trio
 import hypercorn
+from wsproto.utilities import LocalProtocolError
 import json
 from urllib.parse import parse_qs
 import argparse
@@ -245,6 +250,8 @@ async def serve_playercount_websocket():
                 message = "Players Online: " + str(PlayerCount)
             await quart.websocket.send(message)
             await trio.sleep(NUMPLAYERS_REFRESH_TIME)
+    except* LocalProtocolError:
+        pass
     finally:
         with trio.CancelScope(shield = True):
             async with CountLock:
@@ -257,6 +264,8 @@ async def serve_game_websocket_wrapper():
         PlayerCount += 1
     try:
         await serve_game_websocket(quart.websocket._get_current_object())
+    except* LocalProtocolError:
+        pass
     finally:
         with trio.CancelScope(shield = True):
             async with CountLock:
