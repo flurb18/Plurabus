@@ -25,6 +25,7 @@ args = parser.parse_args()
 if not args.test:
     from google.cloud import recaptchaenterprise_v1
 
+OUTPUT_BUFFER_FLUSH_INTERVAL = 15
 FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
@@ -41,13 +42,9 @@ PROJECT_ID = "skillful-garden-379804"
 PUBLIC_PAIRSTRING = "default"
 
 ServerRoot = trio.Path(str(pathlib.Path(__file__).parent.resolve()))
+LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
 
 app = quart_trio.QuartTrio(__name__)
-
-cfg = hypercorn.config.Config()
-cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
-cfg.workers = 1
-cfg.websocket_ping_interval = 5.0
 
 #----------------------Header Definitions---------------------------
 
@@ -98,6 +95,7 @@ class SharedResource:
         self.var = initvar
         self.lock = trio.Lock()
 
+OutputBuffer = SharedResource([])
 Tokens = SharedResource({})
 LobbyKeys = SharedResource([])
 PublicQueue = SharedResource([])
@@ -162,6 +160,10 @@ async def serve_dynamic_file(path, textMap, wasm = True):
 #--------------------Main game Websocket methods--------------------
     
 async def timer_loop(websocket):
+    async with SessionGamesPlayed.lock:
+        SessionGamesPlayed.var += 1
+    async with OutputBuffer.lock:
+        OutputBuffer.var.append("Game started, paired "+websocket.remote_addr+" with "+websocket.pairedClient.remote_addr+"\n")
     for _ in range(GAME_LIFETIME):
         await trio.sleep(1)
         await websocket.send("TIMER")
@@ -192,6 +194,8 @@ async def serve_game_websocket(websocket):
                 tokenValid = tokenValid and (Tokens.var.pop(firstMessage) == websocket.remote_addr)
         if not tokenValid:
             return
+        async with OutputBuffer.lock:
+            OutputBuffer.var.append("Accepted game connection, remote "+websocket.remote_addr+"\n")
         pairString = await websocket.receive()
         websocket.foundPartner = False
         websocket.readyForGame = trio.Event()
@@ -234,8 +238,6 @@ async def serve_game_websocket(websocket):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(game_loop, websocket)
             if (websocket.player == 0):
-                async with SessionGamesPlayed.lock:
-                    SessionGamesPlayed.var += 1
                 nursery.start_soon(timer_loop, websocket)
 
     
@@ -340,11 +342,44 @@ async def serve_static_file(filePath):
 @app.route("/", methods=["GET"])
 async def serve_homepage():
     return await serve_static_file("index.html")
-    
+
+#----------------------Accept proxy header middleware-----------#
+
+class ProxyMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if "headers" not in scope:
+            return await self.app(scope, receive, send)
+        for header, value in scope["headers"]:
+            if header == b"x-forwarded-for":
+                scope["client"] = (value.decode("utf-8"), None)
+        return await self.app(scope, receive, send)
+
 #-----------------------Main------------------------------------#
 
-async def main():
+async def flush_output_buffer_loop():
+    async with await LogFile.open("a") as f:
+        while(True):
+            await trio.sleep(OUTPUT_BUFFER_FLUSH_INTERVAL)
+            async with OutputBuffer.lock:
+                await f.writelines(OutputBuffer.var)
+                await f.flush()
+                OutputBuffer.var.clear()
+
+async def main_app():
+    cfg = hypercorn.config.Config()
+    cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
+    cfg.workers = 1
+    cfg.websocket_ping_interval = 5.0
+    app.asgi_app = ProxyMiddleware(app.asgi_app)
     await hypercorn.trio.serve(app, cfg)
+
+async def main():
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(main_app)
+        nursery.start_soon(flush_output_buffer_loop)
     
 if __name__ == "__main__":
     trio_asyncio.run(main)
