@@ -96,32 +96,32 @@ class SharedResource:
         self.lock = trio.Lock()
 
 OutputBuffer = SharedResource([])
-Tokens = SharedResource({})
-LobbyKeys = SharedResource([])
 PublicQueue = SharedResource([])
 PrivateGames = SharedResource({})
+Tokens = SharedResource({})
 PlayerCount = SharedResource(0)
 HomepageViewerCount = SharedResource(0)
 SessionGamesPlayed = SharedResource(0)
 
-async def remove_shared_later(element, shared, lifetime):
+async def remove_shared_later(key, shared, lifetime):
     await trio.sleep(lifetime)
     async with shared.lock:
-        if element in shared.var:
-            shared.var.remove(element) if isinstance(shared.var, list) else shared.var.pop(element)
+        if key in shared.var:
+            shared.var.pop(key)
 
+async def set_shared(key, value, shared, lifetime):
+    async with shared.lock:
+        shared.var.update({ key : value })
+    app.nursery.start_soon(remove_shared_later, key, shared, lifetime)
+            
 async def create_token(remote):
     token = uuid.uuid4().hex
-    async with Tokens.lock:
-        Tokens.var.update({ token : remote })
-    app.nursery.start_soon(remove_shared_later, token, Tokens, TOKEN_LIFETIME)
+    await set_shared(token, remote, Tokens, TOKEN_LIFETIME)
     return token
 
 async def create_lobby_key():
     lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
-    async with LobbyKeys.lock:
-        LobbyKeys.var.append(lobbyKey)
-    app.nursery.start_soon(remove_shared_later, lobbyKey, LobbyKeys, LOBBY_KEY_LIFETIME)
+    await set_shared(lobbyKey, "", PrivateGames, LOBBY_KEY_LIFETIME)
     return lobbyKey
 
 #---------------------------------Captcha--------------------------------------
@@ -202,20 +202,24 @@ async def serve_game_websocket(websocket):
         public = (pairString == PUBLIC_PAIRSTRING)
         lock = PublicQueue.lock if public else PrivateGames.lock
         async with lock:
-            if (public and PublicQueue.var) or (not public and pairString in PrivateGames.var):
-                partner = PublicQueue.var.pop(0) if public else PrivateGames.var.pop(pairString)
+            if public and PublicQueue.var:
+                partner = PublicQueue.var.pop(0)
+                websocket.foundPartner = True
+            elif (not public) and (pairString in PrivateGames.var) and (not PrivateGames.var[pairString] == ""):
+                partner = PrivateGames.var.pop(pairString)
+                websocket.foundPartner = True
+            if websocket.foundPartner:
                 websocket.pairedClient = partner
                 partner.pairedClient = websocket
                 websocket.player = random.randint(0,1)
                 partner.player = 1 - websocket.player
-                websocket.foundPartner = True
                 partner.foundPartner = True
             else:
                 PublicQueue.var.append(websocket) if public else PrivateGames.var.update({pairString : websocket})
-        if websocket.foundPartner:
-            await websocket.send(pairString)
-            await websocket.pairedClient.send(pairString)
         try:
+            if websocket.foundPartner:
+                await websocket.send(pairString)
+                await websocket.pairedClient.send(pairString)
             readymsg = await websocket.receive()
         finally:
             with trio.CancelScope(shield = True):
@@ -282,12 +286,10 @@ async def serve_http_serverinfo():
         info.update({"on_homepage" : str(HomepageViewerCount.var)})
     async with Tokens.lock:
         info.update({"tokens_active" : str(len(Tokens.var))})
-    async with LobbyKeys.lock:
-        info.update({"lobby_keys_active" : str(len(LobbyKeys.var))})
     async with PublicQueue.lock:
         info.update({"queue_size" : str(len(PublicQueue.var))})
     async with PrivateGames.lock:
-        info.update({"private_games_waiting" : str(len(PrivateGames.var))})
+        info.update({"private_games_active" : str(len(PrivateGames.var))})
     async with SessionGamesPlayed.lock:
         info.update({"session_games_played" : str(SessionGamesPlayed.var)})
     response = await quart.make_response(json.dumps(info).encode())
@@ -324,8 +326,8 @@ async def serve_http_dynamic():
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 32:
         quart.abort(404)
-    async with LobbyKeys.lock:
-        keyValid = lobbyKey in LobbyKeys.var
+    async with PrivateGames.lock:
+        keyValid = lobbyKey in PrivateGames.var
     if keyValid:
         token = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
