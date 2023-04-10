@@ -15,10 +15,7 @@ import json
 from time import strftime
 from urllib.parse import parse_qs
 import argparse
-import pathlib
-import uuid
 import secrets
-import random
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--test", help="disable captcha and serve static", action="store_true")
@@ -31,18 +28,20 @@ FRAME_DELAY = 0.010
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
-TOKEN_LENGTH = 32
+TOKEN_BYTES = 32
+TOKEN_LENGTH = TOKEN_BYTES * 2
 LOBBY_KEY_LIFETIME = 180
-LOBBY_KEY_BYTES = 12
+LOBBY_KEY_BYTES = 16
 GAME_LIFETIME = 1203
 STARTUP_TIMEOUT = 300
 FRAME_TIMEOUT = 5
+WEBSOCKET_PING_INTERVAL = 10
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 PUBLIC_PAIRSTRING = "default"
 
-ServerRoot = trio.Path(str(pathlib.Path(__file__).parent.resolve()))
+ServerRoot = trio.Path(__file__).parent
 LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
 
 app = quart_trio.QuartTrio(__name__)
@@ -116,7 +115,7 @@ async def set_shared(key, value, shared, lifetime):
     app.nursery.start_soon(remove_shared_later, key, shared, lifetime)
             
 async def create_token(remote):
-    token = uuid.uuid4().hex
+    token = secrets.token_hex(TOKEN_BYTES)
     await set_shared(token, remote, Tokens, TOKEN_LIFETIME)
     return token
 
@@ -240,7 +239,7 @@ async def serve_game_websocket(websocket):
             if websocket.foundPartner:
                 websocket.pairedClient = partner
                 partner.pairedClient = websocket
-                websocket.player = random.randint(0,1)
+                websocket.player = secrets.choice([0,1])
                 partner.player = 1 - websocket.player
                 partner.foundPartner = True
             else:
@@ -356,7 +355,7 @@ async def serve_http_dynamic():
             
 @app.route("/g/<string:lobbyKey>", methods=["GET"])
 async def serve_http_lobbykey(lobbyKey):
-    if len(lobbyKey) > 32:
+    if len(lobbyKey) > 2 * LOBBY_KEY_BYTES:
         quart.abort(404)
     async with PrivateGames.lock:
         keyValid = lobbyKey in PrivateGames.var
@@ -397,7 +396,7 @@ async def main_app():
     cfg = hypercorn.config.Config()
     cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
     cfg.workers = 1
-    cfg.websocket_ping_interval = 5.0
+    cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = ProxyMiddleware(app.asgi_app)
     await log("Starting server\n")
     await hypercorn.trio.serve(app, cfg)
