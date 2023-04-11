@@ -58,23 +58,6 @@ ContentTypes = {
     ".json" : "application/json",
     ".wasm" : "application/wasm"
 }
-CSPDict = {
-    "script-src" : "'self' https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/;",
-    "img-src" : "'self';",
-    "frame-src" : "'self' https://www.recaptcha.net/recaptcha/;",
-    "connect-src" : "'self' https://fonts.googleapis.com/ https://fonts.gstatic.com/;",
-    "style-src" : "'self' https://fonts.googleapis.com/;",
-    "default-src" : "'self' https://fonts.gstatic.com/;",
-    "frame-ancestors" : "'self';"
-}
-WasmCSPDict = CSPDict.copy()
-WasmCSPDict["script-src"] = "'unsafe-eval' " + CSPDict["script-src"]
-
-def create_csp(CSP):
-    return " ".join("{} {}".format(k,v) for k,v in CSP.items())
-
-DefaultCSP = create_csp(CSPDict)
-WasmCSP = create_csp(WasmCSPDict)
 
 #---------------Definitions for captcha-disabled version---------------------
 
@@ -165,7 +148,7 @@ def get_prompt(handle, printpaired=True):
         prompt = f"[{strftime('%c')} {handle.remote_addr}]"
     return prompt
 
-async def serve_dynamic_file(path, textMap, wasm):
+async def serve_dynamic_file(path, textMap):
     try:
         template = await ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
@@ -178,7 +161,6 @@ async def serve_dynamic_file(path, textMap, wasm):
         body = body.replace(key.encode(), value.encode())
     response = await quart.make_response(body)
     response.headers["Content-Type"] = ContentTypes[template.suffix]
-    response.headers["Content-Security-Policy"] = WasmCSP if wasm else DefaultCSP
     return response
 
 
@@ -324,7 +306,6 @@ async def serve_http_serverinfo():
         info.update({"session_games_played" : str(SessionGamesPlayed.var)})
     response = await quart.make_response(json.dumps(info).encode())
     response.headers["Content-Type"] = ContentTypes[".json"]
-    response.headers["Content-Security-Policy"] = DefaultCSP
     return response
                 
 @app.route("/d/action", methods=["POST"])
@@ -346,10 +327,10 @@ async def serve_http_dynamic():
             quart.abort(401, "Failed captcha")
     if (actionString == "public"):
         token = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING }, True)
+        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING })
     elif (actionString == "private"):
         lobbyKey = await create_lobby_key()
-        return await serve_dynamic_file("private.html",{ "KEY_PLACEHOLDER" : lobbyKey }, False)
+        return await serve_dynamic_file("private.html",{ "KEY_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
             
@@ -361,7 +342,7 @@ async def serve_http_lobbykey(lobbyKey):
         keyValid = lobbyKey in PrivateGames.var
     if keyValid:
         token = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey }, True)
+        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
 
@@ -370,7 +351,7 @@ async def serve_static_file(filePath):
     if not args.test:
         quart.abort(404)
     rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-    return await serve_dynamic_file("static/" + filePath, rewrites, False)
+    return await serve_dynamic_file("static/" + filePath, rewrites)
 
 @app.route("/", methods=["GET"])
 async def serve_homepage():
