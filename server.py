@@ -131,7 +131,7 @@ async def flush_output_buffer_loop():
 
 async def log(string, opt=None):
     if opt is None:
-        prompt = "SERVER"
+        prompt = "Server"
     elif hasattr(opt, "remote_addr"):
         prompt = opt.remote_addr
     elif isinstance(opt, Lobby):
@@ -188,9 +188,7 @@ class Matchmaker:
     async def service_queue(self):
         async with trio.open_nursery() as nursery:
             while(True):
-                command = (await self.queue[1].receive()).split(".")
-                directive = command[0]
-                identifier = command[1]
+                directive, identifier = (await self.queue[1].receive()).split(".")
                 async with Connections.lock:
                     websocket = Connections.var.get(identifier, None)
                 if websocket is None:
@@ -203,6 +201,7 @@ class Matchmaker:
                 if directive == ADD_DIRECTIVE:
                     if (public and self.publicLobbies) or (not public and websocket.pairString in self.privateLobbies):
                         lobbies[index].players.append(websocket)
+                        websocket.lobby = lobbies[index]
                         await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
                         if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
                             nursery.start_soon(lobbies.pop(index).game)
@@ -211,21 +210,17 @@ class Matchmaker:
                         await log("Created lobby", opt=lobby)
                         lobbies.append(lobby) if public else lobbies.update({ index : lobby })
                 elif directive == REMOVE_DIRECTIVE:
-                    for i in index_set:
-                        lobby = lobbies[i]
-                        breaker = False
-                        for player in lobby.players:
-                            if player.identifier == identifier:
-                                lobby.players.remove(player)
-                                await log(f"Removed player {websocket.remote_addr}", opt=lobby)
-                                if (len(lobby.players) == 0):
-                                    await log(f"Removed lobby", opt=lobbies.pop(i))
-                                breaker = True
-                                break
-                        if breaker:
-                            break
+                    if hasattr(websocket, "lobby"):
+                        websocket.lobby.players.remove(websocket)
+                        await log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
+                        if len(websocket.lobby.players) == 0:
+                            try:
+                                lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
+                                await log("Removed lobby from queue", opt=websocket.lobby)
+                            except (KeyError, ValueError):
+                                pass
                 await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
-            
+
 #--------------------Main game class--------------------------
 
 class Lobby:
@@ -233,6 +228,7 @@ class Lobby:
         self.players = [websocket]
         self.pairString = websocket.pairString
         self.desiredNumPlayers = desiredNumPlayers
+        websocket.lobby = self
 
     async def broadcast(self, msg, indexes):
         for index in indexes:
