@@ -41,6 +41,7 @@ PUBLIC_PAIRSTRING = "public"
 TOKEN_COOKIE_NAME = "_PLURABUS_TOKEN_"
 ADD_DIRECTIVE = "ADD"
 REMOVE_DIRECTIVE = "REMOVE"
+END_DIRECTIVE = "END"
 
 ServerRoot = trio.Path(__file__).parent
 LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
@@ -159,19 +160,24 @@ async def serve_dynamic_file(path, textMap, token=None):
         
 class Matchmaker:
     def __init__(self):
-        self.queue = trio.open_memory_channel(0)
+        self.send_channel, self.receive_channel = trio.open_memory_channel(0)
         self.lobbyKeys = SharedResource([])
         self.publicLobbies = []
+        self.runningLobbies = []
         self.privateLobbies = {}
         
     async def add_player_id(self, identifier):
-        async with self.queue[0].clone() as sender:
+        async with self.send_channel.clone() as sender:
             await sender.send(f"{ADD_DIRECTIVE}.{identifier}")
 
     async def remove_player_id(self, identifier):
-        async with self.queue[0].clone() as sender:
+        async with self.send_channel.clone() as sender:
             await sender.send(f"{REMOVE_DIRECTIVE}.{identifier}")
 
+    async def end(self):
+        async with self.send_channel.clone() as sender:
+            await sender.send(f"{END_DIRECTIVE}.")
+            
     async def create_lobby_key(self):
         lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
         async with self.lobbyKeys.lock:
@@ -183,7 +189,11 @@ class Matchmaker:
     async def service_queue(self):
         async with trio.open_nursery() as nursery:
             while(True):
-                directive, identifier = (await self.queue[1].receive()).split(".")
+                directive, identifier = (await self.receive_channel.receive()).split(".")
+                if directive == END_DIRECTIVE:
+                    await log("Shutting down matchmaking loop", opt=self)
+                    nursery.cancel_scope.cancel()
+                    return
                 async with Connections.lock:
                     websocket = Connections.var.get(identifier, None)
                 if websocket is None:
@@ -194,26 +204,33 @@ class Matchmaker:
                 lobbies = self.publicLobbies if public else self.privateLobbies
                 index_set = range(len(lobbies)) if public else lobbies.keys()
                 if directive == ADD_DIRECTIVE:
-                    if (public and self.publicLobbies) or (not public and websocket.pairString in self.privateLobbies):
+                    if (public and lobbies) or (not public and index in lobbies):
                         lobbies[index].players.append(websocket)
                         websocket.lobby = lobbies[index]
                         await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
                         if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
-                            nursery.start_soon(lobbies.pop(index).game)
+                            startLobby = lobbies.pop(index)
+                            startLobby.started = True
+                            self.runningLobbies.append(startLobby)
+                            nursery.start_soon(startLobby.game)
                     else:
                         lobby = Lobby(websocket, 2)
                         await log("Created lobby", opt=lobby)
                         lobbies.append(lobby) if public else lobbies.update({ index : lobby })
                 elif directive == REMOVE_DIRECTIVE:
                     if hasattr(websocket, "lobby"):
-                        websocket.lobby.players.remove(websocket)
-                        await log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
-                        if len(websocket.lobby.players) == 0:
-                            try:
-                                lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
-                                await log("Removed lobby from queue", opt=websocket.lobby)
-                            except (KeyError, ValueError):
-                                pass
+                        if not websocket.lobby.started:
+                            websocket.lobby.players.remove(websocket)
+                            await log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
+                            if len(websocket.lobby.players) == 0:
+                                try:
+                                    lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
+                                    await log("Removed lobby from queue", opt=websocket.lobby)
+                                except (KeyError, ValueError):
+                                    pass
+                        else:
+                            if websocket.lobby in self.runningLobbies:
+                                self.runningLobbies.remove(websocket.lobby)
                     async with Connections.lock:
                         Connections.var.pop(identifier)
                 await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
@@ -225,12 +242,11 @@ class Lobby:
         self.players = [websocket]
         self.pairString = websocket.pairString
         self.desiredNumPlayers = desiredNumPlayers
+        self.started = False
         websocket.lobby = self
 
     async def broadcast(self, msg, indexes):
-        for index in indexes:
-            websocket = self.players[index]
-            await websocket.send(msg)
+        [await self.players[index].send(msg) for index in indexes]
         
     async def timer_loop(self, scope):
         for _ in range(GAME_LIFETIME):
@@ -328,11 +344,7 @@ async def serve_game_websocket():
     finally:
         with trio.CancelScope(shield = True):
             await log("Ending connection", opt=websocket)
-            if not websocket.gameStarted.is_set():
-                await MainMatchmaker.remove_player_id(identifier)
-            else:
-                async with Connections.lock:
-                    Connections.var.pop(identifier)
+            await MainMatchmaker.remove_player_id(identifier)
 
 @app.route("/d/serverinfo", methods=["GET"])
 async def serve_http_serverinfo():
@@ -394,7 +406,7 @@ async def serve_static_file(filePath):
     if not args.test:
         quart.abort(404)
     rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-    return await serve_dynamic_file(f"static/{filepath}", rewrites)
+    return await serve_dynamic_file(f"static/{filePath}", rewrites)
 
 @app.route("/", methods=["GET"])
 async def serve_homepage():
@@ -428,10 +440,14 @@ async def main_app():
     await hypercorn.trio.serve(app, cfg)
 
 async def main():
-    async with trio.open_nursery() as nursery:
-        nursery.start_soon(main_app)
-        nursery.start_soon(flush_output_buffer_loop)
-        nursery.start_soon(MainMatchmaker.service_queue)
-    
+    try:
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(main_app)
+            nursery.start_soon(flush_output_buffer_loop)
+            nursery.start_soon(MainMatchmaker.service_queue)
+    finally:
+        with trio.CancelScope(shield=True):
+            await MainMatchmaker.end()
+
 if __name__ == "__main__":
     trio_asyncio.run(main)
