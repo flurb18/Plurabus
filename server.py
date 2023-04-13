@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 
 import trio
-import warnings
-
-warnings.filterwarnings(action="ignore", category=trio.TrioDeprecationWarning)
-
 import asyncio
 import trio_asyncio
 import quart
 import quart_trio
 import hypercorn
-from wsproto.utilities import LocalProtocolError
 import json
 from time import strftime
 from urllib.parse import parse_qs
 import argparse
+import random
 import secrets
 
 parser = argparse.ArgumentParser()
@@ -24,7 +20,7 @@ if not args.test:
     from google.cloud import recaptchaenterprise_v1
 
 OUTPUT_BUFFER_FLUSH_INTERVAL = 15
-FRAME_DELAY = 0.010
+FRAME_DELAY = 0.030
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
@@ -32,10 +28,12 @@ TOKEN_BYTES = 32
 TOKEN_LENGTH = TOKEN_BYTES * 2
 LOBBY_KEY_LIFETIME = 180
 LOBBY_KEY_BYTES = 16
+ID_BYTES = 24
 GAME_LIFETIME = 1203
 STARTUP_TIMEOUT = 300
 FRAME_TIMEOUT = 5
 WEBSOCKET_PING_INTERVAL = 10
+MATCHMAKER_SERVICE_SLEEPTIME = 0.01
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
@@ -79,33 +77,28 @@ class SharedResource:
         self.lock = trio.Lock()
 
 OutputBuffer = SharedResource([])
-PublicQueue = SharedResource([])
-PrivateGames = SharedResource({})
 Tokens = SharedResource({})
-PlayerCount = SharedResource(0)
+Connections = SharedResource({})
 HomepageViewerCount = SharedResource(0)
 SessionGamesPlayed = SharedResource(0)
+
+async def in_shared(key, shared):
+    async with shared.lock:
+        ret = key in shared.var
+    return ret
 
 async def remove_shared_later(key, shared, lifetime):
     await trio.sleep(lifetime)
     async with shared.lock:
         if key in shared.var:
-            shared.var.pop(key)
+            shared.var.remove(key) if isinstance(shared.var, list) else shared.var.pop(key)
 
-async def set_shared(key, value, shared, lifetime):
-    async with shared.lock:
-        shared.var.update({ key : value })
-    app.nursery.start_soon(remove_shared_later, key, shared, lifetime)
-            
 async def create_token(remote):
     token = secrets.token_hex(TOKEN_BYTES)
-    await set_shared(token, remote, Tokens, TOKEN_LIFETIME)
+    async with Tokens.lock:
+        Tokens.var.update({token : remote })
+    app.nursery.start_soon(remove_shared_later, token, Tokens, TOKEN_LIFETIME)
     return token
-
-async def create_lobby_key():
-    lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
-    await set_shared(lobbyKey, "", PrivateGames, LOBBY_KEY_LIFETIME)
-    return lobbyKey
 
 #---------------------------------Captcha--------------------------------------
 
@@ -133,21 +126,19 @@ async def flush_output_buffer_loop():
                 await f.flush()
                 OutputBuffer.var.clear()
 
-async def log(string):
+async def log(string, opt=None):
+    if opt is None:
+        prompt = "SERVER"
+    elif hasattr(opt, "remote_addr"):
+        prompt = opt.remote_addr
+    elif isinstance(opt, Lobby):
+        prompt = f"{opt.pairString[:7]} "
+        prompt += " ".join([player.remote_addr for player in opt.players])
+    elif isinstance(opt, Matchmaker):
+        prompt = "MatchMaker"
     async with OutputBuffer.lock:
-        OutputBuffer.var.append(string)
-            
-async def log_exception_group(egrp):
-    for e in egrp.exceptions:
-        await log(f"{str(e)}\n")
-
-def get_prompt(handle, printpaired=True):
-    if hasattr(handle, "pairedClient") and printpaired:
-        prompt = f"[{strftime('%c')} {handle.remote_addr} - {handle.pairedClient.remote_addr}]"
-    else:
-        prompt = f"[{strftime('%c')} {handle.remote_addr}]"
-    return prompt
-
+        OutputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
+        
 async def serve_dynamic_file(path, textMap):
     try:
         template = await ServerRoot.joinpath("web").joinpath(path).resolve()
@@ -163,97 +154,106 @@ async def serve_dynamic_file(path, textMap):
     response.headers["Content-Type"] = ContentTypes[template.suffix]
     return response
 
+#--------------------------Matchmaking------------------------------
+        
+class Matchmaker:
+    def __init__(self):
+        self.queue = trio.open_memory_channel(0)
+        self.lobbyKeys = SharedResource([])
+        self.publicLobbies = []
+        self.privateLobbies = {}
+        
+    async def add_player_id(self, identifier):
+        async with self.queue[0].clone() as sender:
+            await sender.send(identifier)
 
-#--------------------Main game Websocket methods--------------------
-    
-async def timer_loop(websocket):
-    async with SessionGamesPlayed.lock:
-        SessionGamesPlayed.var += 1
-        await log(f"{get_prompt(websocket)} Game started\n")
-    try:
+    async def create_lobby_key(self):
+        lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
+        async with self.lobbyKeys.lock:
+            self.lobbyKeys.var.append(lobbyKey)
+        app.nursery.start_soon(remove_shared_later, lobbyKey, self.lobbyKeys, LOBBY_KEY_LIFETIME)
+        return lobbyKey
+
+    async def service_queue(self):
+        async with trio.open_nursery() as nursery:
+            while(True):
+                identifier = await self.queue[1].receive()
+                async with Connections.lock:
+                    websocket = Connections.var.get(identifier, None)
+                if websocket is None:
+                    continue
+                await log("Servicing from queue", opt=websocket)
+                public = (websocket.pairString == PUBLIC_PAIRSTRING)
+                index = 0 if public else websocket.pairString
+                lobbies = self.publicLobbies if public else self.privateLobbies
+                if (public and self.publicLobbies) or (not public and websocket.pairString in self.privateLobbies):
+                    lobbies[index].players.append(websocket)
+                    await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
+                    if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
+                        nursery.start_soon(lobbies.pop(index).game)
+                else:
+                    lobby = Lobby(websocket, 2)
+                    await log("Created lobby", opt=lobby)
+                    lobbies.append(lobby) if public else lobbies.update({ index : lobby })
+                await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
+            
+#--------------------Main game class--------------------------
+
+class Lobby:
+    def __init__(self, websocket, desiredNumPlayers):
+        self.players = [websocket]
+        self.pairString = websocket.pairString
+        self.desiredNumPlayers = desiredNumPlayers
+
+    async def broadcast(self, msg, indexes):
+        for index in indexes:
+            websocket = self.players[index]
+            await websocket.send(msg)
+        
+    async def timer_loop(self, scope):
         for _ in range(GAME_LIFETIME):
             await trio.sleep(1)
-            await websocket.send("TIMER")
-            await websocket.pairedClient.send("TIMER")
-        await websocket.send("TIMEOUT")
-        await websocket.pairedClient.send("TIMEOUT")
-    finally:
-        with trio.CancelScope(shield=True):
-            await log(f"{get_prompt(websocket)} Game ended\n")
+            with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+                await self.broadcast("TIMER", range(len(self.players)))
+            if cancel_scope.cancelled_caught:
+                scope.cancel()
+                return
+        with trio.move_on_after(FRAME_TIMEOUT):
+            await self.broadcast("TIMEOUT", range(len(self.players)))
 
-async def game_loop(websocket):
-    while (True):
-        with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+    async def game_loop(self, scope):
+        while (True):
             await trio.sleep(FRAME_DELAY)
-            msg = await websocket.receive()
-            await websocket.pairedClient.send(msg)
-        if cancel_scope.cancelled_caught:
-            await websocket.send("FRAME_TIMEOUT")
-            await log(f"{get_prompt(websocket, printpaired=False)} Frame timeout\n")
-            return
-    
-async def serve_game_websocket(websocket):
-    with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
-        firstMessage = await websocket.receive()
-        if not isinstance(firstMessage, str) or len(firstMessage) != TOKEN_LENGTH:
-            await log(f"{get_prompt(websocket)} Token malformed\n")
-            return
-        async with Tokens.lock:
-            tokenValid = firstMessage in Tokens.var
-            if tokenValid:
-                tokenValid = tokenValid and (Tokens.var.pop(firstMessage) == websocket.remote_addr)
-        if not tokenValid:
-            await log(f"{get_prompt(websocket)} Invalid token received\n")
-            return
-        await log(f"{get_prompt(websocket)} Accepted game connection\n")
-        pairString = await websocket.receive()
-        websocket.foundPartner = False
-        websocket.readyForGame = trio.Event()
-        public = (pairString == PUBLIC_PAIRSTRING)
-        lock = PublicQueue.lock if public else PrivateGames.lock
-        async with lock:
-            if public and PublicQueue.var:
-                partner = PublicQueue.var.pop(0)
-                websocket.foundPartner = True
-            elif (not public) and (pairString in PrivateGames.var) and (not PrivateGames.var[pairString] == ""):
-                partner = PrivateGames.var.pop(pairString)
-                websocket.foundPartner = True
-            if websocket.foundPartner:
-                websocket.pairedClient = partner
-                partner.pairedClient = websocket
-                websocket.player = secrets.choice([0,1])
-                partner.player = 1 - websocket.player
-                partner.foundPartner = True
-            else:
-                PublicQueue.var.append(websocket) if public else PrivateGames.var.update({pairString : websocket})
-        try:
-            if websocket.foundPartner:
-                await websocket.send(pairString)
-                await websocket.pairedClient.send(pairString)
-            readymsg = await websocket.receive()
-        finally:
-            with trio.CancelScope(shield = True):
-                if not websocket.foundPartner:
-                    async with lock:
-                        PublicQueue.var.remove(websocket) if public else PrivateGames.var.pop(pairString)
+            for index in range(len(self.players)):
+                with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+                    msg = await self.players[index].receive()
+                    await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])
+                if cancel_scope.cancelled_caught:
+                    scope.cancel()
                     return
 
-        await websocket.send("P"+str(websocket.player + 1))
-        setmsg = await websocket.receive()
-
-        websocket.readyForGame.set()
-        await websocket.pairedClient.readyForGame.wait()
-    
-        if (websocket.player == 0):
-            await websocket.send("Go")
-            startmsg = await websocket.receive()
-
-    if not cancel_scope.cancelled_caught:
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(game_loop, websocket)
-            if (websocket.player == 0):
-                nursery.start_soon(timer_loop, websocket)
-    
+    async def game(self):
+        random.shuffle(self.players)
+        for playernum in range(len(self.players)):
+            websocket = self.players[playernum]
+            await websocket.send(self.pairString)
+            readymsg = await websocket.receive()
+            await websocket.send("P"+str(playernum + 1))
+            setmsg = await websocket.receive()
+            if (playernum == 0):
+                await websocket.send("Go")
+                startmsg = await websocket.receive()
+            websocket.gameStarted.set()
+        await log("Game started", opt=self)
+        async with SessionGamesPlayed.lock:
+            SessionGamesPlayed.var += 1
+        with trio.move_on_after(GAME_LIFETIME+10) as cancel_scope:
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(self.timer_loop, cancel_scope)
+                nursery.start_soon(self.game_loop, cancel_scope)
+        await log("Game finished", opt=self)
+        websocket.gameFinished.set()
+                
 #---------------------Route Handlers-------------------------#
 
 @app.websocket("/d/playercount")
@@ -262,48 +262,63 @@ async def serve_playercount_websocket():
         HomepageViewerCount.var += 1
     try:
         for _ in range(MAX_NUMPLAYERS_REFRESHES):
-            async with PlayerCount.lock:
-                message = "Players Online: " + str(PlayerCount.var)
+            async with Connections.lock:
+                message = f"Players Online: {str(len(Connections.var))}"
             await quart.websocket.send(message)
             await trio.sleep(NUMPLAYERS_REFRESH_TIME)
-    except LocalProtocolError:
-        pass
     finally:
         with trio.CancelScope(shield = True):
             async with HomepageViewerCount.lock:
                 HomepageViewerCount.var -= 1
 
 @app.websocket("/d/game")
-async def serve_game_websocket_wrapper():
-    handle = quart.websocket._get_current_object()
-    await log(f"{get_prompt(handle)} Incoming connection\n")
-    async with PlayerCount.lock:
-        PlayerCount.var += 1
+async def serve_game_websocket():
+    websocket = quart.websocket._get_current_object()
+    identifier = secrets.token_hex(ID_BYTES)
+    await log("Incoming connection", opt=websocket)
+    async with Connections.lock:
+        Connections.var.update({ identifier : websocket })
     try:
-        await serve_game_websocket(handle)
-    except LocalProtocolError:
-        pass
+        with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
+            firstMessage = await websocket.receive()
+            if not isinstance(firstMessage, str) or len(firstMessage) != TOKEN_LENGTH:
+                await log("Malformed token", opt=websocket)
+                cancel_scope.cancel()
+            else:
+                async with Tokens.lock:
+                    tokenValid = firstMessage in Tokens.var
+                    if tokenValid:
+                        tokenValid = tokenValid and (Tokens.var.pop(firstMessage) == websocket.remote_addr)
+                if not tokenValid:
+                    await log("Invalid token", opt=websocket)
+                    cancel_scope.cancel()
+                else:
+                    websocket.pairString = await websocket.receive()
+                    websocket.gameStarted = trio.Event()
+                    websocket.gameFinished = trio.Event()
+                    await MainMatchmaker.add_player_id(identifier)
+                    await websocket.gameStarted.wait()
+        if not cancel_scope.cancelled_caught:
+            await websocket.gameFinished.wait()
     finally:
         with trio.CancelScope(shield = True):
-            await log(f"{get_prompt(handle, printpaired=False)} Ended connection\n")
-            async with PlayerCount.lock:
-                PlayerCount.var -= 1
+            await log("Ending connection", opt=websocket)
+            async with Connections.lock:
+                Connections.var.pop(identifier)
 
 @app.route("/d/serverinfo", methods=["GET"])
 async def serve_http_serverinfo():
     info = {}
-    async with PlayerCount.lock:
-        info.update({"players_online" : str(PlayerCount.var)})
+    async with Connections.lock:
+        info.update({"players_online" : len(Connections.var)})
     async with HomepageViewerCount.lock:
-        info.update({"on_homepage" : str(HomepageViewerCount.var)})
+        info.update({"on_homepage" : HomepageViewerCount.var})
     async with Tokens.lock:
-        info.update({"tokens_active" : str(len(Tokens.var))})
-    async with PublicQueue.lock:
-        info.update({"queue_size" : str(len(PublicQueue.var))})
-    async with PrivateGames.lock:
-        info.update({"private_games_active" : str(len(PrivateGames.var))})
+        info.update({"tokens_active" : len(Tokens.var)})
+    async with MainMatchmaker.lobbyKeys.lock:
+        info.update({"lobby_keys_active" : len(MainMatchmaker.lobbyKeys.var)})
     async with SessionGamesPlayed.lock:
-        info.update({"session_games_played" : str(SessionGamesPlayed.var)})
+        info.update({"session_games_played" : SessionGamesPlayed.var})
     response = await quart.make_response(json.dumps(info).encode())
     response.headers["Content-Type"] = ContentTypes[".json"]
     return response
@@ -314,7 +329,7 @@ async def serve_http_dynamic():
     try:
         postData = await quart.request.get_data()
     except Exception as e:
-        await log(f"Bad POST request\n{str(e)}\n")
+        await log(f"Bad POST request\n{str(e)}")
         quart.abort(400)
     recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
     if not args.test:
@@ -329,7 +344,7 @@ async def serve_http_dynamic():
         token = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING })
     elif (actionString == "private"):
-        lobbyKey = await create_lobby_key()
+        lobbyKey = await MainMatchmaker.create_lobby_key()
         return await serve_dynamic_file("private.html",{ "KEY_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
@@ -338,9 +353,7 @@ async def serve_http_dynamic():
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 2 * LOBBY_KEY_BYTES:
         quart.abort(404)
-    async with PrivateGames.lock:
-        keyValid = lobbyKey in PrivateGames.var
-    if keyValid:
+    if await in_shared(lobbyKey, MainMatchmaker.lobbyKeys):
         token = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
     else:
@@ -372,20 +385,23 @@ class ProxyMiddleware:
         return await self.app(scope, receive, send)
 
 #-----------------------Main------------------------------------#
-            
+
+MainMatchmaker = Matchmaker()
+
 async def main_app():
     cfg = hypercorn.config.Config()
     cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = ProxyMiddleware(app.asgi_app)
-    await log("Starting server\n")
+    await log("Starting server")
     await hypercorn.trio.serve(app, cfg)
 
 async def main():
     async with trio.open_nursery() as nursery:
         nursery.start_soon(main_app)
         nursery.start_soon(flush_output_buffer_loop)
+        nursery.start_soon(MainMatchmaker.service_queue)
     
 if __name__ == "__main__":
     trio_asyncio.run(main)
