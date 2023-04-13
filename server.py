@@ -219,6 +219,8 @@ class Matchmaker:
                                 await log("Removed lobby from queue", opt=websocket.lobby)
                             except (KeyError, ValueError):
                                 pass
+                    async with Connections.lock:
+                        Connections.var.pop(identifier)
                 await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
 
 #--------------------Main game class--------------------------
@@ -277,7 +279,8 @@ class Lobby:
                 nursery.start_soon(self.timer_loop, cancel_scope)
                 nursery.start_soon(self.game_loop, cancel_scope)
         await log("Game finished", opt=self)
-        websocket.gameFinished.set()
+        for websocket in self.players:
+            websocket.gameFinished.set()
                 
 #---------------------Route Handlers-------------------------#
 
@@ -329,9 +332,11 @@ async def serve_game_websocket():
     finally:
         with trio.CancelScope(shield = True):
             await log("Ending connection", opt=websocket)
-            await MainMatchmaker.remove_player_id(identifier)
-            async with Connections.lock:
-                Connections.var.pop(identifier)
+            if not websocket.gameStarted.is_set():
+                await MainMatchmaker.remove_player_id(identifier)
+            else:
+                async with Connections.lock:
+                    Connections.var.pop(identifier)
 
 @app.route("/d/serverinfo", methods=["GET"])
 async def serve_http_serverinfo():
