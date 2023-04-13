@@ -37,7 +37,10 @@ MATCHMAKER_SERVICE_SLEEPTIME = 0.01
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
-PUBLIC_PAIRSTRING = "default"
+PUBLIC_PAIRSTRING = "public"
+TOKEN_COOKIE_NAME = "PLURABUS_TOKEN"
+ADD_DIRECTIVE = "ADD"
+REMOVE_DIRECTIVE = "REMOVE"
 
 ServerRoot = trio.Path(__file__).parent
 LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
@@ -132,14 +135,15 @@ async def log(string, opt=None):
     elif hasattr(opt, "remote_addr"):
         prompt = opt.remote_addr
     elif isinstance(opt, Lobby):
-        prompt = f"{opt.pairString[:7]} "
-        prompt += " ".join([player.remote_addr for player in opt.players])
+        prompt = f"{opt.pairString[:len(PUBLIC_PAIRSTRING)]}"
+        if len(opt.players) > 0:
+            prompt += " "+" ".join([player.remote_addr for player in opt.players])
     elif isinstance(opt, Matchmaker):
-        prompt = "MatchMaker"
+        prompt = "Matchmaker"
     async with OutputBuffer.lock:
         OutputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
         
-async def serve_dynamic_file(path, textMap):
+async def serve_dynamic_file(path, textMap, token=None):
     try:
         template = await ServerRoot.joinpath("web").joinpath(path).resolve()
     except ValueError:
@@ -152,6 +156,8 @@ async def serve_dynamic_file(path, textMap):
         body = body.replace(key.encode(), value.encode())
     response = await quart.make_response(body)
     response.headers["Content-Type"] = ContentTypes[template.suffix]
+    if not (token is None):
+        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Strict', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
     return response
 
 #--------------------------Matchmaking------------------------------
@@ -165,36 +171,59 @@ class Matchmaker:
         
     async def add_player_id(self, identifier):
         async with self.queue[0].clone() as sender:
-            await sender.send(identifier)
+            await sender.send(f"{ADD_DIRECTIVE}.{identifier}")
+
+    async def remove_player_id(self, identifier):
+        async with self.queue[0].clone() as sender:
+            await sender.send(f"{REMOVE_DIRECTIVE}.{identifier}")
 
     async def create_lobby_key(self):
         lobbyKey = secrets.token_urlsafe(LOBBY_KEY_BYTES)
         async with self.lobbyKeys.lock:
             self.lobbyKeys.var.append(lobbyKey)
         app.nursery.start_soon(remove_shared_later, lobbyKey, self.lobbyKeys, LOBBY_KEY_LIFETIME)
+        await log(f"Lobby key created: {lobbyKey}", opt=self)
         return lobbyKey
 
     async def service_queue(self):
         async with trio.open_nursery() as nursery:
             while(True):
-                identifier = await self.queue[1].receive()
+                command = (await self.queue[1].receive()).split(".")
+                directive = command[0]
+                identifier = command[1]
                 async with Connections.lock:
                     websocket = Connections.var.get(identifier, None)
                 if websocket is None:
                     continue
-                await log("Servicing from queue", opt=websocket)
+                await log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
                 public = (websocket.pairString == PUBLIC_PAIRSTRING)
                 index = 0 if public else websocket.pairString
                 lobbies = self.publicLobbies if public else self.privateLobbies
-                if (public and self.publicLobbies) or (not public and websocket.pairString in self.privateLobbies):
-                    lobbies[index].players.append(websocket)
-                    await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
-                    if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
-                        nursery.start_soon(lobbies.pop(index).game)
-                else:
-                    lobby = Lobby(websocket, 2)
-                    await log("Created lobby", opt=lobby)
-                    lobbies.append(lobby) if public else lobbies.update({ index : lobby })
+                index_set = range(len(lobbies)) if public else lobbies.keys()
+                if directive == ADD_DIRECTIVE:
+                    if (public and self.publicLobbies) or (not public and websocket.pairString in self.privateLobbies):
+                        lobbies[index].players.append(websocket)
+                        await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
+                        if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
+                            nursery.start_soon(lobbies.pop(index).game)
+                    else:
+                        lobby = Lobby(websocket, 2)
+                        await log("Created lobby", opt=lobby)
+                        lobbies.append(lobby) if public else lobbies.update({ index : lobby })
+                elif directive == REMOVE_DIRECTIVE:
+                    for i in index_set:
+                        lobby = lobbies[i]
+                        breaker = False
+                        for player in lobby.players:
+                            if player.identifier == identifier:
+                                lobby.players.remove(player)
+                                await log(f"Removed player {websocket.remote_addr}", opt=lobby)
+                                if (len(lobby.players) == 0):
+                                    await log(f"Removed lobby", opt=lobbies.pop(i))
+                                breaker = True
+                                break
+                        if breaker:
+                            break
                 await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
             
 #--------------------Main game class--------------------------
@@ -275,20 +304,21 @@ async def serve_playercount_websocket():
 async def serve_game_websocket():
     websocket = quart.websocket._get_current_object()
     identifier = secrets.token_hex(ID_BYTES)
+    websocket.identifier = identifier
     await log("Incoming connection", opt=websocket)
     async with Connections.lock:
         Connections.var.update({ identifier : websocket })
     try:
         with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
-            firstMessage = await websocket.receive()
-            if not isinstance(firstMessage, str) or len(firstMessage) != TOKEN_LENGTH:
+            token = websocket.cookies.get(TOKEN_COOKIE_NAME, "")
+            if len(token) != TOKEN_LENGTH:
                 await log("Malformed token", opt=websocket)
                 cancel_scope.cancel()
             else:
                 async with Tokens.lock:
-                    tokenValid = firstMessage in Tokens.var
+                    tokenValid = token in Tokens.var
                     if tokenValid:
-                        tokenValid = tokenValid and (Tokens.var.pop(firstMessage) == websocket.remote_addr)
+                        tokenValid = tokenValid and (Tokens.var.pop(token) == websocket.remote_addr)
                 if not tokenValid:
                     await log("Invalid token", opt=websocket)
                     cancel_scope.cancel()
@@ -303,6 +333,7 @@ async def serve_game_websocket():
     finally:
         with trio.CancelScope(shield = True):
             await log("Ending connection", opt=websocket)
+            await MainMatchmaker.remove_player_id(identifier)
             async with Connections.lock:
                 Connections.var.pop(identifier)
 
@@ -341,11 +372,11 @@ async def serve_http_dynamic():
             assessment.risk_analysis.score < 0.5):
             quart.abort(401, "Failed captcha")
     if (actionString == "public"):
-        token = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING })
+        tok = await create_token(quart.request.remote_addr)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING }, token=tok)
     elif (actionString == "private"):
         lobbyKey = await MainMatchmaker.create_lobby_key()
-        return await serve_dynamic_file("private.html",{ "KEY_PLACEHOLDER" : lobbyKey })
+        return await serve_dynamic_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
     else:
         quart.abort(404)
             
@@ -354,8 +385,8 @@ async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 2 * LOBBY_KEY_BYTES:
         quart.abort(404)
     if await in_shared(lobbyKey, MainMatchmaker.lobbyKeys):
-        token = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html",{ "TOKEN_PLACEHOLDER" : token, "PSTR_PLACEHOLDER" : lobbyKey })
+        tok = await create_token(quart.request.remote_addr)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey }, token=tok)
     else:
         quart.abort(404)
 

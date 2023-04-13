@@ -35,7 +35,7 @@
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool mob):
+Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
 
   pairString(pstr),
   mobile(mob),
@@ -60,7 +60,6 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *tok, char *uri, bool m
   outside(this),
   selectedObjective(nullptr) {
   
-  token = tok;
   panelYDrawOffset = (mobile ? panelSize : 0);
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);

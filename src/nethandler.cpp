@@ -261,7 +261,6 @@ void NetHandler::closeConnection(const char *reason) {
 void NetHandler::notifyOpen() {
   ncon = NET_CONTEXT_CONNECTED;
 
-  sendText(game->token);
   sendText(pairString);
 
 }
