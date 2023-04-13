@@ -38,7 +38,7 @@ MATCHMAKER_SERVICE_SLEEPTIME = 0.01
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
 PUBLIC_PAIRSTRING = "public"
-TOKEN_COOKIE_NAME = "PLURABUS_TOKEN"
+TOKEN_COOKIE_NAME = "_PLURABUS_TOKEN_"
 ADD_DIRECTIVE = "ADD"
 REMOVE_DIRECTIVE = "REMOVE"
 
@@ -84,11 +84,6 @@ Tokens = SharedResource({})
 Connections = SharedResource({})
 HomepageViewerCount = SharedResource(0)
 SessionGamesPlayed = SharedResource(0)
-
-async def in_shared(key, shared):
-    async with shared.lock:
-        ret = key in shared.var
-    return ret
 
 async def remove_shared_later(key, shared, lifetime):
     await trio.sleep(lifetime)
@@ -137,7 +132,7 @@ async def log(string, opt=None):
     elif isinstance(opt, Lobby):
         prompt = f"{opt.pairString[:len(PUBLIC_PAIRSTRING)]}"
         if len(opt.players) > 0:
-            prompt += " "+" ".join([player.remote_addr for player in opt.players])
+            prompt += f" {' '.join([player.remote_addr for player in opt.players])}"
     elif isinstance(opt, Matchmaker):
         prompt = "Matchmaker"
     async with OutputBuffer.lock:
@@ -247,6 +242,7 @@ class Lobby:
                 return
         with trio.move_on_after(FRAME_TIMEOUT):
             await self.broadcast("TIMEOUT", range(len(self.players)))
+        scope.cancel()
 
     async def game_loop(self, scope):
         while (True):
@@ -265,7 +261,7 @@ class Lobby:
             websocket = self.players[playernum]
             await websocket.send(self.pairString)
             readymsg = await websocket.receive()
-            await websocket.send("P"+str(playernum + 1))
+            await websocket.send(f"P{str(playernum + 1)}")
             setmsg = await websocket.receive()
             if (playernum == 0):
                 await websocket.send("Go")
@@ -385,7 +381,9 @@ async def serve_http_dynamic():
 async def serve_http_lobbykey(lobbyKey):
     if len(lobbyKey) > 2 * LOBBY_KEY_BYTES:
         quart.abort(404)
-    if await in_shared(lobbyKey, MainMatchmaker.lobbyKeys):
+    async with MainMatchmaker.lobbyKeys.lock:
+        validKey = lobbyKey in MainMatchmaker.lobbyKeys.var
+    if validKey:
         tok = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey }, token=tok)
     else:
@@ -396,7 +394,7 @@ async def serve_static_file(filePath):
     if not args.test:
         quart.abort(404)
     rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-    return await serve_dynamic_file("static/" + filePath, rewrites)
+    return await serve_dynamic_file(f"static/{filepath}", rewrites)
 
 @app.route("/", methods=["GET"])
 async def serve_homepage():
@@ -422,7 +420,7 @@ MainMatchmaker = Matchmaker()
 
 async def main_app():
     cfg = hypercorn.config.Config()
-    cfg.bind = "unix:"+str(ServerRoot.joinpath("web.sock"))
+    cfg.bind = f"unix:{str(ServerRoot.joinpath('web.sock'))}"
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = ProxyMiddleware(app.asgi_app)
