@@ -20,7 +20,7 @@ if not args.test:
     from google.cloud import recaptchaenterprise_v1
 
 OUTPUT_BUFFER_FLUSH_INTERVAL = 15
-FRAME_DELAY = 0.030
+FRAME_DELAY = 0.025
 NUMPLAYERS_REFRESH_TIME = 10
 MAX_NUMPLAYERS_REFRESHES = 360
 TOKEN_LIFETIME = 15
@@ -28,11 +28,11 @@ TOKEN_BYTES = 32
 TOKEN_LENGTH = TOKEN_BYTES * 2
 LOBBY_KEY_LIFETIME = 180
 LOBBY_KEY_BYTES = 16
-ID_BYTES = 24
+ID_BYTES = 16
 GAME_LIFETIME = 1203
 STARTUP_TIMEOUT = 300
 FRAME_TIMEOUT = 5
-WEBSOCKET_PING_INTERVAL = 10
+WEBSOCKET_PING_INTERVAL = 1
 MATCHMAKER_SERVICE_SLEEPTIME = 0.01
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
@@ -136,6 +136,8 @@ async def log(string, opt=None):
             prompt += f" {' '.join([player.remote_addr for player in opt.players])}"
     elif isinstance(opt, Matchmaker):
         prompt = "Matchmaker"
+    elif isinstance(opt, str):
+        prompt = opt
     async with OutputBuffer.lock:
         OutputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
         
@@ -314,37 +316,23 @@ async def serve_playercount_websocket():
 @app.websocket("/d/game")
 async def serve_game_websocket():
     websocket = quart.websocket._get_current_object()
-    identifier = secrets.token_hex(ID_BYTES)
-    websocket.identifier = identifier
+    websocket.identifier = secrets.token_hex(ID_BYTES)
     await log("Incoming connection", opt=websocket)
     async with Connections.lock:
-        Connections.var.update({ identifier : websocket })
+        Connections.var.update({ websocket.identifier : websocket })
     try:
         with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
-            token = websocket.cookies.get(TOKEN_COOKIE_NAME, "")
-            if len(token) != TOKEN_LENGTH:
-                await log("Malformed token", opt=websocket)
-                cancel_scope.cancel()
-            else:
-                async with Tokens.lock:
-                    tokenValid = token in Tokens.var
-                    if tokenValid:
-                        tokenValid = tokenValid and (Tokens.var.pop(token) == websocket.remote_addr)
-                if not tokenValid:
-                    await log("Invalid token", opt=websocket)
-                    cancel_scope.cancel()
-                else:
-                    websocket.pairString = await websocket.receive()
-                    websocket.gameStarted = trio.Event()
-                    websocket.gameFinished = trio.Event()
-                    await MainMatchmaker.add_player_id(identifier)
-                    await websocket.gameStarted.wait()
+            websocket.pairString = await websocket.receive()
+            websocket.gameStarted = trio.Event()
+            websocket.gameFinished = trio.Event()
+            await MainMatchmaker.add_player_id(websocket.identifier)
+            await websocket.gameStarted.wait()
         if not cancel_scope.cancelled_caught:
             await websocket.gameFinished.wait()
     finally:
         with trio.CancelScope(shield = True):
             await log("Ending connection", opt=websocket)
-            await MainMatchmaker.remove_player_id(identifier)
+            await MainMatchmaker.remove_player_id(websocket.identifier)
 
 @app.route("/d/serverinfo", methods=["GET"])
 async def serve_http_serverinfo():
@@ -412,18 +400,44 @@ async def serve_static_file(filePath):
 async def serve_homepage():
     return await serve_static_file("index.html")
 
-#----------------------Accept proxy header middleware-----------#
+#----------------------Middleware------------------#
 
-class ProxyMiddleware:
+class Middleware:
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if "headers" not in scope:
+        if scope["type"] == "lifespan":
             return await self.app(scope, receive, send)
-        for header, value in scope["headers"]:
-            if header == b"x-forwarded-for":
-                scope["client"] = (value.decode("utf-8"), None)
+        if "headers" in scope:
+            for header, value in scope["headers"]:
+                if header == b"x-forwarded-for":
+                    scope["client"] = (value.decode("utf-8"), None)
+        if scope["path"].startswith("/d/game"):
+            tokenValid = False
+            for header, value in scope["headers"]:
+                if header in [b"cookie", b"Cookie", b"COOKIE"]:
+                    for cookiename, token in [ kv_pair.split("=", 1) for kv_pair in value.decode("utf-8").split(";") ]:
+                        if cookiename == TOKEN_COOKIE_NAME and len(token) == TOKEN_LENGTH and not (scope["client"] is None):
+                            async with Tokens.lock:
+                                if (token in Tokens.var) and (Tokens.var.pop(token) == scope["client"][0]):
+                                    tokenValid = True
+            if not tokenValid:
+                prompt = "no--ip"
+                if not (scope["client"] is None):
+                    prompt = scope["client"][0]
+                await log("Rejected connection, bad token", opt=prompt)
+                await send({
+                    'type' : 'websocket.http.response.start',
+                    'status' : 401,
+                    'headers' : [(b'content-length', b'0')],
+                })
+                await send({
+                    'type': 'websocket.http.response.body',
+                    'body': b'',
+                    'more_body': False,
+                })
+                return
         return await self.app(scope, receive, send)
 
 #-----------------------Main------------------------------------#
@@ -435,7 +449,7 @@ async def main_app():
     cfg.bind = f"unix:{str(ServerRoot.joinpath('web.sock'))}"
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
-    app.asgi_app = ProxyMiddleware(app.asgi_app)
+    app.asgi_app = Middleware(app.asgi_app)
     await log("Starting server")
     await hypercorn.trio.serve(app, cfg)
 
