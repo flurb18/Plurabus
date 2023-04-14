@@ -80,7 +80,6 @@ class SharedResource:
         self.var = initvar
         self.lock = trio.Lock()
 
-OutputBuffer = SharedResource([])
 Tokens = SharedResource({})
 Connections = SharedResource({})
 HomepageViewerCount = SharedResource(0)
@@ -114,50 +113,6 @@ async def create_assessment(project_id, recaptcha_site_key, token):
     response = await trio_asyncio.aio_as_trio(client.create_assessment)(request)
     return response
 
-#---------------------------I/O---------------------------------#
-
-async def flush_output_buffer_loop():
-    async with await LogFile.open("a") as f:
-        while(True):
-            await trio.sleep(OUTPUT_BUFFER_FLUSH_INTERVAL)
-            async with OutputBuffer.lock:
-                await f.writelines(OutputBuffer.var)
-                await f.flush()
-                OutputBuffer.var.clear()
-
-async def log(string, opt=None):
-    if opt is None:
-        prompt = "Server"
-    elif hasattr(opt, "remote_addr"):
-        prompt = opt.remote_addr
-    elif isinstance(opt, Lobby):
-        prompt = f"{opt.pairString[:len(PUBLIC_PAIRSTRING)]}"
-        if len(opt.players) > 0:
-            prompt += f" {' '.join([player.remote_addr for player in opt.players])}"
-    elif isinstance(opt, Matchmaker):
-        prompt = "Matchmaker"
-    elif isinstance(opt, str):
-        prompt = opt
-    async with OutputBuffer.lock:
-        OutputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
-        
-async def serve_dynamic_file(path, textMap, token=None):
-    try:
-        template = await ServerRoot.joinpath("web").joinpath(path).resolve()
-    except ValueError:
-        quart.abort(404)
-    if not await template.is_file():
-        quart.abort(404)
-    async with await template.open("rb") as f:
-        body = await f.read()
-    for key, value in textMap.items():
-        body = body.replace(key.encode(), value.encode())
-    response = await quart.make_response(body)
-    response.headers["Content-Type"] = ContentTypes[template.suffix]
-    if not (token is None):
-        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Strict', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
-    return response
-
 #--------------------------Matchmaking------------------------------
         
 class Matchmaker:
@@ -185,7 +140,7 @@ class Matchmaker:
         async with self.lobbyKeys.lock:
             self.lobbyKeys.var.append(lobbyKey)
         app.nursery.start_soon(remove_shared_later, lobbyKey, self.lobbyKeys, LOBBY_KEY_LIFETIME)
-        await log(f"Lobby key created: {lobbyKey}", opt=self)
+        await MainLogger.log(f"Lobby key created: {lobbyKey}", opt=self)
         return lobbyKey
 
     async def service_queue(self):
@@ -193,14 +148,14 @@ class Matchmaker:
             while(True):
                 directive, identifier = (await self.receive_channel.receive()).split(".")
                 if directive == END_DIRECTIVE:
-                    await log("Shutting down matchmaking loop", opt=self)
+                    await MainLogger.log("Shutting down matchmaking loop", opt=self)
                     nursery.cancel_scope.cancel()
                     return
                 async with Connections.lock:
                     websocket = Connections.var.get(identifier, None)
                 if websocket is None:
                     continue
-                await log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
+                await MainLogger.log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
                 public = (websocket.pairString == PUBLIC_PAIRSTRING)
                 index = 0 if public else websocket.pairString
                 lobbies = self.publicLobbies if public else self.privateLobbies
@@ -209,7 +164,7 @@ class Matchmaker:
                     if (public and lobbies) or (not public and index in lobbies):
                         lobbies[index].players.append(websocket)
                         websocket.lobby = lobbies[index]
-                        await log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
+                        await MainLogger.log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
                         if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
                             startLobby = lobbies.pop(index)
                             startLobby.started = True
@@ -217,17 +172,17 @@ class Matchmaker:
                             nursery.start_soon(startLobby.game)
                     else:
                         lobby = Lobby(websocket, 2)
-                        await log("Created lobby", opt=lobby)
+                        await MainLogger.log("Created lobby", opt=lobby)
                         lobbies.append(lobby) if public else lobbies.update({ index : lobby })
                 elif directive == REMOVE_DIRECTIVE:
                     if hasattr(websocket, "lobby"):
                         if not websocket.lobby.started:
                             websocket.lobby.players.remove(websocket)
-                            await log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
+                            await MainLogger.log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
                             if len(websocket.lobby.players) == 0:
                                 try:
                                     lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
-                                    await log("Removed lobby from queue", opt=websocket.lobby)
+                                    await MainLogger.log("Removed lobby from queue", opt=websocket.lobby)
                                 except (KeyError, ValueError):
                                     pass
                         else:
@@ -285,18 +240,35 @@ class Lobby:
                 await websocket.send("Go")
                 startmsg = await websocket.receive()
             websocket.gameStarted.set()
-        await log("Game started", opt=self)
+        await MainLogger.log("Game started", opt=self)
         async with SessionGamesPlayed.lock:
             SessionGamesPlayed.var += 1
         with trio.move_on_after(GAME_LIFETIME+10) as cancel_scope:
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(self.timer_loop, cancel_scope)
                 nursery.start_soon(self.game_loop, cancel_scope)
-        await log("Game finished", opt=self)
+        await MainLogger.log("Game finished", opt=self)
         for websocket in self.players:
             websocket.gameFinished.set()
                 
 #---------------------Route Handlers-------------------------#
+
+async def serve_dynamic_file(path, textMap, token=None):
+    try:
+        template = await ServerRoot.joinpath("web").joinpath(path).resolve()
+    except ValueError:
+        quart.abort(404)
+    if not await template.is_file():
+        quart.abort(404)
+    async with await template.open("rb") as f:
+        body = await f.read()
+    for key, value in textMap.items():
+        body = body.replace(key.encode(), value.encode())
+    response = await quart.make_response(body)
+    response.headers["Content-Type"] = ContentTypes[template.suffix]
+    if not (token is None):
+        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Strict', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
+    return response
 
 @app.websocket("/d/playercount")
 async def serve_playercount_websocket():
@@ -317,7 +289,7 @@ async def serve_playercount_websocket():
 async def serve_game_websocket():
     websocket = quart.websocket._get_current_object()
     websocket.identifier = secrets.token_hex(ID_BYTES)
-    await log("Incoming connection", opt=websocket)
+    await MainLogger.log("Incoming connection", opt=websocket)
     async with Connections.lock:
         Connections.var.update({ websocket.identifier : websocket })
     try:
@@ -331,7 +303,7 @@ async def serve_game_websocket():
             await websocket.gameFinished.wait()
     finally:
         with trio.CancelScope(shield = True):
-            await log("Ending connection", opt=websocket)
+            await MainLogger.log("Ending connection", opt=websocket)
             await MainMatchmaker.remove_player_id(websocket.identifier)
 
 @app.route("/d/serverinfo", methods=["GET"])
@@ -357,7 +329,7 @@ async def serve_http_dynamic():
     try:
         postData = await quart.request.get_data()
     except Exception as e:
-        await log(f"Bad POST request\n{str(e)}")
+        await MainLogger.log(f"Bad POST request\n{str(e)}")
         quart.abort(400)
     recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
     if not args.test:
@@ -426,7 +398,7 @@ class Middleware:
                 prompt = "no--ip"
                 if not (scope["client"] is None):
                     prompt = scope["client"][0]
-                await log("Rejected connection, bad token", opt=prompt)
+                await MainLogger.log("Rejected connection, bad token", opt=prompt)
                 await send({
                     'type' : 'websocket.http.response.start',
                     'status' : 401,
@@ -440,9 +412,41 @@ class Middleware:
                 return
         return await self.app(scope, receive, send)
 
+#---------------------------Logging----------------------------------#
+
+class Logger:
+    def __init__(self):
+        self.outputBuffer = SharedResource([])
+
+    async def flush_output_buffer_loop(self):
+        async with await LogFile.open("a") as f:
+            while(True):
+                await trio.sleep(OUTPUT_BUFFER_FLUSH_INTERVAL)
+                async with self.outputBuffer.lock:
+                    await f.writelines(self.outputBuffer.var)
+                    await f.flush()
+                    self.outputBuffer.var.clear()
+
+    async def log(self, string, opt=None):
+        if opt is None:
+            prompt = "Server"
+        elif hasattr(opt, "remote_addr"):
+            prompt = opt.remote_addr
+        elif isinstance(opt, Lobby):
+            prompt = f"{opt.pairString[:len(PUBLIC_PAIRSTRING)]}"
+            if len(opt.players) > 0:
+                prompt += f" {' '.join([player.remote_addr for player in opt.players])}"
+        elif isinstance(opt, Matchmaker):
+            prompt = "Matchmaker"
+        elif isinstance(opt, str):
+            prompt = opt
+        async with self.outputBuffer.lock:
+            self.outputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
+    
 #-----------------------Main------------------------------------#
 
 MainMatchmaker = Matchmaker()
+MainLogger = Logger()
 
 async def main_app():
     cfg = hypercorn.config.Config()
@@ -450,14 +454,14 @@ async def main_app():
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = Middleware(app.asgi_app)
-    await log("Starting server")
+    await MainLogger.log("Starting server")
     await hypercorn.trio.serve(app, cfg)
 
 async def main():
     try:
         async with trio.open_nursery() as nursery:
             nursery.start_soon(main_app)
-            nursery.start_soon(flush_output_buffer_loop)
+            nursery.start_soon(MainLogger.flush_output_buffer_loop)
             nursery.start_soon(MainMatchmaker.service_queue)
     finally:
         with trio.CancelScope(shield=True):
