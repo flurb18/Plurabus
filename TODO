@@ -1,3 +1,5 @@
+-Tower effect visual bug
+-subspawner objective not cancelling when building and it gets destroyed
 -more on info page
 -fix local client and segfaults on end
 -figure out android authentication

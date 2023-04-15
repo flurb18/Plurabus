@@ -143,54 +143,53 @@ class Matchmaker:
         await MainLogger.log(f"Lobby key created: {lobbyKey}", opt=self)
         return lobbyKey
 
-    async def service_queue(self):
-        async with trio.open_nursery() as nursery:
-            while(True):
-                directive, identifier = (await self.receive_channel.receive()).split(".")
-                if directive == END_DIRECTIVE:
-                    await MainLogger.log("Shutting down matchmaking loop", opt=self)
-                    nursery.cancel_scope.cancel()
-                    return
-                async with Connections.lock:
-                    websocket = Connections.var.get(identifier, None)
-                if websocket is None:
-                    continue
-                await MainLogger.log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
-                public = (websocket.pairString == PUBLIC_PAIRSTRING)
-                index = 0 if public else websocket.pairString
-                lobbies = self.publicLobbies if public else self.privateLobbies
-                index_set = range(len(lobbies)) if public else lobbies.keys()
-                if directive == ADD_DIRECTIVE:
-                    if (public and lobbies) or (not public and index in lobbies):
-                        lobbies[index].players.append(websocket)
-                        websocket.lobby = lobbies[index]
-                        await MainLogger.log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
-                        if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
-                            startLobby = lobbies.pop(index)
-                            startLobby.started = True
-                            self.runningLobbies.append(startLobby)
-                            nursery.start_soon(startLobby.game)
+    async def service_queue(self, nursery):
+        while(True):
+            directive, identifier = (await self.receive_channel.receive()).split(".")
+            if directive == END_DIRECTIVE:
+                await MainLogger.log("Shutting down server")
+                nursery.cancel_scope.cancel()
+                return
+            async with Connections.lock:
+                websocket = Connections.var.get(identifier, None)
+            if websocket is None:
+                continue
+            await MainLogger.log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
+            public = (websocket.pairString == PUBLIC_PAIRSTRING)
+            index = 0 if public else websocket.pairString
+            lobbies = self.publicLobbies if public else self.privateLobbies
+            index_set = range(len(lobbies)) if public else lobbies.keys()
+            if directive == ADD_DIRECTIVE:
+                if (public and lobbies) or (not public and index in lobbies):
+                    lobbies[index].players.append(websocket)
+                    websocket.lobby = lobbies[index]
+                    await MainLogger.log(f"Added player {websocket.remote_addr}", opt=lobbies[index])
+                    if len(lobbies[index].players) == lobbies[index].desiredNumPlayers:
+                        startLobby = lobbies.pop(index)
+                        startLobby.started = True
+                        self.runningLobbies.append(startLobby)
+                        nursery.start_soon(startLobby.game)
+                else:
+                    lobby = Lobby(websocket, 2)
+                    await MainLogger.log("Created lobby", opt=lobby)
+                    lobbies.append(lobby) if public else lobbies.update({ index : lobby })
+            elif directive == REMOVE_DIRECTIVE:
+                if hasattr(websocket, "lobby"):
+                    if not websocket.lobby.started:
+                        websocket.lobby.players.remove(websocket)
+                        await MainLogger.log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
+                        if len(websocket.lobby.players) == 0:
+                            try:
+                                lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
+                                await MainLogger.log("Removed lobby from queue", opt=websocket.lobby)
+                            except (KeyError, ValueError):
+                                pass
                     else:
-                        lobby = Lobby(websocket, 2)
-                        await MainLogger.log("Created lobby", opt=lobby)
-                        lobbies.append(lobby) if public else lobbies.update({ index : lobby })
-                elif directive == REMOVE_DIRECTIVE:
-                    if hasattr(websocket, "lobby"):
-                        if not websocket.lobby.started:
-                            websocket.lobby.players.remove(websocket)
-                            await MainLogger.log(f"Removed player {websocket.remote_addr}", opt=websocket.lobby)
-                            if len(websocket.lobby.players) == 0:
-                                try:
-                                    lobbies.remove(websocket.lobby) if public else lobbies.pop(websocket.pairString)
-                                    await MainLogger.log("Removed lobby from queue", opt=websocket.lobby)
-                                except (KeyError, ValueError):
-                                    pass
-                        else:
-                            if websocket.lobby in self.runningLobbies:
-                                self.runningLobbies.remove(websocket.lobby)
-                    async with Connections.lock:
-                        Connections.var.pop(identifier)
-                await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
+                        if websocket.lobby in self.runningLobbies:
+                            self.runningLobbies.remove(websocket.lobby)
+                async with Connections.lock:
+                    Connections.var.pop(identifier)
+            await trio.sleep(MATCHMAKER_SERVICE_SLEEPTIME)
 
 #--------------------Main game class--------------------------
 
@@ -205,51 +204,56 @@ class Lobby:
     async def broadcast(self, msg, indexes):
         [await self.players[index].send(msg) for index in indexes]
         
-    async def timer_loop(self, scope):
-        for _ in range(GAME_LIFETIME):
-            await trio.sleep(1)
-            with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+    async def timer_loop(self, parent_scope):
+        try:
+            for _ in range(GAME_LIFETIME):
+                await trio.sleep(1)
                 await self.broadcast("TIMER", range(len(self.players)))
-            if cancel_scope.cancelled_caught:
-                scope.cancel()
-                return
-        with trio.move_on_after(FRAME_TIMEOUT):
             await self.broadcast("TIMEOUT", range(len(self.players)))
-        scope.cancel()
+        except:
+            parent_scope.cancel()
+            raise
 
-    async def game_loop(self, scope):
-        while (True):
-            await trio.sleep(FRAME_DELAY)
-            for index in range(len(self.players)):
-                with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
-                    msg = await self.players[index].receive()
+    async def game_loop(self, parent_scope):
+        try:
+            while (True):
+                await trio.sleep(FRAME_DELAY)
+                for index in range(len(self.players)):
+                    with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+                        msg = await self.players[index].receive()
+                    if cancel_scope.cancelled_caught:
+                        parent_scope.cancel()
                     await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])
-                if cancel_scope.cancelled_caught:
-                    scope.cancel()
-                    return
-
+        except:
+            parent_scope.cancel()
+            raise
+        
     async def game(self):
         random.shuffle(self.players)
-        for playernum in range(len(self.players)):
-            websocket = self.players[playernum]
-            await websocket.send(self.pairString)
-            readymsg = await websocket.receive()
-            await websocket.send(f"P{str(playernum + 1)}")
-            setmsg = await websocket.receive()
-            if (playernum == 0):
-                await websocket.send("Go")
-                startmsg = await websocket.receive()
-            websocket.gameStarted.set()
-        await MainLogger.log("Game started", opt=self)
-        async with SessionGamesPlayed.lock:
-            SessionGamesPlayed.var += 1
-        with trio.move_on_after(GAME_LIFETIME+10) as cancel_scope:
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.timer_loop, cancel_scope)
-                nursery.start_soon(self.game_loop, cancel_scope)
-        await MainLogger.log("Game finished", opt=self)
-        for websocket in self.players:
-            websocket.gameFinished.set()
+        with trio.move_on_after(FRAME_TIMEOUT)as cancel_scope:
+            for playernum in range(len(self.players)):
+                websocket = self.players[playernum]
+                await websocket.send(self.pairString)
+                readymsg = await websocket.receive()
+                await websocket.send(f"P{str(playernum + 1)}")
+                setmsg = await websocket.receive()
+                if (playernum == 0):
+                    await websocket.send("Go")
+                    startmsg = await websocket.receive()
+        if not cancel_scope.cancelled_caught:
+            [websocket.gameStarted.set() for websocket in self.players]
+            await MainLogger.log("Game started", opt=self)
+            async with SessionGamesPlayed.lock:
+                SessionGamesPlayed.var += 1
+            try:
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(self.timer_loop, nursery.cancel_scope)
+                    nursery.start_soon(self.game_loop, nursery.cancel_scope)
+            except Exception as e:
+                await MainLogger.log(str(e))
+            await MainLogger.log("Game finished", opt=self)
+            for websocket in self.players:
+                websocket.gameFinished.set()
                 
 #---------------------Route Handlers-------------------------#
 
@@ -462,7 +466,7 @@ async def main():
         async with trio.open_nursery() as nursery:
             nursery.start_soon(main_app)
             nursery.start_soon(MainLogger.flush_output_buffer_loop)
-            nursery.start_soon(MainMatchmaker.service_queue)
+            nursery.start_soon(MainMatchmaker.service_queue, nursery)
     finally:
         with trio.CancelScope(shield=True):
             await MainMatchmaker.end()
