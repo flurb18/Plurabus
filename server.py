@@ -34,6 +34,9 @@ STARTUP_TIMEOUT = 300
 FRAME_TIMEOUT = 5
 WEBSOCKET_PING_INTERVAL = 1
 MATCHMAKER_SERVICE_SLEEPTIME = 0.01
+LOGGER_SERVICE_SLEEPTIME = 0.1
+MATCHMAKER_BUFFER_SIZE = 64
+LOGGER_BUFFER_SIZE = 64
 
 RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
 PROJECT_ID = "skillful-garden-379804"
@@ -117,22 +120,22 @@ async def create_assessment(project_id, recaptcha_site_key, token):
         
 class Matchmaker:
     def __init__(self):
-        self.send_channel, self.receive_channel = trio.open_memory_channel(0)
+        self.sendChannel, self.receiveChannel = trio.open_memory_channel(MATCHMAKER_BUFFER_SIZE)
         self.lobbyKeys = SharedResource([])
         self.publicLobbies = []
         self.runningLobbies = []
         self.privateLobbies = {}
         
     async def add_player_id(self, identifier):
-        async with self.send_channel.clone() as sender:
+        async with self.sendChannel.clone() as sender:
             await sender.send(f"{ADD_DIRECTIVE}.{identifier}")
 
     async def remove_player_id(self, identifier):
-        async with self.send_channel.clone() as sender:
+        async with self.sendChannel.clone() as sender:
             await sender.send(f"{REMOVE_DIRECTIVE}.{identifier}")
 
     async def end(self):
-        async with self.send_channel.clone() as sender:
+        async with self.sendChannel.clone() as sender:
             await sender.send(f"{END_DIRECTIVE}.")
             
     async def create_lobby_key(self):
@@ -143,16 +146,16 @@ class Matchmaker:
         await MainLogger.log(f"Lobby key created: {lobbyKey}", opt=self)
         return lobbyKey
 
-    async def service_queue(self, nursery):
+    async def service_matchmaking_queue(self, nursery):
         while(True):
-            directive, identifier = (await self.receive_channel.receive()).split(".")
+            directive, identifier = (await self.receiveChannel.receive()).split(".")
             if directive == END_DIRECTIVE:
                 await MainLogger.log("Shutting down server")
                 nursery.cancel_scope.cancel()
                 return
             async with Connections.lock:
                 websocket = Connections.var.get(identifier, None)
-            if websocket is None:
+            if websocket is None or not hasattr(websocket, "pairString"):
                 continue
             await MainLogger.log(f"Servicing from queue: {directive} {websocket.remote_addr}", opt=self)
             public = (websocket.pairString == PUBLIC_PAIRSTRING)
@@ -230,7 +233,7 @@ class Lobby:
         
     async def game(self):
         random.shuffle(self.players)
-        with trio.move_on_after(FRAME_TIMEOUT)as cancel_scope:
+        with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
             for playernum in range(len(self.players)):
                 websocket = self.players[playernum]
                 await websocket.send(self.pairString)
@@ -249,12 +252,12 @@ class Lobby:
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(self.timer_loop, nursery.cancel_scope)
                     nursery.start_soon(self.game_loop, nursery.cancel_scope)
-            except Exception as e:
-                await MainLogger.log(str(e))
-            await MainLogger.log("Game finished", opt=self)
-            for websocket in self.players:
-                websocket.gameFinished.set()
-                
+            except* Exception as egrp:
+                [await MainLogger.log(str(e)) for e in egrp.exceptions]
+            finally:
+                await MainLogger.log("Game finished", opt=self)
+                [websocket.gameFinished.set() for websocket in self.players]
+
 #---------------------Route Handlers-------------------------#
 
 async def serve_dynamic_file(path, textMap, token=None):
@@ -420,16 +423,15 @@ class Middleware:
 
 class Logger:
     def __init__(self):
-        self.outputBuffer = SharedResource([])
+        self.sendChannel, self.receiveChannel = trio.open_memory_channel(LOGGER_BUFFER_SIZE)
 
-    async def flush_output_buffer_loop(self):
+    async def service_log_queue(self):
         async with await LogFile.open("a") as f:
             while(True):
-                await trio.sleep(OUTPUT_BUFFER_FLUSH_INTERVAL)
-                async with self.outputBuffer.lock:
-                    await f.writelines(self.outputBuffer.var)
-                    await f.flush()
-                    self.outputBuffer.var.clear()
+                line = await self.receiveChannel.receive()
+                await f.write(line)
+                await f.flush()
+                await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
 
     async def log(self, string, opt=None):
         if opt is None:
@@ -444,8 +446,8 @@ class Logger:
             prompt = "Matchmaker"
         elif isinstance(opt, str):
             prompt = opt
-        async with self.outputBuffer.lock:
-            self.outputBuffer.var.append(f"[{strftime('%x %X')} {prompt}] {string}\n")
+        async with self.sendChannel.clone() as sender:
+            await sender.send(f"[{strftime('%x %X')} {prompt}] {string}\n")
     
 #-----------------------Main------------------------------------#
 
@@ -454,7 +456,8 @@ MainLogger = Logger()
 
 async def main_app():
     cfg = hypercorn.config.Config()
-    cfg.bind = f"unix:{str(ServerRoot.joinpath('web.sock'))}"
+#    cfg.bind = f"unix:{str(ServerRoot.joinpath('web.sock'))}"
+    cfg.bind = "0.0.0.0:80"
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = Middleware(app.asgi_app)
@@ -465,8 +468,8 @@ async def main():
     try:
         async with trio.open_nursery() as nursery:
             nursery.start_soon(main_app)
-            nursery.start_soon(MainLogger.flush_output_buffer_loop)
-            nursery.start_soon(MainMatchmaker.service_queue, nursery)
+            nursery.start_soon(MainLogger.service_log_queue)
+            nursery.start_soon(MainMatchmaker.service_matchmaking_queue, nursery)
     finally:
         with trio.CancelScope(shield=True):
             await MainMatchmaker.end()
