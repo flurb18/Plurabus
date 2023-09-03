@@ -426,11 +426,16 @@ class Logger:
         self.sendChannel, self.receiveChannel = trio.open_memory_channel(LOGGER_BUFFER_SIZE)
 
     async def service_log_queue(self):
-        async with await LogFile.open("a") as f:
+        if not args.test:
+            async with await LogFile.open("a") as f:
+                while(True):
+                    line = await self.receiveChannel.receive()
+                    await f.write(line)
+                    await f.flush()
+                    await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
+        else:
             while(True):
-                line = await self.receiveChannel.receive()
-                await f.write(line)
-                await f.flush()
+                print(await self.receiveChannel.receive())
                 await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
 
     async def log(self, string, opt=None):

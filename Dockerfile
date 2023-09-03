@@ -1,6 +1,6 @@
-FROM python:3.10
+FROM python:3.11
 WORKDIR /
+RUN pip install trio asyncio trio_asyncio quart quart_trio hypercorn
 ADD server.py /
 ADD web /
-RUN pip install trio asyncio trio_asyncio quart quart_trio hypercorn
-CMD python server.py --test
+CMD python /server.py --test
