@@ -435,7 +435,8 @@ class Logger:
                     await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
         else:
             while(True):
-                print(await self.receiveChannel.receive())
+                line = await self.receiveChannel.receive()
+                print(line, flush=True, end="")
                 await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
 
     async def log(self, string, opt=None):
