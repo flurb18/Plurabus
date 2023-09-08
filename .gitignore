@@ -6,3 +6,4 @@ webobj/*
 push
 deploy
 mariadbcmds
+docker-compose.yml
