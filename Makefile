@@ -3,7 +3,7 @@ FLAGS=-I$(IDIR) -Wall -D_WEBSOCKETPP_CPP11_STL_ -pthread
 LINKFLAGS=$(FLAGS) -lSDL2 -lSDL2_ttf -lSDL2_image -lboost_system -lboost_thread -lboost_random -lssl -lcrypto
 EXECNAME=plurabus-bin
 
-WEBCC=/usr/lib/emsdk/upstream/emscripten/emcc
+WEBCC=/emsdk/upstream/emscripten/emcc
 WEBFLAGS=-s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall
 WEBLINKFLAGS=$(WEBFLAGS) -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --embed-file assets --use-preload-plugins -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1073741824 --no-unsafe-eval
 WEBEXECNAME=plurabus
@@ -34,7 +34,6 @@ $(WEBODIR)/%.o: src/%.cpp $(DEPS)
 
 web $(WEBEXECNAME): $(WEBOBJ)
 	$(WEBCC) -o $(WEBEXECOUTPUTDIR)/$(WEBEXECNAME).js $^ $(WEBLINKFLAGS)
-	python postprocess.py
 
 all: $(EXECNAME) $(WEBEXECNAME)
 
