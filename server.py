@@ -396,11 +396,12 @@ class Middleware:
             tokenValid = False
             for header, value in scope["headers"]:
                 if header in [b"cookie", b"Cookie", b"COOKIE"]:
-                    for cookiename, token in [ kv_pair.split("=", 1) for kv_pair in value.decode("utf-8").split(";") ]:
+                    for cookiename, token in [ kv_pair.strip().split("=", 1) for kv_pair in value.decode("utf-8").split(";") ]:
                         if cookiename == TOKEN_COOKIE_NAME and len(token) == TOKEN_LENGTH and not (scope["client"] is None):
                             async with Tokens.lock:
-                                if (token in Tokens.var) and (Tokens.var.pop(token) == scope["client"][0]):
-                                    tokenValid = True
+                                if (token in Tokens.var):
+                                    if (Tokens.var.pop(token) == scope["client"][0]):
+                                        tokenValid = True
             if not tokenValid:
                 prompt = "no--ip"
                 if not (scope["client"] is None):

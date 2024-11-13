@@ -1,5 +1,7 @@
 FROM emscripten/emsdk:latest AS builder
 
+RUN embuilder.py build sdl2 sdl2_image sdl2_ttf
+
 ADD . /app
 WORKDIR /app
 RUN make web
