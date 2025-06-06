@@ -38,8 +38,8 @@ LOGGER_SERVICE_SLEEPTIME = 0.1
 MATCHMAKER_BUFFER_SIZE = 64
 LOGGER_BUFFER_SIZE = 64
 
-RECAPTCHA_SITE_KEY = "6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"
-PROJECT_ID = "skillful-garden-379804"
+RECAPTCHA_SITE_KEY = ""
+PROJECT_ID = ""
 PUBLIC_PAIRSTRING = "public"
 TOKEN_COOKIE_NAME = "_PLURABUS_TOKEN_"
 ADD_DIRECTIVE = "ADD"
@@ -72,8 +72,7 @@ NoCaptchaRewriteFiles = [
 ]
 NoCaptchaRewrites = {
     'buttonClick("public")' : 'document.getElementById("publicform").submit()',
-    'buttonClick("private")' : 'document.getElementById("privateform").submit()',
-    '<script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=6LetnQQlAAAAABNjewyT0QnLyxOPkMharK-SILmD"></script>' : ''
+    'buttonClick("private")' : 'document.getElementById("privateform").submit()'
 }
 
 #-------------------------Shared resource access------------------------------
