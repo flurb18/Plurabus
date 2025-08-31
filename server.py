@@ -273,7 +273,7 @@ async def serve_dynamic_file(path, textMap, token=None):
     response = await quart.make_response(body)
     response.headers["Content-Type"] = ContentTypes[template.suffix]
     if not (token is None):
-        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Strict', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
+        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Lax', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
     return response
 
 @app.websocket("/d/playercount")
