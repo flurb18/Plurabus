@@ -274,6 +274,8 @@ async def serve_dynamic_file(path, textMap, token=None):
     response = await quart.make_response(body)
     response.headers["Content-Type"] = ContentTypes[template.suffix]
     response.headers["Access-Control-Allow-Origin"] = ORIGINS
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
     if not (token is None):
         response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Lax', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
     return response
