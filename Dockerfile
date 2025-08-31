@@ -5,6 +5,7 @@ ADD ./src /src
 ADD ./include /include
 ADD ./web /web
 ADD ./assets /assets
+ADD ./Makefile /Makefile
 WORKDIR /
 RUN mkdir -p /webobj && mkdir -p /web/static/game && make web
 
