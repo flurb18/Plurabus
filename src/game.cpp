@@ -243,18 +243,17 @@ void Game::end(DoneStatus s) {
   }
   net->closeConnection("Normal");
   panel->addText(closeText.c_str());
-  int p1score, p2score = 0, 0;
+  int p1score, p2score;
+  p1score = 0;
+  p2score = 0;
   if (we_have_a_winner) {
-    switch(winnerSpawnID) {
-    case playerSpawnID:
+    if (winnerSpawnID == playerSpawnID) {
       p1score = 1;
-      break;
-    default:
+    } else {
       p2score = 1;
-      break;
     }
   }
-  std::string returnText = std::string(p1score) + "-" + std::string(p2score);
+  std::string returnText = std::to_string(p1score) + "-" + std::to_string(p2score);
   std::cout << returnText << std::endl;
   delete net;
 
