@@ -12,7 +12,7 @@ FROM nginx:latest
 
 COPY ./nginx.conf /etc/nginx/nginx.conf
 
-RUN apt install -y python3 python3-is-python
+RUN apt update && apt install -y python3 python3-is-python
 RUN pip install trio asyncio trio_asyncio quart quart_trio hypercorn
 ADD server.py /
 COPY --from=builder /web /web
