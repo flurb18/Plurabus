@@ -39,12 +39,12 @@ if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');
 }
 Module['print'] = function (text) {
-    const redirecttext = document.createElement("p");
+/*    const redirecttext = document.createElement("p");
     const scoretext = document.createElement("p");
     scoretext.textContent = "Score : " + text;
     redirecttext.textContent = "Redirecting to home in 5...";
     document.body.appendChild(scoretext);
-    document.body.appendChild(redirecttext);
+    document.body.appendChild(redirecttext); */
     setTimeout(() => { window.location.href = window.location.origin; }, 5000);    
 };
 var mainscript = document.createElement('script');
