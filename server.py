@@ -372,16 +372,16 @@ async def serve_http_lobbykey(lobbyKey):
     else:
         quart.abort(404)
 
-@app.route("/<path:filePath>", methods=["GET"])
-async def serve_static_file(filePath):
-    if not args.test:
-        quart.abort(404)
-    rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-    return await serve_dynamic_file(f"static/{filePath}", rewrites)
+#@app.route("/<path:filePath>", methods=["GET"])
+#async def serve_static_file(filePath):
+#    if not args.test:
+#        quart.abort(404)
+#    rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
+#    return await serve_dynamic_file(f"static/{filePath}", rewrites)
 
-@app.route("/", methods=["GET"])
-async def serve_homepage():
-    return await serve_static_file("index.html")
+#@app.route("/", methods=["GET"])
+#async def serve_homepage():
+#    return await serve_static_file("index.html")
 
 #----------------------Middleware------------------#
 
