@@ -278,7 +278,7 @@ async def serve_dynamic_file(path, textMap, token=None):
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     if not (token is None):
-        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Lax', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
+        response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='None', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
     return response
 
 @app.websocket("/d/playercount")
