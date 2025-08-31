@@ -45,7 +45,7 @@ TOKEN_COOKIE_NAME = "_PLURABUS_TOKEN_"
 ADD_DIRECTIVE = "ADD"
 REMOVE_DIRECTIVE = "REMOVE"
 END_DIRECTIVE = "END"
-ORIGINS = "html.itch.zone"
+ORIGINS = "https://html.itch.zone/"
 
 ServerRoot = trio.Path(__file__).parent
 LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
@@ -276,6 +276,7 @@ async def serve_dynamic_file(path, textMap, token=None):
     response.headers["Access-Control-Allow-Origin"] = ORIGINS
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     if not (token is None):
         response.set_cookie(TOKEN_COOKIE_NAME, token, samesite='Lax', max_age=TOKEN_LIFETIME, secure=True, httponly=True)
     return response
