@@ -45,7 +45,7 @@ TOKEN_COOKIE_NAME = "_PLURABUS_TOKEN_"
 ADD_DIRECTIVE = "ADD"
 REMOVE_DIRECTIVE = "REMOVE"
 END_DIRECTIVE = "END"
-ORIGINS = "html.itch.zone"
+ORIGINS = "*"
 
 ServerRoot = trio.Path(__file__).parent
 LogFile = ServerRoot.joinpath("logs").joinpath("plurabus.log")
