@@ -10,6 +10,7 @@
 #include <SDL2/SDL_rect.h>
 #include <stdlib.h>
 #include <string>
+#include <iostream>
 #include <random>
 
 #include "agent.h"
@@ -164,8 +165,10 @@ void Game::end(DoneStatus s) {
   ended = true;
   std::string closeText = "Connection closed.";
   int p1units, p2units;
+  bool we_have_a_winner = false;
   switch (s) {
   case DONE_STATUS_WINNER:
+    we_have_a_winner = true;
     switch (winnerSpawnID) {
     case SPAWNER_ID_ONE:
       closeText = colorScheme.p1name + " team wins!";
@@ -182,6 +185,7 @@ void Game::end(DoneStatus s) {
     closeText = "Other player disconnected.";
     break;
   case DONE_STATUS_RESIGN:
+    we_have_a_winner = true;
     if (winnerSpawnID != playerSpawnID) {
       net->sendText("RESIGN");
     }
@@ -217,6 +221,7 @@ void Game::end(DoneStatus s) {
     if (p1units == p2units) {
       closeText = "Draw! Both player have "+std::to_string(p1units)+" units left.";
     } else {
+      we_have_a_winner = true;
       if (p1units > p2units) {
 	winnerSpawnID = p1spawn->sid;
 	closeText = colorScheme.p1name + " team wins! They had " + std::to_string(p1units) + " Spawner units left, while " + colorScheme.p2name + " team had " + std::to_string(p2units) + ".";
@@ -238,6 +243,19 @@ void Game::end(DoneStatus s) {
   }
   net->closeConnection("Normal");
   panel->addText(closeText.c_str());
+  int p1score, p2score = 0, 0;
+  if (we_have_a_winner) {
+    switch(winnerSpawnID) {
+    case playerSpawnID:
+      p1score = 1;
+      break;
+    default:
+      p2score = 1;
+      break;
+    }
+  }
+  std::string returnText = std::string(p1score) + "-" + std::string(p2score);
+  std::cout << returnText << std::endl;
   delete net;
 
 }
