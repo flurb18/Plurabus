@@ -394,7 +394,7 @@ class Middleware:
             return await self.app(scope, receive, send)
         if "headers" in scope:
             for header, value in scope["headers"]:
-                if header == b"x-forwarded-for":
+                if header == b"x-real-ip":
                     scope["client"] = (value.decode("utf-8"), None)
         if scope["path"].startswith("/d/game"):
             tokenValid = False
@@ -468,7 +468,7 @@ MainLogger = Logger()
 async def main_app():
     cfg = hypercorn.config.Config()
 #    cfg.bind = f"unix:{str(ServerRoot.joinpath('web.sock'))}"
-    cfg.bind = "0.0.0.0:80"
+    cfg.bind = "0.0.0.0:5080"
     cfg.workers = 1
     cfg.websocket_ping_interval = WEBSOCKET_PING_INTERVAL
     app.asgi_app = Middleware(app.asgi_app)

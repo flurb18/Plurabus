@@ -1,14 +1,21 @@
 FROM emscripten/emsdk:latest AS builder
 
 RUN embuilder.py build sdl2 sdl2_image sdl2_ttf libpng
-ADD . /app
-WORKDIR /app
-RUN mkdir webobj && mkdir web/static/game && make web
-
-FROM python:3.11-slim
-
+ADD ./src /src
+ADD ./include /include
+ADD ./web /web
+ADD ./assets /assets
 WORKDIR /
+RUN mkdir -p /webobj && mkdir -p /web/static/game && make web
+
+FROM nginx:latest
+
+COPY ./nginx.conf /etc/nginx/nginx.conf
+
+RUN apt install -y python3 python3-is-python
 RUN pip install trio asyncio trio_asyncio quart quart_trio hypercorn
 ADD server.py /
-COPY --from=builder /app/web /web
-CMD python /server.py --test
+COPY --from=builder /web /web
+ADD wrapper.sh /
+RUN chmod +x /wrapper.sh
+CMD bash /wrapper.sh
