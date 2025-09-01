@@ -18,8 +18,7 @@ void Agent::die() {
   }
   unit->agent = nullptr;
   game->agentDict.erase(id);
-  if (sid == game->getPlayerSpawnID())
-    game->numPlayerAgents--;
+  game->numPlayerAgents[sid]--;
 }
 
 /* Update agent based on objective */
