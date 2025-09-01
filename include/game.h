@@ -102,7 +102,6 @@ private:
   bool resignConfirmation;
   bool ended;
   unsigned int eventsBufferCapacity;
-  unsigned int numPlayerAgents;
   Context context;
   SelectionContext selectionContext;
   ColorScheme colorScheme;
@@ -130,6 +129,7 @@ private:
   std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
+  std::map<SpawnerID, unsigned int> numPlayerAgents;
   std::map<BuildingType, std::deque<Building*>> buildingLists;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;

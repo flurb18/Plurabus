@@ -42,7 +42,6 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
   resignConfirmation(false),
   ended(false),
   eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
-  numPlayerAgents(0),
   context(GAME_CONTEXT_CONNECTING),
   selectionContext(SELECTION_CONTEXT_UNSELECTED),
   initScale(scl),
@@ -61,6 +60,8 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
   outside(this),
   selectedObjective(nullptr) {
   
+  numPlayerAgents[SPAWNER_ID_ONE] = 0;
+  numPlayerAgents[SPAWNER_ID_TWO] = 0;
   panelYDrawOffset = (mobile ? panelSize : 0);
   eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   gameDisplaySize = scaleInt(gameSize);
@@ -322,8 +323,7 @@ void Game::deleteMarkedAgents() {
     }
     u->agent = nullptr;
     agentDict.erase(it);
-    if (s == playerSpawnID)
-      numPlayerAgents--;
+    numPlayerAgents[s]--;
   }
   markedAgents.clear();
 }
@@ -582,7 +582,7 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
     uptr->agent = a;
     uptr->type = UNIT_TYPE_AGENT;
     if (sevent->id >= newAgentID) newAgentID = sevent->id + 1;
-    if (sevent->sid == playerSpawnID) numPlayerAgents++;
+    numPlayerAgents[sevent->sid]++;
   }
 }
 
@@ -642,7 +642,7 @@ void Game::receiveBombEvent(BombEvent *bevent) {
 }
 
 void Game::update() {
-  sizeEventsBuffer(numPlayerAgents);
+  sizeEventsBuffer(numPlayerAgents[playerSpawnID]);
   Events *events = (Events*)eventsBuffer;
   auto tzit = towerZaps.begin();
   while (tzit != towerZaps.end()) {
@@ -715,7 +715,7 @@ void Game::update() {
       }
     }
   }
-  events->numAgentEvents = numPlayerAgents;
+  events->numAgentEvents = numPlayerAgents[playerSpawnID];
 }
 
 /*------------------Objective Functions-----------------*/
