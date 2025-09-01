@@ -56,23 +56,17 @@ struct MapUnit {
   int hp;
   UnitType type;
   std::map<SpawnerID, MapUnitPerPlayerData> playerDict;
-  double scent;
-  double prevScent;
-  // Should be less than 0.25
-  double diffusion;
   Agent* agent;
   Game* game;
   Door *door;
   Building *building;
   bool marked;
-  Objective* objective;
   MapUnit* up;
   MapUnit* down;
   MapUnit* left;
   MapUnit* right;
   MapUnit(Game*);
   MapUnit(Game*, int, int);
-  void initializeScents();
   void setScent(double);
   void setEmptyNeighborScents(double);
   void clearScent();

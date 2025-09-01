@@ -34,13 +34,6 @@ void MapUnit::iterator::next() {
   }
 }
 
-void MapUnit::initializeScents() {
-  
-  scent = 0.0;
-  prevScent = 0.0;
-  diffusion = 0.15;
-}
-
 void MapUnit::clearScent() {
   playerDict[game->getPlayerSpawnID()].scent = 0.0;
   playerDict[game->getPlayerSpawnID()].prevScent = 0.0;
