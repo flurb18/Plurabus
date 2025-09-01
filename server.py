@@ -13,12 +13,6 @@ import argparse
 import random
 import secrets
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--test", help="disable captcha and serve static", action="store_true")
-args = parser.parse_args()
-if not args.test:
-    from google.cloud import recaptchaenterprise_v1
-
 OUTPUT_BUFFER_FLUSH_INTERVAL = 15
 FRAME_DELAY = 0.025
 NUMPLAYERS_REFRESH_TIME = 10
@@ -342,21 +336,16 @@ async def serve_http_dynamic():
     except Exception as e:
         await MainLogger.log(f"Bad POST request\n{str(e)}")
         quart.abort(400)
-    recaptchaToken = parse_qs(postData.decode("utf-8")).get("recaptcha-token",[""])[0]
-    if not args.test:
-        if actionString == "" or recaptchaToken == "":
-            quart.abort(400)
-        assessment = await create_assessment(PROJECT_ID, RECAPTCHA_SITE_KEY, recaptchaToken)
-        if (not assessment.token_properties.valid or
-            assessment.token_properties.action != actionString or
-            assessment.risk_analysis.score < 0.5):
-            quart.abort(401, "Failed captcha")
     if (actionString == "public"):
         tok = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING }, token=tok)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0" }, token=tok)
     elif (actionString == "private"):
         lobbyKey = await MainMatchmaker.create_lobby_key()
         return await serve_dynamic_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
+    elif (actionString == "practice"):
+        practice_mode = parse_qs(quart.request.query_string.decode("utf-8")).get("m", ["1"])[0]
+        tok = await create_token(quart.request.remote_addr)
+        return await serve_dynamic_file("play.html", { "PMODE_PLACEHOLDER" : practice_mode })
     else:
         quart.abort(404)
             
@@ -368,20 +357,9 @@ async def serve_http_lobbykey(lobbyKey):
         validKey = lobbyKey in MainMatchmaker.lobbyKeys.var
     if validKey:
         tok = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey }, token=tok)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey, "PMODE_PLACEHOLDER" : "0" }, token=tok)
     else:
         quart.abort(404)
-
-#@app.route("/<path:filePath>", methods=["GET"])
-#async def serve_static_file(filePath):
-#    if not args.test:
-#        quart.abort(404)
-#    rewrites = NoCaptchaRewrites if filePath in NoCaptchaRewriteFiles else {}
-#    return await serve_dynamic_file(f"static/{filePath}", rewrites)
-
-#@app.route("/", methods=["GET"])
-#async def serve_homepage():
-#    return await serve_static_file("index.html")
 
 #----------------------Middleware------------------#
 
@@ -431,18 +409,10 @@ class Logger:
         self.sendChannel, self.receiveChannel = trio.open_memory_channel(LOGGER_BUFFER_SIZE)
 
     async def service_log_queue(self):
-        if not args.test:
-            async with await LogFile.open("a") as f:
-                while(True):
-                    line = await self.receiveChannel.receive()
-                    await f.write(line)
-                    await f.flush()
-                    await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
-        else:
-            while(True):
-                line = await self.receiveChannel.receive()
-                print(line, flush=True, end="")
-                await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
+        while(True):
+            line = await self.receiveChannel.receive()
+            print(line, flush=True, end="")
+            await trio.sleep(LOGGER_SERVICE_SLEEPTIME)
 
     async def log(self, string, opt=None):
         if opt is None:

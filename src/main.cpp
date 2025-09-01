@@ -41,11 +41,13 @@ int handleAppEvents(void *arg, SDL_Event *event) {
 int main(int argc, char* argv[]) {
   /* Set the random number generator seed */
   srand(time(0));
+  int gameMode = atoi(argv[6])
   int gameSize = atoi(argv[1]);
   int gamePanelSize = atoi(argv[2]);
   double gameInitScale = atof(argv[3]);
-  bool mobile = (argc > 6);
+  bool mobile = (argc > 7);
   Game *g = new Game(
+         gameMode,
 		     gameSize,
 		     gamePanelSize,
 		     gameInitScale,

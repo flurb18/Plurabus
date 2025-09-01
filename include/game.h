@@ -35,7 +35,8 @@ enum Context {
   GAME_CONTEXT_EXIT,
   GAME_CONTEXT_PLAYING,
   GAME_CONTEXT_CONNECTING,
-  GAME_CONTEXT_STARTUPTIMER
+  GAME_CONTEXT_STARTUPTIMER,
+  GAME_CONTEXT_PRACTICE
 };
 
 enum SelectionContext {
@@ -107,6 +108,7 @@ private:
   ColorScheme colorScheme;
   double initScale;
   double scale;
+  int gameMode;
   int gameSize;
   int gameDisplaySize;
   int menuSize;
@@ -213,7 +215,7 @@ public:
   void zoomOut();
   void end(DoneStatus);
   static int messageSize(int);
-  Game(int, int, double, char*, char*, bool);
+  Game(int, int, int, double, char*, char*, bool);
   ~Game();
   void mainLoop();
 };

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Plurabus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono&display=swap">
+    <link rel="stylesheet" href="/style/styles.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+
+<body>
+  <div class="bodyText" id="bodyDiv">
+    <img src="/img/webtitle.png" alt="Plurabus">
+    <br>
+    <h1>Practice Modes</h1>
+    <p>Practice means that you play a bot rather than a real person. Choose from the options below for the bot's strategy.</p>
+    <br>
+    <h2>Spawner Attack</h2>
+    <p>Spawner Attack mode means that the CPU will simply set an attack objective for your spawner. Defend against the incoming units and then take out the opponent's spawner.</p>
+    <form id="spawnerattackform" action="/d/action?a=practice?m=1" method="POST">
+      <div>
+	    <button id="spawnerattackformbutton" type="button" class="block">Spawner Attack</button>
+      </div>
+    </form>
+    <br><br>
+    <a href="/">Back</a>
+  </div>
+  <script src="/script/practice.js"></script>
+</body>
+</html>

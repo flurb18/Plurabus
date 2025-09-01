@@ -9,6 +9,7 @@ const int SPAWNER_PADDING = 10;
 const int SPAWNER_UPDATE_TIME = 1;
 const int STARTUP_FONT_SIZE = 32;
 const int FONT_SIZE = 16;
+const int FONT_DIVISOR = 60;
 const int MOBILE_FONT_SIZE = 40;
 const int PANEL_PADDING = 10;
 const int MAX_WALL_HEALTH = 10;

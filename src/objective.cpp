@@ -4,8 +4,8 @@
 #include "mapunit.h"
 #include "game.h"
 
-Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
-  type(t), strength(s),  done(false), game(g), region(r) {
+Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r, SpawnerID _sid): \
+  type(t), strength(s),  done(false), game(g), region(r), sid(_sid) {
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
@@ -34,8 +34,8 @@ Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r): \
   }
 }
 
-Objective::Objective(Objective *sup, ObjectiveType t, int s, Game *g, SDL_Rect r):
-  Objective(t, s, g, r) {
+Objective::Objective(Objective *sup, ObjectiveType t, int s, Game *g, SDL_Rect r, SpawnerID _sid):
+  Objective(t, s, g, r, _sid) {
   super = sup;
 }
 
@@ -70,6 +70,7 @@ bool Objective::regionIsReadyForBuilding() {
 }
 
 void Objective::update() {
+  SpawnerID psid = game->getPlayerSpawnID();
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     if (iter != subObjectives.end()) {
@@ -85,7 +86,7 @@ void Objective::update() {
       if (m->type != UNIT_TYPE_WALL && m->type != UNIT_TYPE_DOOR) {
 	done = false;
 	if (m->type == UNIT_TYPE_EMPTY) {
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setScent(strength);
 	}
       }
@@ -105,13 +106,13 @@ void Objective::update() {
       if (m->type == UNIT_TYPE_SPAWNER) {
 	if (m->hp < SUBSPAWNER_UNIT_COST) {
 	  done = false;
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setEmptyNeighborScents(strength);
 	}
       } else {
 	done = false;
 	if (m->type == UNIT_TYPE_EMPTY) {
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setScent(strength);
 	}
       }
@@ -124,31 +125,31 @@ void Objective::update() {
       case UNIT_TYPE_AGENT:
 	if (m->agent->getSpawnID() != game->getPlayerSpawnID()) {
 	  done = false;
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setEmptyNeighborScents(strength);
 	}
 	break;
       case UNIT_TYPE_SPAWNER:
 	if (m->building->type == BUILDING_TYPE_SPAWNER && m->building->sid == game->getPlayerSpawnID()) break;
 	done = false;
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	break;
       case UNIT_TYPE_DOOR:
 	if (m->door->sid != game->getPlayerSpawnID()) {
 	  done = false;
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setEmptyNeighborScents(strength);
 	}
 	break;
       case UNIT_TYPE_WALL:
 	done = false;
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	break;
       case UNIT_TYPE_BUILDING:
 	done = false;
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	break;
       default:
@@ -167,13 +168,13 @@ void Objective::update() {
       case UNIT_TYPE_DOOR:
 	if (m->door->hp < MAX_DOOR_HEALTH) {
 	  done = false;
-	  m->objective = this;
+	  m->playerDict[psid].objective = this;
 	  m->setEmptyNeighborScents(strength);
 	}
 	break;
       case UNIT_TYPE_WALL:
 	done = false;
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	break;
       default:
@@ -187,14 +188,14 @@ void Objective::update() {
       MapUnit *center = game->mapUnitAt(region.x+region.w/2, region.y+region.h/2);
       if (center->type == UNIT_TYPE_EMPTY) {
 	center->setScent(strength);
-	center->objective = this;
+	center->playerDict[psid].objective = this;
       }
       done = false;
       break;
     }
     for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
       if (m->building->hp < m->building->max_hp) {
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	done = false;
       }
@@ -206,14 +207,14 @@ void Objective::update() {
       MapUnit *center = game->mapUnitAt(region.x+region.w/2, region.y+region.h/2);
       if (center->type == UNIT_TYPE_EMPTY) {
 	center->setScent(strength);
-	center->objective = this;
+	center->playerDict[psid].objective = this;
       }
       done = false;
       break;
     }
     for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
       if (m->building->hp < m->building->max_hp) {
-	m->objective = this;
+	m->playerDict[psid].objective = this;
 	m->setEmptyNeighborScents(strength);
 	done = false;
       }
@@ -225,9 +226,6 @@ void Objective::update() {
 }
 
 Objective::~Objective() {
-  for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
-    if (m->objective == this) m->objective = nullptr;
-  }
   for (Objective *o: subObjectives) delete o;
   subObjectives.clear();
 }

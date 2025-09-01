@@ -25,6 +25,7 @@ void Agent::die() {
 /* Update agent based on objective */
 void Agent::update(AgentEvent *aevent) {
   aevent->id = id;
+  SpawnerID psid = game->getPlayerSpawnID();
   AgentDirection dirRef[5] = {
     AGENT_DIRECTION_LEFT,
     AGENT_DIRECTION_RIGHT,
@@ -36,8 +37,8 @@ void Agent::update(AgentEvent *aevent) {
   // Handle objectives at the neighbors of the agent
   for (int i = 0; i < 5; i++) {
     MapUnit *m = neighbors[i];
-    if ((m->type != UNIT_TYPE_OUTSIDE) && (m->objective != nullptr) && (!m->isMarked())) {
-      switch (m->objective->type) {
+    if ((m->type != UNIT_TYPE_OUTSIDE) && (m->playerDict[psid].objective != nullptr) && (!m->isMarked())) {
+      switch (m->playerDict[psid].objective->type) {
       case OBJECTIVE_TYPE_BUILD_WALL_SUB:
 	if (canMoveTo(m) && m->type != UNIT_TYPE_DOOR) {
 	  aevent->dir = dirRef[i];
@@ -55,10 +56,10 @@ void Agent::update(AgentEvent *aevent) {
 	}
 	break;
       case OBJECTIVE_TYPE_BUILD_TOWER:
-	if (m->type == UNIT_TYPE_EMPTY && m->objective->regionIsReadyForBuilding()) {
+	if (m->type == UNIT_TYPE_EMPTY && m->playerDict[psid].objective->regionIsReadyForBuilding()) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_BUILDTOWER;
-	  for (MapUnit::iterator it = m->objective->getIterator(); it.hasNext(); it++) {
+	  for (MapUnit::iterator it = m->playerDict[psid].objective->getIterator(); it.hasNext(); it++) {
 	    it->mark();
 	  }
 	  return;
@@ -71,10 +72,10 @@ void Agent::update(AgentEvent *aevent) {
 	}
 	break;
       case OBJECTIVE_TYPE_BUILD_BOMB:
-	if (m->type == UNIT_TYPE_EMPTY && m->objective->regionIsReadyForBuilding()) {
+	if (m->type == UNIT_TYPE_EMPTY && m->playerDict[psid].objective->regionIsReadyForBuilding()) {
 	  aevent->dir = dirRef[i];
 	  aevent->action = AGENT_ACTION_BUILDBOMB;
-	  for (MapUnit::iterator it = m->objective->getIterator(); it.hasNext(); it++) {
+	  for (MapUnit::iterator it = m->playerDict[psid].objective->getIterator(); it.hasNext(); it++) {
 	    it->mark();
 	  }
 	  return;
@@ -157,7 +158,7 @@ void Agent::update(AgentEvent *aevent) {
   };
   double scents[4];
   for (int i = 0; i < 4; i++) {
-    scents[i] = unitOpts[i]->scent;
+    scents[i] = unitOpts[i]->playerDict[psid].scent;
   }
     /* Do a weighted random selection of where to go, based on the scent in each
     square */

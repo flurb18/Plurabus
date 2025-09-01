@@ -1,6 +1,8 @@
 #ifndef MAPUNIT_H
 #define MAPUNIT_H
 
+#include <map>
+
 #include "event.h"
 
 enum UnitType {
@@ -25,6 +27,13 @@ struct Door {
   bool isEmpty;
 };
 
+typedef struct MapUnitPerPlayerData {
+  Objective* objective;
+  double scent;
+  double prevScent;
+  double diffusion;
+} MapUnitPerPlayerData;
+
 struct MapUnit {
   /* An iterator for traversing through a predefined rectangle of mapunits */
   class iterator {
@@ -46,6 +55,7 @@ struct MapUnit {
   unsigned int x, y, index;
   int hp;
   UnitType type;
+  std::map<SpawnerID, MapUnitPerPlayerData> playerDict;
   double scent;
   double prevScent;
   // Should be less than 0.25

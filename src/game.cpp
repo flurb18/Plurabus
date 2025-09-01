@@ -36,8 +36,8 @@
 
 /*---------Constructor / Destructor----------------*/
 
-Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
-
+Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob):
+  gameMode(gm),
   pairString(pstr),
   mobile(mob),
   resignConfirmation(false),
@@ -86,8 +86,7 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
 
   selection = {0, 0, 1, 1};
   menuSize = gameDisplaySize / MENU_ITEMS_IN_VIEW;
-  int fontSize = FONT_SIZE;
-  if (mobile) fontSize = MOBILE_FONT_SIZE;
+  int fontSize = gameDisplaySize / FONT_DIVISOR;
   disp = new Display(gameDisplaySize, menuSize, panelSize, fontSize, mobile);
 
 #ifdef ANDROID
@@ -114,10 +113,15 @@ Game::Game(int sz, int psz, double scl, char *pstr, char *uri, bool mob):
   objectiveInfoTextures[OBJECTIVE_TYPE_BUILD_BOMB] = disp->cacheTextWrapped("Objective - Build Bomb", 0);
   p1bombTexture = nullptr;
   setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
-  net = new NetHandler(this, pairString, uri);
 #ifndef __EMSCRIPTEN__
   pthread_mutex_init(&threadLock, NULL);
 #endif
+  if (gameMode == 0) {
+    net = new NetHandler(this, pairString, uri);
+  } else { 
+	  panel->addText("You are the GREEN team.");
+    context = GAME_CONTEXT_PRACTICE;
+  }
 }
 
 Game::~Game() {
@@ -647,7 +651,7 @@ void Game::update() {
   for (MapUnit* u: mapUnits) {
     u->marked = false;
     u->update();
-    u->objective = nullptr;
+    u->playerDict[playerSpawnID].objective = nullptr;
   }
   auto it = objectives.begin();
   while (it != objectives.end()) {
@@ -736,7 +740,7 @@ void Game::placeBuilding(BuildingType type) {
     if (b->sid == playerSpawnID) numPlayerBuilds++;
   }
   for (Objective *o: objectives) {
-    if (o->type == oType && !o->started) numPlayerBuilds++;
+    if (o->sid == playerSpawnID && o->type == oType && !o->started) numPlayerBuilds++;
   }
   if (numPlayerBuilds < maxBuilds) {
     placementW = s;
@@ -761,7 +765,7 @@ void Game::setObjective(ObjectiveType oType) {
       placingOverride = true;
   }
   if (selectionContext == SELECTION_CONTEXT_SELECTED || selectionContext == SELECTION_CONTEXT_SELECTING || placingOverride) {
-    Objective *o = new Objective(oType, 255, this, selection);
+    Objective *o = new Objective(oType, 255, this, selection, playerSpawnID);
     objectives.push_back(o);
     selectionContext = SELECTION_CONTEXT_UNSELECTED;
   } else {
@@ -781,7 +785,7 @@ void Game::deleteSelectedObjective() {
       MapUnit *first = mapUnitAt(selectedObjective->region.x, selectedObjective->region.y);
       for (MapUnit::iterator it = first->getIterator(selectedObjective->region.w, selectedObjective->region.h);
 	   it.hasNext(); it++) {
-	it->objective = nullptr;
+	it->playerDict[playerSpawnID].objective = nullptr;
       }
       delete selectedObjective;
       selectedObjective = nullptr;
@@ -1264,7 +1268,7 @@ void Game::draw() {
       disp->drawRectFilled(scaledX, scaledY, (int)scale, (int)scale);
       if (iter->door->hp < MAX_DOOR_HEALTH || iter->door->isEmpty) {
 	if (menu->getIfScentsShown()) {
-	  lum = (int)(255.0 * (double)iter->scent/255.0);
+	  lum = (int)(255.0 * (double)iter->playerDict[playerSpawnID].scent/255.0);
 	  disp->setDrawColor(lum, 0, lum);
 	} else {
 	  disp->setDrawColorBlack();
@@ -1288,7 +1292,7 @@ void Game::draw() {
       break;
     case UNIT_TYPE_EMPTY:
       if (menu->getIfScentsShown()) {
-	lum = (int)(255.0 * (double)iter->scent/255.0);
+	lum = (int)(255.0 * (double)iter->playerDict[playerSpawnID].scent/255.0);
 	disp->setDrawColor(lum, 0, lum);
       } else {
 	disp->setDrawColorBlack();
@@ -1621,6 +1625,17 @@ void Game::mainLoop(void) {
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();
     break;
+  case GAME_CONTEXT_PRACTICE:
+    playerSpawnID = SPAWNER_ID_TWO;
+    update();
+	  receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    draw();
+    playerSpawnID = SPAWNER_ID_ONE;
+    update();
+	  receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    draw();
   default:
     draw();
     break;

@@ -33,7 +33,8 @@ Module['arguments'] = [
     gamePanelSize.toString(),
     scale.toString(),
     document.body.dataset.pstr,
-    (window.location.origin+"/d/game").replace(/^https(.*)/, 'wss$1')
+    (window.location.origin+"/d/game").replace(/^https(.*)/, 'wss$1'),
+    document.body.dataset.pmode
 ];
 if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');
