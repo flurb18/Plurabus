@@ -1667,7 +1667,7 @@ void Game::mainLoop(void) {
     checkSpawnersDestroyed();
     draw();
 #ifdef __EMSCRIPTEN__
-    emscripten_sleep(0.1);
+    emscripten_sleep(20);
 #endif
     break;
   default:
