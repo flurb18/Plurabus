@@ -82,7 +82,6 @@ void MapUnit::update() {
     playerDict[psid].diffusion = 0.0;
   }
   // Left and up have already been iterated through while updating
-  SpawnerID psid = game->getPlayerSpawnID();
   playerDict[psid].scent = playerDict[psid].diffusion*(left->playerDict[psid].prevScent + up->playerDict[psid].prevScent + right->playerDict[psid].scent + down->playerDict[psid].scent);
 }
 
