@@ -126,12 +126,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE, p1offset + SPAWNER_SIZE};
     Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn, SPAWNER_ID_TWO);
     objectives.push_back(o);
-  }
-  if (gameMode == 0) {
-    
-  } else { 
-
-	  
+    break;
   }
 }
 
@@ -1660,6 +1655,7 @@ void Game::mainLoop(void) {
 	  receiveEventsBuffer();
     checkSpawnersDestroyed();
     draw();
+    break;
   default:
     draw();
     break;
