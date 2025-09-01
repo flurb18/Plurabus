@@ -121,6 +121,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     net = new NetHandler(this, pairString, uri);
     break;
   case 1:
+    playerSpawnID = SPAWNER_ID_ONE;
     panel->addText("You are the GREEN team.");
     context = GAME_CONTEXT_PRACTICE;
     SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE, p1offset + SPAWNER_SIZE};
@@ -196,7 +197,7 @@ void Game::end(DoneStatus s) {
     break;
   case DONE_STATUS_RESIGN:
     we_have_a_winner = true;
-    if (winnerSpawnID != playerSpawnID) {
+    if (winnerSpawnID != playerSpawnID && gameMode == 0) {
       net->sendText("RESIGN");
     }
     switch (winnerSpawnID) {
@@ -209,7 +210,9 @@ void Game::end(DoneStatus s) {
     }
     break;
   case DONE_STATUS_EXIT:
-    net->sendText("DISCONNECT");
+    if (gameMode == 0) {
+      net->sendText("DISCONNECT");
+    }
     break;
   case DONE_STATUS_OTHER:
     closeText = "What! You shouldn't see this text!";
@@ -240,18 +243,25 @@ void Game::end(DoneStatus s) {
 	closeText = colorScheme.p2name + " team wins! They had " + std::to_string(p2units) + " Spawner units left, while " + colorScheme.p1name + " team had " + std::to_string(p1units) + ".";
       }
     }
-    net->sendText("TIMEOUT");
+    if (gameMode == 0) {
+      net->sendText("TIMEOUT");
+    }
     break;
   case DONE_STATUS_FRAME_TIMEOUT:
     closeText = "Network error, took too long.";
     break;
   case DONE_STATUS_BACKGROUND:
-    net->sendText("DISCONNECT");
+    if (gameMode == 0) {
+      net->sendText("DISCONNECT");
+    }
     break;
   default:
     break;
   }
-  net->closeConnection("Normal");
+  if (gameMode == 0) {
+    net->closeConnection("Normal");
+    delete net;
+  }
   panel->addText(closeText.c_str());
   int p1score, p2score;
   p1score = 0;
@@ -265,8 +275,6 @@ void Game::end(DoneStatus s) {
   }
   std::string returnText = std::to_string(p1score) + "-" + std::to_string(p2score);
   std::cout << returnText << std::endl;
-  delete net;
-
 }
 
 /*--------------Game state functions-------------*/
@@ -1000,7 +1008,8 @@ void Game::leftMouseDown(int x, int y) {
 	}
       } else {
 	for (Objective *o: objectives) {
-	  if (mouseUnitX >= o->region.x &&
+	  if (o->sid == playerSpawnID &&
+        mouseUnitX >= o->region.x &&
 	      mouseUnitX <= o->region.x + o->region.w - 1 &&
 	      mouseUnitY >= o->region.y &&
 	      mouseUnitY <= o->region.y + o->region.h - 1) {
@@ -1359,6 +1368,9 @@ void Game::draw() {
   }
   if (menu->getIfObjectivesShown()) {
     for (Objective *o: objectives) {
+      if (!(o->sid == playerSpawnID)) {
+        continue;
+      }
       disp->setDrawColor(255,255,0);
       if (o == selectedObjective) {
 	disp->setDrawColor(0,255,255);
@@ -1649,12 +1661,14 @@ void Game::mainLoop(void) {
     update();
 	  receiveEventsBuffer();
     checkSpawnersDestroyed();
-    draw();
     playerSpawnID = SPAWNER_ID_ONE;
     update();
 	  receiveEventsBuffer();
     checkSpawnersDestroyed();
     draw();
+#ifdef __EMPSCRIPTEN__
+    emscripten_sleep(0.1);
+#endif
     break;
   default:
     draw();
