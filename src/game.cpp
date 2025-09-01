@@ -444,7 +444,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       Tower *tower = new Tower(this, s, x, y);
       tower->hp = count;
       if (s == playerSpawnID)
-	destuptr->objective->started = true;
+	destuptr->playerDict[playerSpawnID].objective->started = true;
       buildingLists[BUILDING_TYPE_TOWER].push_back(tower);
     } else {
       destuptr->building->hp++;
@@ -468,7 +468,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
       Bomb *bomb = new Bomb(this, s, x, y);
       bomb->hp = count;
       if (s == playerSpawnID)
-	destuptr->objective->started = true;
+	destuptr->playerDict[playerSpawnID].objective->started = true;
       buildingLists[BUILDING_TYPE_BOMB].push_back(bomb);
     } else {
       destuptr->building->hp++;
@@ -483,7 +483,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
 	Subspawner *subspawner =
 	  new Subspawner(this, a->sid, destuptr->x-SUBSPAWNER_SIZE/2, destuptr->y-SUBSPAWNER_SIZE/2);
 	if (a->sid == playerSpawnID)
-	  destuptr->objective->super->started = true;
+	  destuptr->playerDict[playerSpawnID].objective->super->started = true;
 	 buildingLists[BUILDING_TYPE_SUBSPAWNER].push_back(subspawner);
       }
     } else {
