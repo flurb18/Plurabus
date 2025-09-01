@@ -327,27 +327,37 @@ async def serve_http_serverinfo():
     response = await quart.make_response(json.dumps(info).encode())
     response.headers["Content-Type"] = ContentTypes[".json"]
     return response
-                
-@app.route("/d/action", methods=["POST"])
-async def serve_http_dynamic():
-    actionString = parse_qs(quart.request.query_string.decode("utf-8")).get("a", [""])[0]
+
+@app.route("/d/public", methods=["POST"])
+async def serve_public():
     try:
         postData = await quart.request.get_data()
     except Exception as e:
         await MainLogger.log(f"Bad POST request\n{str(e)}")
         quart.abort(400)
-    if (actionString == "public"):
-        tok = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0" }, token=tok)
-    elif (actionString == "private"):
-        lobbyKey = await MainMatchmaker.create_lobby_key()
-        return await serve_dynamic_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
-    elif (actionString == "practice"):
-        practice_mode = parse_qs(quart.request.query_string.decode("utf-8")).get("m", ["1"])[0]
-        tok = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html", { "PMODE_PLACEHOLDER" : practice_mode })
-    else:
-        quart.abort(404)
+    tok = await create_token(quart.request.remote_addr)
+    return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0" }, token=tok)
+
+@app.route("/d/private", methods=["POST"])
+async def serve_private():
+    try:
+        postData = await quart.request.get_data()
+    except Exception as e:
+        await MainLogger.log(f"Bad POST request\n{str(e)}")
+        quart.abort(400)    
+    lobbyKey = await MainMatchmaker.create_lobby_key()
+    return await serve_dynamic_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
+
+@app.route("/d/practice", methods=["POST"])
+async def serve_practice():
+    try:
+        postData = await quart.request.get_data()
+    except Exception as e:
+        await MainLogger.log(f"Bad POST request\n{str(e)}")
+        quart.abort(400)    
+    practice_mode = parse_qs(quart.request.query_string.decode("utf-8")).get("m", ["1"])[0]
+    tok = await create_token(quart.request.remote_addr)
+    return await serve_dynamic_file("play.html", { "PMODE_PLACEHOLDER" : practice_mode })
             
 @app.route("/g/<string:lobbyKey>", methods=["GET"])
 async def serve_http_lobbykey(lobbyKey):
