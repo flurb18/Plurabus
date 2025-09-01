@@ -37,7 +37,6 @@
 /*---------Constructor / Destructor----------------*/
 
 Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob):
-  gameMode(gm),
   pairString(pstr),
   mobile(mob),
   resignConfirmation(false),
@@ -48,6 +47,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
   selectionContext(SELECTION_CONTEXT_UNSELECTED),
   initScale(scl),
   scale(scl),
+  gameMode(gm),
   gameSize(sz),
   panelSize(psz),
   mouseX(0),

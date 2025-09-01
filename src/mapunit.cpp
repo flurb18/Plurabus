@@ -7,16 +7,16 @@
 
 MapUnit::MapUnit(Game* g): type(UNIT_TYPE_OUTSIDE), game(g), marked(true) {
   
-  playerDict[SPAWNER_ID_ONE] = {nullptr, 0.0, 0.0, 0.0}
-  playerDict[SPAWNER_ID_TWO] = {nullptr, 0.0, 0.0, 0.0}
+  playerDict[SPAWNER_ID_ONE] = {nullptr, 0.0, 0.0, 0.0};
+  playerDict[SPAWNER_ID_TWO] = {nullptr, 0.0, 0.0, 0.0};
   
 }
 
 MapUnit::MapUnit(Game* g, int x_, int y_):
   x(x_), y(y_), type(UNIT_TYPE_EMPTY), game(g), marked(false)  {
   index = y * game->getSize() + x;
-  playerDict[SPAWNER_ID_ONE] = {nullptr, 0.0, 0.0, 0.15}
-  playerDict[SPAWNER_ID_TWO] = {nullptr, 0.0, 0.0, 0.15}
+  playerDict[SPAWNER_ID_ONE] = {nullptr, 0.0, 0.0, 0.15};
+  playerDict[SPAWNER_ID_TWO] = {nullptr, 0.0, 0.0, 0.15};
 
 }
 
