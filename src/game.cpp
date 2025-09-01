@@ -116,11 +116,22 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
 #ifndef __EMSCRIPTEN__
   pthread_mutex_init(&threadLock, NULL);
 #endif
-  if (gameMode == 0) {
+  switch (gameMode) {
+  case 0:
     net = new NetHandler(this, pairString, uri);
-  } else { 
-	  panel->addText("You are the GREEN team.");
+    break;
+  case 1:
+    panel->addText("You are the GREEN team.");
     context = GAME_CONTEXT_PRACTICE;
+    SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE, p1offset + SPAWNER_SIZE};
+    Objective *o = new Objective(oType, 255, this, green_spawn, SPAWNER_ID_TWO);
+    objectives.push_back(o);
+  }
+  if (gameMode == 0) {
+    
+  } else { 
+
+	  
   }
 }
 
@@ -655,6 +666,10 @@ void Game::update() {
   }
   auto it = objectives.begin();
   while (it != objectives.end()) {
+    if (!((*it)->sid == playerSpawnID)) {
+      it++;
+      continue;
+    }
     (*it)->update();
     if ((*it)->isDone()) {
       if (selectedObjective == *it) selectedObjective = nullptr;

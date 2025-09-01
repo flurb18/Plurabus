@@ -1,8 +1,9 @@
-function buttonClick(actionType) {
-	document.getElementById(actionType+"form").submit();
+function setupButton(name) {
+    document.getElementById(name + "formbutton").onclick = function () { document.getElementById(name + "form").submit() };
 }
-document.getElementById('publicformbutton').onclick = function () { buttonClick("public") };
-document.getElementById('privateformbutton').onclick = function () { buttonClick("private") };
+setupButton("public")
+setupButton("private")
+setupButton("practice")
 const countersocket = new WebSocket((window.location.origin+"/d/playercount").replace(/^https(.*)/, 'wss$1'));
 countersocket.onmessage = function(event) {
     document.getElementById("counterDiv").innerText = event.data;
