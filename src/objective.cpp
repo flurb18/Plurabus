@@ -5,12 +5,12 @@
 #include "game.h"
 
 Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r, SpawnerID _sid): \
-  type(t), strength(s),  done(false), game(g), region(r), sid(_sid) {
+  type(t), strength(s),  done(false), sid(_sid), game(g), region(r) {
   switch(type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
       SDL_Rect sub = { region.x + i, region.y + i, region.w - (2*i), region.h - (2*i) };
-      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub)); 
+      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub, sid)); 
     }
     iter = subObjectives.begin();
     break;
@@ -21,7 +21,7 @@ Objective::Objective(ObjectiveType t, int s, Game* g, SDL_Rect r, SpawnerID _sid
     started = false;
     for (int i = 0; region.w - (2*i) > 0 && region.h - (2*i) > 0; i++) {
       SDL_Rect sub = { region.x + i, region.y + i, region.w - (2*i), region.h - (2*i) };
-      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub));
+      subObjectives.push_front(new Objective(this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub, sid));
     }
     iter = subObjectives.begin();
     break;
