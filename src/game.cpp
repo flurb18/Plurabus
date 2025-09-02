@@ -134,7 +134,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                  SPAWNER_ID_TWO);
     objectives.push_back(o);
-    pthread_create(&practiceLoopThread, NULL, practiceLoop, nullptr);
+    pthread_create(&practiceLoopThread, NULL, practiceLoopWrapper, (void *)this);
     break;
   }
 }
@@ -1740,18 +1740,20 @@ void Game::handleSDLEvent(SDL_Event *e) {
   }
 }
 
-void *Game::practiceLoop(void *) {
-  pthread_mutex_lock(&threadLock);
-  playerSpawnID = SPAWNER_ID_TWO;
-  update();
-  receiveEventsBuffer();
-  checkSpawnersDestroyed();
-  playerSpawnID = SPAWNER_ID_ONE;
-  update();
-  receiveEventsBuffer();
-  checkSpawnersDestroyed();
-  pthread_mutex_unlock(&threadLock);
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+void Game::practiceLoop(void) {
+  while (getContext() != GAME_CONTEXT_EXIT) {
+    pthread_mutex_lock(&threadLock);
+    playerSpawnID = SPAWNER_ID_TWO;
+    update();
+    receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    playerSpawnID = SPAWNER_ID_ONE;
+    update();
+    receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    pthread_mutex_unlock(&threadLock);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
 }
 
 void Game::mainLoop(void) {
@@ -1787,4 +1789,9 @@ void Game::mainLoop(void) {
   }
   disp->update();
   pthread_mutex_unlock(&threadLock);
+}
+
+void *practiceLoopWrapper(void *g) {
+  Game *game = (Game *)g;
+  game->practiceLoop();
 }
