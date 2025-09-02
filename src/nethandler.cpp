@@ -2,9 +2,9 @@
 
 #ifdef __EMSCRIPTEN__
 
+#include <emscripten.h>
 #include <emscripten/emscripten.h>
 #include <emscripten/websocket.h>
-#include <emscripten.h>
 #else
 #include <pthread.h>
 #endif
@@ -15,24 +15,26 @@
 #include "game.h"
 #include "panel.h"
 
-
 #ifdef __EMSCRIPTEN__
 
-EM_BOOL onOpen(int eventType, const EmscriptenWebSocketOpenEvent *event, void *data) {
-  NetHandler *net = (NetHandler*)data;
+EM_BOOL onOpen(int eventType, const EmscriptenWebSocketOpenEvent *event,
+               void *data) {
+  NetHandler *net = (NetHandler *)data;
   net->notifyOpen();
   return EM_TRUE;
 }
 
-EM_BOOL onMessage(int eventType, const EmscriptenWebSocketMessageEvent *event, void *data) {
-  NetHandler *net = (NetHandler*)data;
-  net->receive((void*)event->data, event->numBytes, event->isText);
+EM_BOOL onMessage(int eventType, const EmscriptenWebSocketMessageEvent *event,
+                  void *data) {
+  NetHandler *net = (NetHandler *)data;
+  net->receive((void *)event->data, event->numBytes, event->isText);
   return EM_TRUE;
 }
 
-EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void *data) {
-  NetHandler *net = (NetHandler*)data;
-  net->notifyClosed((const char*)event->reason);
+EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event,
+                void *data) {
+  NetHandler *net = (NetHandler *)data;
+  net->notifyClosed((const char *)event->reason);
   return EM_TRUE;
 }
 
@@ -43,55 +45,58 @@ public:
   NetHandler *net;
   typedef websocketpp::lib::shared_ptr<NetMetadata> ptr;
 
-  NetMetadata(NetHandler *n): net(n) {}
+  NetMetadata(NetHandler *n) : net(n) {}
 
   void on_open(client *c, websocketpp::connection_hdl hdl) {
     net->notifyOpen();
   }
-  void on_message(client *c, websocketpp::connection_hdl hdl, client::message_ptr data) {
+  void on_message(client *c, websocketpp::connection_hdl hdl,
+                  client::message_ptr data) {
     if (data->get_opcode() == websocketpp::frame::opcode::text) {
-      net->receive((void*)data->get_payload().data(), data->get_payload().size(), true);
+      net->receive((void *)data->get_payload().data(),
+                   data->get_payload().size(), true);
     } else {
-      net->receive((void*)data->get_payload().data(), data->get_payload().size(), false);
+      net->receive((void *)data->get_payload().data(),
+                   data->get_payload().size(), false);
     }
   }
   void on_close(client *c, websocketpp::connection_hdl hdl) {
-    net->notifyClosed(c->get_con_from_hdl(hdl)->get_remote_close_reason().c_str());
+    net->notifyClosed(
+        c->get_con_from_hdl(hdl)->get_remote_close_reason().c_str());
   }
 };
 
 context_ptr on_tls_init() {
-  //  return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
-    // establishes a SSL connection
-    context_ptr ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv12);
+  //  return
+  //  websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv1);/*
+  // establishes a SSL connection
+  context_ptr ctx = std::make_shared<boost::asio::ssl::context>(
+      boost::asio::ssl::context::tlsv12);
 
-    try {
-        ctx->set_options(boost::asio::ssl::context::default_workarounds |
-                         boost::asio::ssl::context::no_sslv2 |
-                         boost::asio::ssl::context::no_sslv3 |
-                         boost::asio::ssl::context::single_dh_use);
-    } catch (std::exception &e) {
-        std::cout << "Error in context pointer: " << e.what() << std::endl;
-    }
-    return ctx;
+  try {
+    ctx->set_options(boost::asio::ssl::context::default_workarounds |
+                     boost::asio::ssl::context::no_sslv2 |
+                     boost::asio::ssl::context::no_sslv3 |
+                     boost::asio::ssl::context::single_dh_use);
+  } catch (std::exception &e) {
+    std::cout << "Error in context pointer: " << e.what() << std::endl;
+  }
+  return ctx;
 }
 
 #endif
 
-NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr):  ncon(NET_CONTEXT_INIT), game(g) {
+NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr)
+    : ncon(NET_CONTEXT_INIT), game(g) {
   //  pthread_mutex_init(&netLock, NULL);
-  //pthread_mutex_lock(&netLock);
+  // pthread_mutex_lock(&netLock);
   pairString = pstr;
-  
+
   std::string uri(uriCstr);
-  
+
 #ifdef __EMSCRIPTEN__
-  
-  EmscriptenWebSocketCreateAttributes attr = {
-    uri.c_str(),
-    NULL,
-    EM_TRUE
-  };
+
+  EmscriptenWebSocketCreateAttributes attr = {uri.c_str(), NULL, EM_TRUE};
   sock = emscripten_websocket_new(&attr);
   if (sock <= 0) {
     printf("Socket creation failed: %d", sock);
@@ -101,14 +106,14 @@ NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr):  ncon(NET_CONTEXT_IN
   emscripten_websocket_set_onclose_callback(sock, this, onClose);
 
 #else
-  
+
   m_client.clear_access_channels(websocketpp::log::alevel::all);
   m_client.clear_error_channels(websocketpp::log::elevel::all);
 
   m_client.init_asio();
   m_client.start_perpetual();
   m_client.set_tls_init_handler(bind(&on_tls_init));
-  
+
   websocketpp::lib::error_code ec;
   client::connection_ptr con = m_client.get_connection(uri, ec);
   m_hdl = con->get_handle();
@@ -117,24 +122,16 @@ NetHandler::NetHandler(Game *g, char *pstr, char *uriCstr):  ncon(NET_CONTEXT_IN
   }
 
   NetMetadata::ptr metadata_ptr(new NetMetadata(this));
-  con->set_open_handler(bind(&NetMetadata::on_open,
-			     metadata_ptr,
-			     &m_client,
-			     _1));
-  con->set_message_handler(bind(&NetMetadata::on_message,
-				metadata_ptr,
-				&m_client,
-				_1,
-				_2));
-  con->set_close_handler(bind(&NetMetadata::on_close,
-			      metadata_ptr,
-			      &m_client,
-			      _1));
-  
+  con->set_open_handler(
+      bind(&NetMetadata::on_open, metadata_ptr, &m_client, _1));
+  con->set_message_handler(
+      bind(&NetMetadata::on_message, metadata_ptr, &m_client, _1, _2));
+  con->set_close_handler(
+      bind(&NetMetadata::on_close, metadata_ptr, &m_client, _1));
+
   m_client.connect(con);
   m_thread.reset(new websocketpp::lib::thread(&client::run, &m_client));
 #endif
-
 }
 
 void NetHandler::sendText(const char *text) {
@@ -153,16 +150,16 @@ void NetHandler::sendText(const char *text) {
   if (ec) {
     std::cout << "Error sending message" << std::endl;
   }
-  
-#endif
 
+#endif
 }
 
 void NetHandler::send(void *data, int numBytes) {
 
 #ifdef __EMSCRIPTEN__
 
-  EMSCRIPTEN_RESULT result = emscripten_websocket_send_binary(sock, data, numBytes);
+  EMSCRIPTEN_RESULT result =
+      emscripten_websocket_send_binary(sock, data, numBytes);
   if (result) {
     printf("Failed to send data: %d\n", result);
   }
@@ -170,69 +167,69 @@ void NetHandler::send(void *data, int numBytes) {
 #else
 
   websocketpp::lib::error_code ec;
-  m_client.send(m_hdl, (const void *)data, numBytes, websocketpp::frame::opcode::binary, ec);
+  m_client.send(m_hdl, (const void *)data, numBytes,
+                websocketpp::frame::opcode::binary, ec);
   if (ec) {
     std::cout << "> Error sending message" << std::endl;
   }
-  
-#endif
 
+#endif
 }
 
 void NetHandler::receive(void *data, int numBytes, bool isText) {
 #ifndef __EMSCRIPTEN__
   pthread_mutex_lock(&game->threadLock);
 #endif
-  switch(ncon) {
+  switch (ncon) {
   case NET_CONTEXT_INIT:
     break;
   case NET_CONTEXT_CONNECTED:
     if (isText) {
       if (strcmp((char *)data, pairString) == 0) {
-	ncon = NET_CONTEXT_READY;
-	sendText("Ready");
+        ncon = NET_CONTEXT_READY;
+        sendText("Ready");
       }
     }
     break;
   case NET_CONTEXT_READY:
     if (isText) {
       if (strcmp((char *)data, "P1") == 0) {
-	game->playerSpawnID = SPAWNER_ID_ONE;
-	game->panel->addText("You are the GREEN team.");
-	sendText("Set");
+        game->playerSpawnID = SPAWNER_ID_ONE;
+        game->panel->addText("You are the GREEN team.");
+        sendText("Set");
       } else if (strcmp((char *)data, "P2") == 0) {
-	ncon = NET_CONTEXT_PLAYING;
-	game->playerSpawnID = SPAWNER_ID_TWO;
-	game->panel->addText("You are the RED team.");
-	sendText("Set");
-	game->context = GAME_CONTEXT_STARTUPTIMER;
+        ncon = NET_CONTEXT_PLAYING;
+        game->playerSpawnID = SPAWNER_ID_TWO;
+        game->panel->addText("You are the RED team.");
+        sendText("Set");
+        game->context = GAME_CONTEXT_STARTUPTIMER;
       } else if (strcmp((char *)data, "Go") == 0) {
-	ncon = NET_CONTEXT_PLAYING;
-	sendText("Start");
-	game->context = GAME_CONTEXT_STARTUPTIMER;
+        ncon = NET_CONTEXT_PLAYING;
+        sendText("Start");
+        game->context = GAME_CONTEXT_STARTUPTIMER;
       }
     }
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
-      if (strcmp((char*)data, "TIMER") == 0) {
-	if (game->secondsRemaining-- - GAME_TIME_SECONDS == 0) {
-	  game->context = GAME_CONTEXT_PLAYING;
-	  if (game->playerSpawnID == SPAWNER_ID_ONE) {
-	    game->update();
-	    game->receiveEventsBuffer();
-	    game->sendEventsBuffer();
-	  }
-	}
-      } else if (strcmp((char*)data, "TIMEOUT") == 0) {
-	game->end(DONE_STATUS_TIMEOUT);
-      } else if (strcmp((char*)data, "DISCONNECT") == 0) {
-	game->end(DONE_STATUS_DISCONNECT);
-      } else if (strcmp((char*)data, "RESIGN") == 0) {
-	game->winnerSpawnID = game->playerSpawnID;
-	game->end(DONE_STATUS_RESIGN);
-      } else if (strcmp((char*)data, "FRAME_TIMEOUT") == 0) {
-	game->end(DONE_STATUS_FRAME_TIMEOUT);
+      if (strcmp((char *)data, "TIMER") == 0) {
+        if (game->secondsRemaining-- - GAME_TIME_SECONDS == 0) {
+          game->context = GAME_CONTEXT_PLAYING;
+          if (game->playerSpawnID == SPAWNER_ID_ONE) {
+            game->update();
+            game->receiveEventsBuffer();
+            game->sendEventsBuffer();
+          }
+        }
+      } else if (strcmp((char *)data, "TIMEOUT") == 0) {
+        game->end(DONE_STATUS_TIMEOUT);
+      } else if (strcmp((char *)data, "DISCONNECT") == 0) {
+        game->end(DONE_STATUS_DISCONNECT);
+      } else if (strcmp((char *)data, "RESIGN") == 0) {
+        game->winnerSpawnID = game->playerSpawnID;
+        game->end(DONE_STATUS_RESIGN);
+      } else if (strcmp((char *)data, "FRAME_TIMEOUT") == 0) {
+        game->end(DONE_STATUS_FRAME_TIMEOUT);
       }
     } else {
       game->receiveData(data, numBytes);
@@ -252,7 +249,8 @@ void NetHandler::closeConnection(const char *reason) {
     emscripten_websocket_close(sock, 1000, reason);
 #else
     m_client.stop_perpetual();
-    m_client.close(m_hdl, websocketpp::close::status::normal, std::string(reason));
+    m_client.close(m_hdl, websocketpp::close::status::normal,
+                   std::string(reason));
 #endif
     ncon = NET_CONTEXT_CLOSED;
   }
@@ -262,16 +260,11 @@ void NetHandler::notifyOpen() {
   ncon = NET_CONTEXT_CONNECTED;
 
   sendText(pairString);
-
 }
 
-void NetHandler::notifyClosed(const char *reason) {
-  ncon = NET_CONTEXT_CLOSED;
-}
+void NetHandler::notifyClosed(const char *reason) { ncon = NET_CONTEXT_CLOSED; }
 
-bool NetHandler::readyForGame() {
-  return (ncon == NET_CONTEXT_PLAYING);
-}
+bool NetHandler::readyForGame() { return (ncon == NET_CONTEXT_PLAYING); }
 
 NetHandler::~NetHandler() {
   if (ncon != NET_CONTEXT_CLOSED)
@@ -283,4 +276,3 @@ NetHandler::~NetHandler() {
   m_thread->join();
 #endif
 }
-

@@ -12,15 +12,19 @@ void SubMenu::size(Display *disp, int relIdx) {
   for (auto it = strings.begin(); it != strings.end(); it++) {
     int textWidth, textHeight;
     disp->sizeText(*it, &textWidth, &textHeight);
-    if (textWidth > maxTextWidth) maxTextWidth = textWidth;
-    if (textHeight > maxTextHeight) maxTextHeight = textHeight;
+    if (textWidth > maxTextWidth)
+      maxTextWidth = textWidth;
+    if (textHeight > maxTextHeight)
+      maxTextHeight = textHeight;
   }
   w = maxTextWidth + (SUBMENU_HORIZONTAL_PADDING * 2);
-  if (isToggleSubMenu) w += maxTextHeight;
+  if (isToggleSubMenu)
+    w += maxTextHeight;
   h = maxTextHeight * strings.size();
   int itemSize = disp->getMenuSize();
   x = relIdx * itemSize + (itemSize / 2) - (w / 2);
-  if (x > disp->getGameDisplaySize() - w) x = disp->getGameDisplaySize() - w;
+  if (x > disp->getGameDisplaySize() - w)
+    x = disp->getGameDisplaySize() - w;
   y = disp->getHeight() - disp->getMenuSize() - h;
 }
 
@@ -30,32 +34,22 @@ SubMenu::~SubMenu() {
   toggleFlags.clear();
 }
 
-MenuItem::MenuItem(Game *g, int i):
-  game(g),
-  positionIndex(i),
-  subMenuShown(false),
-  isBlank(true),
-  highlighted(false) {
+MenuItem::MenuItem(Game *g, int i)
+    : game(g), positionIndex(i), subMenuShown(false), isBlank(true),
+      highlighted(false) {
   menuFunc = &MenuItem::doNothing;
 }
 
-MenuItem::MenuItem(Game *g, const char *iconFile, void (MenuItem::*f)(),int i):
-  game(g),
-  positionIndex(i),
-  subMenuShown(false),
-  isBlank(false),
-  highlighted(false) {
+MenuItem::MenuItem(Game *g, const char *iconFile, void (MenuItem::*f)(), int i)
+    : game(g), positionIndex(i), subMenuShown(false), isBlank(false),
+      highlighted(false) {
   icon = game->disp->cacheImage(iconFile);
   menuFunc = f;
 }
 
-MenuItem::MenuItem(Game *g, const char *iconFile, SubMenu sub, int i):
-  game(g),
-  positionIndex(i),
-  subMenu(sub),
-  subMenuShown(false),
-  isBlank(false),
-  highlighted(false) {
+MenuItem::MenuItem(Game *g, const char *iconFile, SubMenu sub, int i)
+    : game(g), positionIndex(i), subMenu(sub), subMenuShown(false),
+      isBlank(false), highlighted(false) {
   icon = game->disp->cacheImage(iconFile);
   menuFunc = &MenuItem::toggleSubMenu;
 }
@@ -67,13 +61,9 @@ void MenuItem::xButton() {
   game->deselect();
 }
 
-void MenuItem::zoomInWrapper() {
-  game->zoomIn();
-}
+void MenuItem::zoomInWrapper() { game->zoomIn(); }
 
-void MenuItem::zoomOutWrapper() {
-  game->zoomOut();
-}
+void MenuItem::zoomOutWrapper() { game->zoomOut(); }
 
 void MenuItem::toggleSubMenu() {
   if (!subMenuShown) {
@@ -86,7 +76,7 @@ void MenuItem::toggleSubMenu() {
   }
 }
 
-Menu::Menu(Game *g): game(g) {
+Menu::Menu(Game *g) : game(g) {
   checkIcon = game->disp->cacheImage("assets/img/check.png");
   SubMenu barsSubMenu;
   int barsSubIdx = 4;
@@ -148,18 +138,21 @@ Menu::Menu(Game *g): game(g) {
   userSubMenu.isToggleSubMenu = false;
   userSubMenu.size(game->disp, userSubIdx);
   items.reserve(6);
-  items.push_back(new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
-  items.push_back(new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
-  items.push_back(new MenuItem(game, "assets/img/xmark.png", &MenuItem::xButton, 2)); 
-  items.push_back(new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
-  items.push_back(new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
-  items.push_back(new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
-
+  items.push_back(
+      new MenuItem(game, "assets/img/plus.png", &MenuItem::zoomInWrapper, 0));
+  items.push_back(
+      new MenuItem(game, "assets/img/minus.png", &MenuItem::zoomOutWrapper, 1));
+  items.push_back(
+      new MenuItem(game, "assets/img/xmark.png", &MenuItem::xButton, 2));
+  items.push_back(
+      new MenuItem(game, "assets/img/eye.png", viewSubMenu, viewSubIdx));
+  items.push_back(
+      new MenuItem(game, "assets/img/bars.png", barsSubMenu, barsSubIdx));
+  items.push_back(
+      new MenuItem(game, "assets/img/user.png", userSubMenu, userSubIdx));
 }
 
-bool Menu::getIfScentsShown() {
-  return items.at(3)->subMenu.toggleFlags.at(1);
-}
+bool Menu::getIfScentsShown() { return items.at(3)->subMenu.toggleFlags.at(1); }
 
 bool Menu::getIfObjectivesShown() {
   return items.at(3)->subMenu.toggleFlags.at(0);
@@ -170,7 +163,7 @@ bool Menu::getIfBuildingsOutlined() {
 }
 
 void Menu::hideAllSubMenus() {
-  for (MenuItem *item: items) {
+  for (MenuItem *item : items) {
     item->subMenuShown = false;
     item->highlighted = false;
   }
@@ -184,7 +177,8 @@ void Menu::draw(Display *disp) {
     int idx = item->positionIndex;
     int itemSize = disp->getMenuSize();
     disp->setDrawColorBlack();
-    if (item->highlighted) disp->setDrawColor(50,50,50);
+    if (item->highlighted)
+      disp->setDrawColor(50, 50, 50);
     disp->drawRectFilled(itemSize * idx, yoff, itemSize, itemSize);
     disp->setDrawColorWhite();
     disp->drawRect(itemSize * idx, yoff, itemSize, itemSize);
@@ -192,24 +186,30 @@ void Menu::draw(Display *disp) {
       disp->setDrawColorWhite();
       disp->drawTexture(item->icon, itemSize * idx, yoff, itemSize, itemSize);
       if (item->subMenuShown) {
-	disp->setDrawColorBlack();
-	disp->drawRectFilled(item->subMenu.x, item->subMenu.y, item->subMenu.w, item->subMenu.h);
-	disp->setDrawColorWhite();
-	disp->drawRect(item->subMenu.x, item->subMenu.y, item->subMenu.w, item->subMenu.h);
-	int y = item->subMenu.y;
-	int textHeight = item->subMenu.h / item->subMenu.strings.size();
-	for (int i = 0; i < item->subMenu.strings.size(); i++) {
-	  disp->drawRect(item->subMenu.x, y, item->subMenu.w, textHeight);
-	  if (item->subMenu.isToggleSubMenu) {
-	    if (item->subMenu.toggleFlags.at(i)) {
-	      disp->drawTexture(checkIcon, item->subMenu.x, y, textHeight, textHeight);
-	    }
-	    disp->drawText(item->subMenu.strings.at(i), item->subMenu.x + textHeight + SUBMENU_HORIZONTAL_PADDING, y);
-	  } else {
-	    disp->drawText(item->subMenu.strings.at(i), item->subMenu.x + SUBMENU_HORIZONTAL_PADDING, y);
-	  }
-	  y += textHeight;
-	}
+        disp->setDrawColorBlack();
+        disp->drawRectFilled(item->subMenu.x, item->subMenu.y, item->subMenu.w,
+                             item->subMenu.h);
+        disp->setDrawColorWhite();
+        disp->drawRect(item->subMenu.x, item->subMenu.y, item->subMenu.w,
+                       item->subMenu.h);
+        int y = item->subMenu.y;
+        int textHeight = item->subMenu.h / item->subMenu.strings.size();
+        for (int i = 0; i < item->subMenu.strings.size(); i++) {
+          disp->drawRect(item->subMenu.x, y, item->subMenu.w, textHeight);
+          if (item->subMenu.isToggleSubMenu) {
+            if (item->subMenu.toggleFlags.at(i)) {
+              disp->drawTexture(checkIcon, item->subMenu.x, y, textHeight,
+                                textHeight);
+            }
+            disp->drawText(
+                item->subMenu.strings.at(i),
+                item->subMenu.x + textHeight + SUBMENU_HORIZONTAL_PADDING, y);
+          } else {
+            disp->drawText(item->subMenu.strings.at(i),
+                           item->subMenu.x + SUBMENU_HORIZONTAL_PADDING, y);
+          }
+          y += textHeight;
+        }
       }
     }
   }

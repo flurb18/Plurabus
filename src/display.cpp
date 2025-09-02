@@ -5,18 +5,18 @@
 #endif
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <string.h>
 
 #include "constants.h"
 #include "game.h"
 
-// Initialize a display with a game window size (square), a menu size, and a font size
-// Height = game size + menu size
-Display::Display(int gameSize, int mSize, int pSize, int fontSize, bool mobile) :
-  gameDisplaySize(gameSize), menuSize(mSize) {
+// Initialize a display with a game window size (square), a menu size, and a
+// font size Height = game size + menu size
+Display::Display(int gameSize, int mSize, int pSize, int fontSize, bool mobile)
+    : gameDisplaySize(gameSize), menuSize(mSize) {
   if (mobile) {
     width = gameSize;
     height = gameSize + mSize + pSize;
@@ -31,26 +31,25 @@ Display::Display(int gameSize, int mSize, int pSize, int fontSize, bool mobile) 
     throw SDL_GetError();
   }
   if (TTF_Init() < 0) {
-    std::cerr <<  "TTF not initialized correctly\n";
+    std::cerr << "TTF not initialized correctly\n";
     throw TTF_GetError();
   }
-  window = SDL_CreateWindow(
-    TITLE,                  //    window title
-    SDL_WINDOWPOS_UNDEFINED,           //    initial x position
-    SDL_WINDOWPOS_UNDEFINED,           //    initial y position
-    width,                               //    width, in pixels
-    height,                               //    height, in pixels
-    SDL_WINDOW_SHOWN|SDL_WINDOW_OPENGL //    flags
+  window = SDL_CreateWindow(TITLE,                   //    window title
+                            SDL_WINDOWPOS_UNDEFINED, //    initial x position
+                            SDL_WINDOWPOS_UNDEFINED, //    initial y position
+                            width,                   //    width, in pixels
+                            height,                  //    height, in pixels
+                            SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL //    flags
   );
   // Check that the window was successfully made
-  if (window == nullptr){
+  if (window == nullptr) {
     // In the event that the window could not be made...
     std::cerr << "Could not create window!\n";
     std::cerr << SDL_GetError() << std::endl;
     throw SDL_GetError();
   }
   render = SDL_CreateRenderer(window, -1, 0);
-  //fontFile = "/usr/share/fonts/TTF/DejaVuSansMono.ttf";
+  // fontFile = "/usr/share/fonts/TTF/DejaVuSansMono.ttf";
   fontFile = "assets/NotoSansMono-Regular.ttf";
   font = TTF_OpenFont(fontFile, fontSize);
   if (font == nullptr) {
@@ -60,21 +59,13 @@ Display::Display(int gameSize, int mSize, int pSize, int fontSize, bool mobile) 
   }
 }
 
-int Display::getWidth() {
-  return width;
-}
+int Display::getWidth() { return width; }
 
-int Display::getHeight() {
-  return height;
-}
+int Display::getHeight() { return height; }
 
-int Display::getGameDisplaySize() {
-  return gameDisplaySize;
-}
+int Display::getGameDisplaySize() { return gameDisplaySize; }
 
-int Display::getMenuSize() {
-  return menuSize;
-}
+int Display::getMenuSize() { return menuSize; }
 
 /* Fill the display with black */
 void Display::fillBlack() {
@@ -89,25 +80,20 @@ void Display::setDrawColor(int r, int g, int b) {
 }
 
 /* Set the draw color to white */
-void Display::setDrawColorWhite() {
-  setDrawColor(255, 255, 255);
-}
+void Display::setDrawColorWhite() { setDrawColor(255, 255, 255); }
 
 /* Set the draw color to black */
-void Display::setDrawColorBlack() {
-  setDrawColor(0, 0, 0);
-}
+void Display::setDrawColorBlack() { setDrawColor(0, 0, 0); }
 
 void Display::setDrawColorBrightness(double prop) {
   unsigned char r, g, b, a;
   SDL_GetRenderDrawColor(render, &r, &g, &b, &a);
-  SDL_SetRenderDrawColor(render, (int)(prop*(double)r), (int)(prop*(double)g), (int)(prop*(double)b), a);
+  SDL_SetRenderDrawColor(render, (int)(prop * (double)r),
+                         (int)(prop * (double)g), (int)(prop * (double)b), a);
 }
 
 /* Draw a single pixel at (x,y) */
-void Display::drawPixel(int x, int y) {
-  SDL_RenderDrawPoint(render, x, y);
-}
+void Display::drawPixel(int x, int y) { SDL_RenderDrawPoint(render, x, y); }
 
 void Display::drawLine(int x1, int y1, int x2, int y2) {
   SDL_RenderDrawLine(render, x1, y1, x2, y2);
@@ -124,9 +110,7 @@ void Display::drawRect(int x, int y, int w, int h) {
 }
 
 /* Draw the SDL rectangle */
-void Display::drawRect(SDL_Rect* r) {
-  SDL_RenderDrawRect(render, r);
-}
+void Display::drawRect(SDL_Rect *r) { SDL_RenderDrawRect(render, r); }
 
 void Display::drawTexture(SDL_Texture *texture, int x, int y) {
   int w, h;
@@ -135,7 +119,8 @@ void Display::drawTexture(SDL_Texture *texture, int x, int y) {
   SDL_RenderCopy(render, texture, nullptr, &rect);
 }
 
-void Display::drawTextureCropped(SDL_Texture *texture, int x, int y, SDL_Rect *crop) {
+void Display::drawTextureCropped(SDL_Texture *texture, int x, int y,
+                                 SDL_Rect *crop) {
   SDL_Rect rect = {x, y, crop->w, crop->h};
   SDL_RenderCopy(render, texture, crop, &rect);
 }
@@ -153,21 +138,21 @@ void Display::drawRectFilled(int x, int y, int w, int h) {
 
 /* Midpoint Circle Algorithm */
 void Display::drawCircle(int x, int y, int r) {
-  int diam = 2*r;
-  int i = r-1;
+  int diam = 2 * r;
+  int i = r - 1;
   int j = 0;
   int tx = 1;
   int ty = 1;
   int error = tx - diam;
   while (i >= j) {
-    SDL_RenderDrawPoint(render, x+i, y-j);
-    SDL_RenderDrawPoint(render, x+i, y+j);
-    SDL_RenderDrawPoint(render, x-i, y-j);
-    SDL_RenderDrawPoint(render, x-i, y+j);
-    SDL_RenderDrawPoint(render, x+j, y-i);
-    SDL_RenderDrawPoint(render, x+j, y+i);
-    SDL_RenderDrawPoint(render, x-j, y-i);
-    SDL_RenderDrawPoint(render, x-j, y+i);
+    SDL_RenderDrawPoint(render, x + i, y - j);
+    SDL_RenderDrawPoint(render, x + i, y + j);
+    SDL_RenderDrawPoint(render, x - i, y - j);
+    SDL_RenderDrawPoint(render, x - i, y + j);
+    SDL_RenderDrawPoint(render, x + j, y - i);
+    SDL_RenderDrawPoint(render, x + j, y + i);
+    SDL_RenderDrawPoint(render, x - j, y - i);
+    SDL_RenderDrawPoint(render, x - j, y + i);
     if (error <= 0) {
       j++;
       error += ty;
@@ -175,14 +160,15 @@ void Display::drawCircle(int x, int y, int r) {
     } else {
       i--;
       tx += 2;
-      error += (tx- diam);
+      error += (tx - diam);
     }
   }
 }
 
 SDL_Texture *Display::cacheTextWrapped(const char *text, int wrap) {
-  SDL_Color white = {255,255,255};
-  SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
+  SDL_Color white = {255, 255, 255};
+  SDL_Surface *surface =
+      TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
   SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_FreeSurface(surface);
   return texture;
@@ -200,28 +186,28 @@ SDL_Texture *Display::cacheImage(const char *file) {
 }
 
 // changes white in file to specified color
-SDL_Texture *Display::cacheImageColored(const char* file, int r, int g, int b) {
+SDL_Texture *Display::cacheImageColored(const char *file, int r, int g, int b) {
   SDL_Surface *surface = IMG_Load(file);
   SDL_PixelFormat *fmt = surface->format;
   int bpp = fmt->BytesPerPixel;
   switch (bpp) {
   case 1:
     for (int i = 0; i < surface->w * surface->h; i++) {
-      Uint8 *pixptr = (Uint8*)surface->pixels;
+      Uint8 *pixptr = (Uint8 *)surface->pixels;
       if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
         pixptr[i] = SDL_MapRGB(fmt, r, g, b);
     }
     break;
   case 2:
     for (int i = 0; i < surface->w * surface->h; i++) {
-      Uint16 *pixptr = (Uint16*)surface->pixels;
+      Uint16 *pixptr = (Uint16 *)surface->pixels;
       if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
         pixptr[i] = SDL_MapRGB(fmt, r, g, b);
     }
     break;
   case 4:
     for (int i = 0; i < surface->w * surface->h; i++) {
-      Uint32 *pixptr = (Uint32*)surface->pixels;
+      Uint32 *pixptr = (Uint32 *)surface->pixels;
       if (pixptr[i] == SDL_MapRGB(fmt, 0xFF, 0xFF, 0xFF))
         pixptr[i] = SDL_MapRGB(fmt, r, g, b);
     }
@@ -236,9 +222,10 @@ SDL_Texture *Display::cacheImageColored(const char* file, int r, int g, int b) {
 
 /* Draw the string text at (x,y) using the preloaded font */
 void Display::drawTextWrapped(const char *text, int x, int y, int wrap) {
-  SDL_Color white = {255,255,255};
-  SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
-  SDL_Texture* texture = SDL_CreateTextureFromSurface(render, surface);
+  SDL_Color white = {255, 255, 255};
+  SDL_Surface *surface =
+      TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_Rect rect = {x, y, surface->w, surface->h};
   SDL_FreeSurface(surface);
   SDL_RenderCopy(render, texture, nullptr, &rect);
@@ -247,16 +234,17 @@ void Display::drawTextWrapped(const char *text, int x, int y, int wrap) {
 
 /* Draw the string text at (x,y) using the preloaded font */
 void Display::drawText(const char *text, int x, int y) {
-  SDL_Color white = {255,255,255};
-  SDL_Surface* surface = TTF_RenderText_Blended(font, text, white);
-  SDL_Texture* texture = SDL_CreateTextureFromSurface(render, surface);
+  SDL_Color white = {255, 255, 255};
+  SDL_Surface *surface = TTF_RenderText_Blended(font, text, white);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
   SDL_Rect rect = {x, y, surface->w, surface->h};
   SDL_FreeSurface(surface);
   SDL_RenderCopy(render, texture, nullptr, &rect);
   SDL_DestroyTexture(texture);
 }
 
-void Display::drawTextSizedColored(const char *text, int x, int y, int size, int r, int g, int b) {
+void Display::drawTextSizedColored(const char *text, int x, int y, int size,
+                                   int r, int g, int b) {
   SDL_Color c = {(Uint8)r, (Uint8)g, (Uint8)b};
   TTF_Font *sizefont = TTF_OpenFont(fontFile, size);
   SDL_Surface *surface = TTF_RenderText_Blended(sizefont, text, c);
@@ -270,7 +258,7 @@ void Display::drawTextSizedColored(const char *text, int x, int y, int size, int
 
 void Display::drawSurface(SDL_Surface *surface, int x, int y, int w, int h) {
   SDL_Texture *texture = SDL_CreateTextureFromSurface(render, surface);
-  SDL_Rect rect = { x, y, w, h };
+  SDL_Rect rect = {x, y, w, h};
   SDL_RenderCopy(render, texture, nullptr, &rect);
   SDL_DestroyTexture(texture);
 }
@@ -307,22 +295,19 @@ void Display::sizeTextSized(const char *text, int size, int *w, int *h) {
 }
 
 void Display::sizeTextWrapped(const char *text, int wrap, int *w, int *h) {
-  SDL_Color white = {255,255,255};
-  SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
+  SDL_Color white = {255, 255, 255};
+  SDL_Surface *surface =
+      TTF_RenderText_Blended_Wrapped(font, text, white, wrap);
   *w = surface->w;
   *h = surface->h;
   SDL_FreeSurface(surface);
 }
 
 /* Refresh the display */
-void Display::update() {
-  SDL_RenderPresent(render);
-}
+void Display::update() { SDL_RenderPresent(render); }
 
 /* Wait t milliseconds */
-void Display::wait(int t) {
-  SDL_Delay(t);
-}
+void Display::wait(int t) { SDL_Delay(t); }
 
 /* Destroy all SDL and TTF stuff */
 Display::~Display() {
