@@ -25,7 +25,7 @@ if (window.mobileAndTabletCheck()) {
 const memory = new WebAssembly.Memory({
     initial: 1024,
     maximum: 16384,
-    shared: false,
+    shared: true,
 });
 Module['wasmMemory'] = memory;
 Module['arguments'] = [
