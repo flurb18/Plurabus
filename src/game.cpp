@@ -135,6 +135,17 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
                                  SPAWNER_ID_TWO);
     objectives.push_back(o);
     break;
+  case 2:
+    playerSpawnID = SPAWNER_ID_ONE;
+    panel->addText("You are the GREEN team.");
+    context = GAME_CONTEXT_PRACTICE;
+    SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
+                            p1offset + SPAWNER_SIZE};
+    Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
+                                 SPAWNER_ID_TWO);
+    objectives.push_back(o);
+    SDL_Rect defensiveWall1 = {  }
+    break;
   }
 }
 
@@ -179,6 +190,7 @@ Game::~Game() {
 }
 
 void Game::end(DoneStatus s) {
+  if (ended) return;
   context = GAME_CONTEXT_DONE;
   ended = true;
   std::string closeText = "Connection closed.";
