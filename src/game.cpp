@@ -1742,7 +1742,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
 
 void Game::practiceLoop(void) {
   while (getContext() != GAME_CONTEXT_DONE) {
-//    pthread_mutex_lock(&threadLock);
+    pthread_mutex_lock(&threadLock);
     playerSpawnID = SPAWNER_ID_TWO;
     update();
     receiveEventsBuffer();
@@ -1751,13 +1751,13 @@ void Game::practiceLoop(void) {
     update();
     receiveEventsBuffer();
     checkSpawnersDestroyed();
-//    pthread_mutex_unlock(&threadLock);
+    pthread_mutex_unlock(&threadLock);
     emscripten_sleep(50);
   }
 }
 
 void Game::mainLoop(void) {
-//  pthread_mutex_lock(&threadLock);
+  pthread_mutex_lock(&threadLock);
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1788,7 +1788,7 @@ void Game::mainLoop(void) {
     }
   }
   disp->update();
-//  pthread_mutex_unlock(&threadLock);
+  pthread_mutex_unlock(&threadLock);
 }
 
 void *practiceLoopWrapper(void *g) {
