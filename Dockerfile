@@ -1,6 +1,6 @@
 FROM emscripten/emsdk:latest AS builder
 
-RUN embuilder.py build sdl2 sdl2_image sdl2_ttf libpng sdl2-mt libpng-mt
+RUN embuilder.py build sdl2 sdl2_image sdl2_ttf libpng sdl2-mt sdl2_ttf-mt sdl2_image-png-mt libpng-mt 
 ADD ./src /src
 ADD ./include /include
 ADD ./assets /assets

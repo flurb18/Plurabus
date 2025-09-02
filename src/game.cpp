@@ -1794,4 +1794,5 @@ void Game::mainLoop(void) {
 void *practiceLoopWrapper(void *g) {
   Game *game = (Game *)g;
   game->practiceLoop();
+  return 0;
 }
