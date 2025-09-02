@@ -27,6 +27,8 @@ class Spawner;
 class NetHandler;
 class Panel;
 
+void *practiceLoopWrapper(void *);
+
 /* Various game contexts */
 enum Context {
   GAME_CONTEXT_DONE,
