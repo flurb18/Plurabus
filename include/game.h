@@ -188,6 +188,8 @@ private:
   void deleteMarkedAgents();
   void checkSpawnersDestroyed();
   void update();
+  void simpleAggMode();
+  void simpleDefMode();
 public:
   Display* disp;
   MapUnit* mapUnitAt(int, int);

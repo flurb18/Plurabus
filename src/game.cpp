@@ -121,36 +121,16 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
   p1bombTexture = nullptr;
   setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
   pthread_mutex_init(&threadLock, NULL);
-  switch (gameMode) {
-  case 0:
-    net = new NetHandler(this, pairString, uri);
-    break;
-  case 1:
-    playerSpawnID = SPAWNER_ID_ONE;
-    panel->addText("You are the GREEN team.");
-    context = GAME_CONTEXT_PRACTICE;
-    SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
-                            p1offset + SPAWNER_SIZE};
-    Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
-                                 SPAWNER_ID_TWO);
-    objectives.push_back(o);
-    break;
-  case 2:
-    playerSpawnID = SPAWNER_ID_ONE;
-    panel->addText("You are the GREEN team.");
-    context = GAME_CONTEXT_PRACTICE;
-    SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
-                            p1offset + SPAWNER_SIZE};
-    Objective *attack = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
-                                 SPAWNER_ID_TWO);
-    objectives.push_back(attack);
-    SDL_Rect defensiveWall = { 0, p2offset + SPAWNER_SIZE + 15, 75, 2 };
-    Objective *wall = new Objective(OBJECTIVE_TYPE_BUILD_WALL, 255, this, defensiveWall, SPAWNER_ID_TWO);
-    objectives.push_back(wall);
-    SDL_Rect subspawn_location = { p2offset + SPAWNER_SIZE + 20, p2offset + (SPAWNER_SIZE/2), SUBSPAWNER_SIZE, SUBSPAWNER_SIZE };
-    Objective *subspawn = new Objective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER, 255, this, subspawn_location, SPAWNER_ID_TWO);
-    objectives.push_back(subspawn);
-    break;
+  switch(gameMode) {
+    case 0:
+      net = new NetHandler(this, pairString, uri);
+      break;
+    case 1:
+      simpleAggMode();
+      break;
+    case 2:
+      simpleDefMode();
+      break;
   }
 }
 
@@ -769,6 +749,34 @@ void Game::update() {
     }
   }
   events->numAgentEvents = numPlayerAgents[playerSpawnID];
+}
+
+void Game::simpleAggMode() {
+  playerSpawnID = SPAWNER_ID_ONE;
+  panel->addText("You are the GREEN team.");
+  context = GAME_CONTEXT_PRACTICE;
+  SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
+                          p1offset + SPAWNER_SIZE};
+  Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
+                                SPAWNER_ID_TWO);
+  objectives.push_back(o);
+}
+
+void Game::simpleDefMode() {
+  playerSpawnID = SPAWNER_ID_ONE;
+  panel->addText("You are the GREEN team.");
+  context = GAME_CONTEXT_PRACTICE;
+  SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
+                          p1offset + SPAWNER_SIZE};
+  Objective *attack = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
+                                SPAWNER_ID_TWO);
+  objectives.push_back(attack);
+  SDL_Rect defensiveWall = { 0, p2offset + SPAWNER_SIZE + 15, 75, 2 };
+  Objective *wall = new Objective(OBJECTIVE_TYPE_BUILD_WALL, 255, this, defensiveWall, SPAWNER_ID_TWO);
+  objectives.push_back(wall);
+  SDL_Rect subspawn_location = { p2offset + SPAWNER_SIZE + 20, p2offset + (SPAWNER_SIZE/2), SUBSPAWNER_SIZE, SUBSPAWNER_SIZE };
+  Objective *subspawn = new Objective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER, 255, this, subspawn_location, SPAWNER_ID_TWO);
+  objectives.push_back(subspawn);
 }
 
 /*------------------Objective Functions-----------------*/
