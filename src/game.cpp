@@ -752,6 +752,8 @@ void Game::update() {
 }
 
 void Game::simpleAggMode() {
+  int p1offset = gameSize - SPAWNER_PADDING - SPAWNER_SIZE;
+  int p2offset = SPAWNER_PADDING;
   playerSpawnID = SPAWNER_ID_ONE;
   panel->addText("You are the GREEN team.");
   context = GAME_CONTEXT_PRACTICE;
@@ -763,6 +765,8 @@ void Game::simpleAggMode() {
 }
 
 void Game::simpleDefMode() {
+  int p1offset = gameSize - SPAWNER_PADDING - SPAWNER_SIZE;
+  int p2offset = SPAWNER_PADDING;
   playerSpawnID = SPAWNER_ID_ONE;
   panel->addText("You are the GREEN team.");
   context = GAME_CONTEXT_PRACTICE;
