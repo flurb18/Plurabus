@@ -2,9 +2,11 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#else
-#include <pthread.h>
 #endif
+
+#include <pthread.h>
+#include <thread>
+#include <chrono>
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_rect.h>
@@ -118,9 +120,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
       disp->cacheTextWrapped("Objective - Build Bomb", 0);
   p1bombTexture = nullptr;
   setColors("GREEN", "RED", 0, 255, 0, 255, 0, 0);
-#ifndef __EMSCRIPTEN__
   pthread_mutex_init(&threadLock, NULL);
-#endif
   switch (gameMode) {
   case 0:
     net = new NetHandler(this, pairString, uri);
@@ -134,6 +134,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                  SPAWNER_ID_TWO);
     objectives.push_back(o);
+    pthread_create(&practiceLoopThread, NULL, practiceLoop, nullptr);
     break;
   }
 }
@@ -1739,10 +1740,22 @@ void Game::handleSDLEvent(SDL_Event *e) {
   }
 }
 
-void Game::mainLoop(void) {
-#ifndef __EMSCRIPTEN__
+void *Game::practiceLoop(void *) {
   pthread_mutex_lock(&threadLock);
-#endif
+  playerSpawnID = SPAWNER_ID_TWO;
+  update();
+  receiveEventsBuffer();
+  checkSpawnersDestroyed();
+  playerSpawnID = SPAWNER_ID_ONE;
+  update();
+  receiveEventsBuffer();
+  checkSpawnersDestroyed();
+  pthread_mutex_unlock(&threadLock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+void Game::mainLoop(void) {
+  pthread_mutex_lock(&threadLock);
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1757,20 +1770,6 @@ void Game::mainLoop(void) {
     break;
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();
-    break;
-  case GAME_CONTEXT_PRACTICE:
-    playerSpawnID = SPAWNER_ID_TWO;
-    update();
-    receiveEventsBuffer();
-    checkSpawnersDestroyed();
-    playerSpawnID = SPAWNER_ID_ONE;
-    update();
-    receiveEventsBuffer();
-    checkSpawnersDestroyed();
-    draw();
-#ifdef __EMSCRIPTEN__
-    //emscripten_sleep(100);
-#endif
     break;
   default:
     draw();
@@ -1787,7 +1786,5 @@ void Game::mainLoop(void) {
     }
   }
   disp->update();
-#ifndef __EMSCRIPTEN__
   pthread_mutex_unlock(&threadLock);
-#endif
 }
