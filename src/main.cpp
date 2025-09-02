@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "constants.h"
 #include "display.h"
 #include "game.h"
 
@@ -42,12 +41,13 @@ int handleAppEvents(void *arg, SDL_Event *event) {
 int main(int argc, char *argv[]) {
   /* Set the random number generator seed */
   srand(time(0));
-  int gameMode = atoi(argv[5]);
-  int gamePanelSize = atoi(argv[1]);
-  double gameInitScale = atof(argv[2]);
-  bool mobile = (argc > 6);
-  Game *g = new Game(gameMode, GAME_SIZE, gamePanelSize, gameInitScale, argv[3],
-                     argv[4], mobile);
+  int gameMode = atoi(argv[6]);
+  int gameSize = atoi(argv[1]);
+  int gamePanelSize = atoi(argv[2]);
+  double gameInitScale = atof(argv[3]);
+  bool mobile = (argc > 7);
+  Game *g = new Game(gameMode, gameSize, gamePanelSize, gameInitScale, argv[4],
+                     argv[5], mobile);
 
   SDL_SetEventFilter(handleAppEvents, (void *)g);
 
