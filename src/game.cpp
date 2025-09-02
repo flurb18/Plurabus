@@ -1520,7 +1520,9 @@ void Game::draw() {
   std::string timeText = mText + ":" + sText;
   int ttw, tth;
   disp->sizeText(timeText.c_str(), &ttw, &tth);
-  disp->drawText(timeText.c_str(), gameDisplaySize - ttw, panelYDrawOffset);
+  if (gameMode == 0) {
+    disp->drawText(timeText.c_str(), gameDisplaySize - ttw, panelYDrawOffset);
+  }
   panel->flushText();
   panel->draw();
   menu->draw(disp);
