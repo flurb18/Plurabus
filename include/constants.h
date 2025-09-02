@@ -1,6 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+const int GAME_SIZE = 100;
 const int GAME_TIME_SECONDS = 1200;
 const int STARTUP_TIME_SECONDS = 3;
 const int MENU_ITEMS_IN_VIEW = 6;
@@ -24,7 +25,7 @@ const int TOWER_SIZE = 4;
 const int TOWER_AOE_RADIUS_SQUARED = 400;
 const int MAX_SUBSPAWNERS = 3;
 const int SUBSPAWNER_SIZE = 5; //should be odd
-const int SUBSPAWNER_UNIT_COST = 5;
+const int SUBSPAWNER_UNIT_COST = 4;
 const int SUBSPAWNER_UPDATE_TIME = 5;
 const int ZAP_CLEAR_TIME = 6;
 const int ZAP_EFFECTS_SUBDIVISION = 50;

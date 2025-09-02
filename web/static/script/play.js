@@ -8,7 +8,6 @@ window.mobileAndTabletCheck = function() {
 var Module = { canvas: (function() { return document.getElementById('canvas') })() };
 document.getElementById('canvas').removeAttribute("hidden");
 document.getElementById('canvas').addEventListener("contextmenu", (e) => {e.preventDefault()});
-var gameSize = 150;
 var gamePanelSize;
 var gameWindowPadding = 10;
 var scale;
@@ -29,7 +28,6 @@ const memory = new WebAssembly.Memory({
 });
 Module['wasmMemory'] = memory;
 Module['arguments'] = [
-    gameSize.toString(),
     gamePanelSize.toString(),
     scale.toString(),
     document.body.dataset.pstr,
