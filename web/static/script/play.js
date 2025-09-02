@@ -48,6 +48,8 @@ Module['print'] = function (text) {
     document.body.appendChild(redirecttext); */
     setTimeout(() => { window.location.href = window.location.origin; }, 5000);    
 };
-var mainscript = document.createElement('script');
-mainscript.setAttribute('src','/game/plurabus.js');
-document.head.appendChild(mainscript);
+document.addEventListener("DOMContentLoaded", (e) => {
+    var mainscript = document.createElement('script');
+    mainscript.setAttribute('src','/game/plurabus.js');
+    document.head.appendChild(mainscript);
+});
