@@ -1633,15 +1633,6 @@ void Game::mainLoop(void) {
 #ifndef __EMSCRIPTEN__
   pthread_mutex_lock(&threadLock);
 #endif
-  SDL_PumpEvents();
-  SDL_Event e;
-  while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
-    if (mobile) {
-      handleSDLEventMobile(&e);
-    } else {
-      handleSDLEvent(&e);
-    }
-  }
   switch (context) {
   case GAME_CONTEXT_CONNECTING:
     disp->fillBlack();
@@ -1673,6 +1664,15 @@ void Game::mainLoop(void) {
   default:
     draw();
     break;
+  }
+  SDL_PumpEvents();
+  SDL_Event e;
+  while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
+    if (mobile) {
+      handleSDLEventMobile(&e);
+    } else {
+      handleSDLEvent(&e);
+    }
   }
   disp->update();
 #ifndef __EMSCRIPTEN__
