@@ -27,8 +27,6 @@ class Spawner;
 class NetHandler;
 class Panel;
 
-void *practiceLoopWrapper(void *);
-
 /* Various game contexts */
 enum Context {
   GAME_CONTEXT_DONE,
@@ -139,7 +137,6 @@ private:
   MapUnit outside;
   MapUnit* selectedUnit;
   Objective *selectedObjective;
-  pthread_t practiceLoopThread;
   pthread_mutex_t threadLock;
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);

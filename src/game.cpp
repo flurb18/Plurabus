@@ -134,7 +134,6 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                  SPAWNER_ID_TWO);
     objectives.push_back(o);
-//    pthread_create(&practiceLoopThread, NULL, practiceLoopWrapper, (void *)this);
     break;
   }
 }
@@ -176,9 +175,7 @@ Game::~Game() {
   delete menu;
   delete panel;
   free(eventsBuffer);
-#ifndef __EMSCRIPTEN__
   pthread_mutex_destroy(&threadLock);
-#endif
 }
 
 void Game::end(DoneStatus s) {

@@ -5,9 +5,9 @@
 #include <emscripten.h>
 #include <emscripten/emscripten.h>
 #include <emscripten/websocket.h>
-#else
-#include <pthread.h>
 #endif
+
+#include <pthread.h>
 
 #include <iostream>
 #include <string>
@@ -177,9 +177,7 @@ void NetHandler::send(void *data, int numBytes) {
 }
 
 void NetHandler::receive(void *data, int numBytes, bool isText) {
-#ifndef __EMSCRIPTEN__
   pthread_mutex_lock(&game->threadLock);
-#endif
   switch (ncon) {
   case NET_CONTEXT_INIT:
     break;
@@ -238,9 +236,7 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
   default:
     break;
   }
-#ifndef __EMSCRIPTEN__
   pthread_mutex_unlock(&game->threadLock);
-#endif
 }
 
 void NetHandler::closeConnection(const char *reason) {
