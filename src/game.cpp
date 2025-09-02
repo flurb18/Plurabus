@@ -141,10 +141,15 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     context = GAME_CONTEXT_PRACTICE;
     SDL_Rect green_spawn = {p1offset, p1offset, p1offset + SPAWNER_SIZE,
                             p1offset + SPAWNER_SIZE};
-    Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
+    Objective *attack = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                  SPAWNER_ID_TWO);
-    objectives.push_back(o);
-    SDL_Rect defensiveWall1 = {  }
+    objectives.push_back(attack);
+    SDL_Rect defensiveWall = { 0, p2offset + SPAWNER_SIZE + 15, 75, 2 };
+    Objective *wall = new Objective(OBJECTIVE_TYPE_BUILD_WALL, 255, this, defensiveWall, SPAWNER_ID_TWO);
+    objectives.push_back(wall);
+    SDL_Rect subspawn_location = { p2offset + SPAWNER_SIZE + 20, p2offset + (SPAWNER_SIZE/2), SUBSPAWNER_SIZE, SUBSPAWNER_SIZE };
+    Objective *subspawn = new Objective(OBJECTIVE_TYPE_BUILD_SUBSPAWNER, 255, this, subspawn_location, SPAWNER_ID_TWO);
+    objectives.push_back(subspawn);
     break;
   }
 }

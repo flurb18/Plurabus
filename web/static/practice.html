@@ -19,16 +19,23 @@
     <h1>Practice Modes</h1>
     <p>Practice means that you play a bot rather than a real person. Choose from the options below for the bot's strategy.</p>
     <br>
-    <h2>Spawner Attack</h2>
-    <p>Spawner Attack mode means that the CPU will simply set an attack objective for your spawner. Defend against the incoming units and then take out the opponent's spawner.</p>
-    <form id="spawnerattackform" action="/d/practice?m=1" method="POST">
+    <h2>Simple - Aggressive</h2>
+    <p>Simple Aggressive mode means that the CPU will just set an attack objective for your spawner.</p>
+    <form id="simpleaggform" action="/d/practice?m=1" method="POST">
       <div>
-	    <button id="spawnerattackformbutton" type="submit" class="block">Spawner Attack</button>
+	    <button id="simpleaggformbutton" type="submit" class="block">Spawner Attack</button>
+      </div>
+    </form>
+    <br>
+    <h2>Simple - Defensive</h2>
+    <p>Simple Defensive mode means that the CPU will just set an attack objective for your spawner, as well as create a single defensive wall and a subspawner near their spawner.</p>
+    <form id="simpledefform" action="/d/practice?m=2" method="POST">
+      <div>
+	    <button id="simpledefformbutton" type="submit" class="block">Spawner Attack</button>
       </div>
     </form>
     <br><br>
     <a href="/">Back</a>
   </div>
-  <script src="/script/practice.js"></script>
 </body>
 </html>
