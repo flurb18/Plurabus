@@ -129,7 +129,7 @@ private:
   std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
   std::map<AgentID, Agent*> agentDict;
-  std::map<SpawnerID, unsigned int> numPlayerAgents;
+  std::map<SpawnerID, int> numPlayerAgents;
   std::map<BuildingType, std::deque<Building*>> buildingLists;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;
