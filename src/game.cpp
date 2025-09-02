@@ -1741,7 +1741,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
 }
 
 void Game::practiceLoop(void) {
-  while (getContext() != GAME_CONTEXT_EXIT) {
+  while (getContext() != GAME_CONTEXT_DONE) {
     pthread_mutex_lock(&threadLock);
     playerSpawnID = SPAWNER_ID_TWO;
     update();
@@ -1752,7 +1752,7 @@ void Game::practiceLoop(void) {
     receiveEventsBuffer();
     checkSpawnersDestroyed();
     pthread_mutex_unlock(&threadLock);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    emscripten_sleep(50);
   }
 }
 
