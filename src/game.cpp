@@ -1763,7 +1763,7 @@ void Game::mainLoop(void) {
     update();
     receiveEventsBuffer();
     checkSpawnersDestroyed();
-    emscripten_sleep(50);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
   default:
     draw();
     break;

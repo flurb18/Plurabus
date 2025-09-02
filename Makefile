@@ -5,7 +5,7 @@ EXECNAME=plurabus-bin
 
 WEBCC=/emsdk/upstream/emscripten/emcc
 WEBFLAGS=-pthread -s USE_SDL=2 -O3 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 -s SDL2_IMAGE_FORMATS='["png"]' -I$(IDIR) -Wall
-WEBLINKFLAGS=$(WEBFLAGS) -s ASYNCIFY -s PROXY_TO_PTHREAD -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --embed-file assets --use-preload-plugins -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1073741824 --no-unsafe-eval
+WEBLINKFLAGS=$(WEBFLAGS) -s PROXY_TO_PTHREAD -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js --embed-file assets --use-preload-plugins -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1073741824 --no-unsafe-eval
 WEBEXECNAME=plurabus
 WEBEXECOUTPUTDIR=/game
 
