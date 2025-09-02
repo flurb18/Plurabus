@@ -134,7 +134,7 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
     Objective *o = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                  SPAWNER_ID_TWO);
     objectives.push_back(o);
-    pthread_create(&practiceLoopThread, NULL, practiceLoopWrapper, (void *)this);
+//    pthread_create(&practiceLoopThread, NULL, practiceLoopWrapper, (void *)this);
     break;
   }
 }
@@ -1525,7 +1525,7 @@ bool Game::potentialSelectionCollidesWithObjective(int potX, int potY, int potW,
                                                    int potH) {
   SDL_Rect r = {potX, potY, potW, potH};
   for (Objective *o : objectives) {
-    if (rectCollides(r, o->region))
+    if (o->sid == playerSpawnID && rectCollides(r, o->region))
       return true;
   }
   return false;
@@ -1740,22 +1740,6 @@ void Game::handleSDLEvent(SDL_Event *e) {
   }
 }
 
-void Game::practiceLoop(void) {
-  while (getContext() != GAME_CONTEXT_DONE) {
-    pthread_mutex_lock(&threadLock);
-    playerSpawnID = SPAWNER_ID_TWO;
-    update();
-    receiveEventsBuffer();
-    checkSpawnersDestroyed();
-    playerSpawnID = SPAWNER_ID_ONE;
-    update();
-    receiveEventsBuffer();
-    checkSpawnersDestroyed();
-    pthread_mutex_unlock(&threadLock);
-    emscripten_sleep(50);
-  }
-}
-
 void Game::mainLoop(void) {
   pthread_mutex_lock(&threadLock);
   switch (context) {
@@ -1773,6 +1757,16 @@ void Game::mainLoop(void) {
   case GAME_CONTEXT_STARTUPTIMER:
     drawStartupScreen();
     break;
+  case GAME_CONTEXT_PRACTICE:
+    playerSpawnID = SPAWNER_ID_TWO;
+    update();
+    receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    playerSpawnID = SPAWNER_ID_ONE;
+    update();
+    receiveEventsBuffer();
+    checkSpawnersDestroyed();
+    emscripten_sleep(50);
   default:
     draw();
     break;
@@ -1789,10 +1783,4 @@ void Game::mainLoop(void) {
   }
   disp->update();
   pthread_mutex_unlock(&threadLock);
-}
-
-void *practiceLoopWrapper(void *g) {
-  Game *game = (Game *)g;
-  game->practiceLoop();
-  return 0;
 }
