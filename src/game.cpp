@@ -1585,7 +1585,7 @@ void Game::handleSDLEventMobile(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
-  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE)
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
     return;
   int x, y;
   switch (e->type) {
@@ -1641,7 +1641,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
-  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE)
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
     return;
   SDL_GetMouseState(&x, &y);
   switch (e->type) {
