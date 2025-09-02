@@ -1,19 +1,9 @@
--Tower effect visual bug
+-Tower effect rare visual bug
 -subspawner objective not cancelling when building and it gets destroyed
 -more on info page
 -fix local client and segfaults on end
 -figure out android authentication
 -better zooming and panning on mobile
-
-
-- itch mobile big text bug
-
-- implement GAME_CONTEXT_PRACTICE by:
-  - game->mainloop switch context GAME_CONTEXT_PRACTICE
-  - update for each player, requires scents for each player.... ugh
-  - objectives for each player ? yes I suppose so
-  - check for calls to nethandler for GAME_CONTEXT_PRACTICE
-
 
 eventually:
 -4 player

@@ -8,7 +8,7 @@ window.mobileAndTabletCheck = function() {
 var Module = { canvas: (function() { return document.getElementById('canvas') })() };
 document.getElementById('canvas').removeAttribute("hidden");
 document.getElementById('canvas').addEventListener("contextmenu", (e) => {e.preventDefault()});
-var gameSize = 100;
+var gameSize = 150;
 var gamePanelSize;
 var gameWindowPadding = 10;
 var scale;
