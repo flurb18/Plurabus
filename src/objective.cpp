@@ -101,7 +101,6 @@ void Objective::updateCiter(UnitType desired, int desiredHP) {
 
 void Objective::update() {
   SpawnerID psid = game->getPlayerSpawnID();
-  bool current_done;
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     updateCiter(UNIT_TYPE_WALL, -1);
