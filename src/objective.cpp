@@ -86,7 +86,7 @@ void Objective::update() {
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     current_done = true;
-    for (MapUnit *m : citer.current) {
+    for (MapUnit *m : citer->current) {
       if (m->type != UNIT_TYPE_WALL) {
         current_done = false;
         if (m->type == UNIT_TYPE_EMPTY) {
@@ -96,8 +96,8 @@ void Objective::update() {
       }
     }
     if (current_done) {
-      if (citer.hasNext()) {
-        citer++;
+      if (citer->hasNext()) {
+        (*citer)++;
       } else {
         done = true;
       }
