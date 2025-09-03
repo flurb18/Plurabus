@@ -57,9 +57,9 @@ MapUnit::iterator Objective::getIterator() {
 
 bool Objective::isDone() {
   switch (type) {
-  case OBJECTIVE_TYPE_BUILD_WALL:
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
     return (iter == subObjectives.end());
+  case OBJECTIVE_TYPE_BUILD_WALL:
   case OBJECTIVE_TYPE_BUILD_WALL_SUB:
   case OBJECTIVE_TYPE_BUILD_DOOR:
   case OBJECTIVE_TYPE_BUILD_TOWER:
