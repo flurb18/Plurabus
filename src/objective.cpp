@@ -62,7 +62,7 @@ bool Objective::regionIsReadyForBuilding() {
   return true;
 }
 
-void Objective::updateCiter(UnitType desired) {
+void Objective::updateCiter(UnitType desired, int desiredHP) {
   SpawnerID psid = game->getPlayerSpawnID();
   bool past_done = true;
   for (MapUnit *m : citer->past) {
@@ -76,7 +76,13 @@ void Objective::updateCiter(UnitType desired) {
   }
   bool current_done = true;
   for (MapUnit *m : citer->current) {
-    if (m->type != desired) {
+    if (m->type == desired) {
+      if (m->hp < desiredHP) {
+        current_done = false;
+        m->playerDict[psid].objective = this;
+        m->setEmptyNeighborScents(strength);
+      }
+    } else {
       current_done = false;
       if (m->type == UNIT_TYPE_EMPTY) {
         m->playerDict[psid].objective = this;
@@ -98,10 +104,10 @@ void Objective::update() {
   bool current_done;
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    updateCiter(UNIT_TYPE_WALL);
+    updateCiter(UNIT_TYPE_WALL, -1);
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
-    updateCiter(UNIT_TYPE_SPAWNER);
+    updateCiter(UNIT_TYPE_SPAWNER, SUBSPAWNER_UNIT_COST);
     break;
   case OBJECTIVE_TYPE_ATTACK:
     done = true;
