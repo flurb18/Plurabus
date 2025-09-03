@@ -519,7 +519,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
             new Subspawner(this, a->sid, destuptr->x - SUBSPAWNER_SIZE / 2,
                            destuptr->y - SUBSPAWNER_SIZE / 2);
         if (a->sid == playerSpawnID)
-          destuptr->playerDict[playerSpawnID].objective->super->started = true;
+          destuptr->playerDict[playerSpawnID].objective->started = true;
         buildingLists[BUILDING_TYPE_SUBSPAWNER].push_back(subspawner);
       }
     } else {
