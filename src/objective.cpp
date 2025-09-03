@@ -103,7 +103,7 @@ void Objective::update() {
   SpawnerID psid = game->getPlayerSpawnID();
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    updateCiter(UNIT_TYPE_WALL, -1);
+    updateCiter(UNIT_TYPE_WALL, 0);
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
     updateCiter(UNIT_TYPE_SPAWNER, SUBSPAWNER_UNIT_COST);
