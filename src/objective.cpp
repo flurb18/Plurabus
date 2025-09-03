@@ -101,7 +101,7 @@ void Objective::update() {
     updateCiter(UNIT_TYPE_WALL);
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
-    updateCiter(UNIT_TYPE_SUBSPAWNER);
+    updateCiter(UNIT_TYPE_SPAWNER);
     break;
   case OBJECTIVE_TYPE_ATTACK:
     done = true;
