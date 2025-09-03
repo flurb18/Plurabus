@@ -11,29 +11,13 @@ Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     citer = new concentric_iterator(g, region.x, region.y, region.w, region.h);
-    started = true;
-/*
-    for (int i = 0; region.w - (2 * i) > 0 && region.h - (2 * i) > 0; i++) {
-      SDL_Rect sub = {region.x + i, region.y + i, region.w - (2 * i),
-                      region.h - (2 * i)};
-      subObjectives.push_front(new Objective(
-          this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub, sid));
-    }
-    iter = subObjectives.begin();
-*/
     break;
   case OBJECTIVE_TYPE_BUILD_TOWER:
     started = false;
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
+    citer = new concentric_iterator(g, region.x, region.y, region.w, region.h);
     started = false;
-    for (int i = 0; region.w - (2 * i) > 0 && region.h - (2 * i) > 0; i++) {
-      SDL_Rect sub = {region.x + i, region.y + i, region.w - (2 * i),
-                      region.h - (2 * i)};
-      subObjectives.push_front(new Objective(
-          this, OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB, strength, game, sub, sid));
-    }
-    iter = subObjectives.begin();
     break;
   case OBJECTIVE_TYPE_BUILD_BOMB:
     started = false;
@@ -58,12 +42,9 @@ MapUnit::iterator Objective::getIterator() {
 bool Objective::isDone() {
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
-    return (iter == subObjectives.end());
   case OBJECTIVE_TYPE_BUILD_WALL:
-  case OBJECTIVE_TYPE_BUILD_WALL_SUB:
   case OBJECTIVE_TYPE_BUILD_DOOR:
   case OBJECTIVE_TYPE_BUILD_TOWER:
-  case OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB:
   case OBJECTIVE_TYPE_BUILD_BOMB:
     return done;
   default:
@@ -81,72 +62,46 @@ bool Objective::regionIsReadyForBuilding() {
   return true;
 }
 
+void Objective::updateCiter(UnitType desired) {
+  SpawnerID psid = game->getPlayerSpawnID();
+  bool past_done = true;
+  for (MapUnit *m : citer->past) {
+    if (m->type != desired) {
+      past_done = false;
+    }
+  }
+  if (!past_done) {
+    done = true;
+    return;
+  }
+  bool current_done = true;
+  for (MapUnit *m : citer->current) {
+    if (m->type != desired) {
+      current_done = false;
+      if (m->type == UNIT_TYPE_EMPTY) {
+        m->playerDict[psid].objective = this;
+        m->setScent(strength);
+      }
+    }
+  }
+  if (current_done) {
+    if (citer->hasNext()) {
+      (*citer)++;
+    } else {
+      done = true;
+    }
+  }
+}
+
 void Objective::update() {
   SpawnerID psid = game->getPlayerSpawnID();
   bool current_done;
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    current_done = true;
-    for (MapUnit *m : citer->current) {
-      if (m->type != UNIT_TYPE_WALL) {
-        current_done = false;
-        if (m->type == UNIT_TYPE_EMPTY) {
-          m->playerDict[psid].objective = this;
-          m->setScent(strength);
-        }
-      }
-    }
-    if (current_done) {
-      if (citer->hasNext()) {
-        (*citer)++;
-      } else {
-        done = true;
-      }
-    }
-/*    if (iter != subObjectives.end()) {
-      (*iter)->update();
-      if ((*iter)->isDone()) {
-        iter++;
-      }
-    }*/
-    break;
-  case OBJECTIVE_TYPE_BUILD_WALL_SUB:
-    done = true;
-    for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
-      if (m->type != UNIT_TYPE_WALL && m->type != UNIT_TYPE_DOOR) {
-        done = false;
-        if (m->type == UNIT_TYPE_EMPTY) {
-          m->playerDict[psid].objective = this;
-          m->setScent(strength);
-        }
-      }
-    }
+    updateCiter(UNIT_TYPE_WALL);
     break;
   case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
-    if (iter != subObjectives.end()) {
-      (*iter)->update();
-      if ((*iter)->isDone()) {
-        iter++;
-      }
-    }
-    break;
-  case OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB:
-    done = true;
-    for (MapUnit::iterator m = getIterator(); m.hasNext(); m++) {
-      if (m->type == UNIT_TYPE_SPAWNER) {
-        if (m->hp < SUBSPAWNER_UNIT_COST) {
-          done = false;
-          m->playerDict[psid].objective = this;
-          m->setEmptyNeighborScents(strength);
-        }
-      } else {
-        done = false;
-        if (m->type == UNIT_TYPE_EMPTY) {
-          m->playerDict[psid].objective = this;
-          m->setScent(strength);
-        }
-      }
-    }
+    updateCiter(UNIT_TYPE_SUBSPAWNER);
     break;
   case OBJECTIVE_TYPE_ATTACK:
     done = true;
@@ -261,11 +216,10 @@ void Objective::update() {
 }
 
 Objective::~Objective() {
-  for (Objective *o : subObjectives)
-    delete o;
-  subObjectives.clear();
+
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
+  case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
     delete citer;
   default:
     break;

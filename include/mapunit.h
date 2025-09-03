@@ -3,11 +3,10 @@
 
 #include <map>
 #include <list>
-#include <algorithm>
 
 #include "event.h"
 
-enum UnitType {
+typedef enum UnitType {
   UNIT_TYPE_EMPTY,
   UNIT_TYPE_BUILDING,
   UNIT_TYPE_AGENT,
@@ -15,7 +14,7 @@ enum UnitType {
   UNIT_TYPE_WALL,
   UNIT_TYPE_DOOR,
   UNIT_TYPE_OUTSIDE
-};
+} UnitType;
 
 class Agent;
 class Building;

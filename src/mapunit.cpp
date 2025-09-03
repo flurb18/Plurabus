@@ -47,7 +47,7 @@ void concentric_iterator::next() {
 
 concentric_iterator::concentric_iterator(Game *game, int tx, int ty, int tw, int th): x(tx), y(ty), w(tw), h(th) {
     g = game;
-    R = (std::min(w,h)-1)/2;
+    R = (w < h) ? (w-1)/2 : (h-1)/2;
     r = R;
     for (MapUnit::iterator m = g->mapUnitAt(x+R,y+R)->getIterator(w-(2*R),h-(2*R)); m.hasNext(); m++) {
       current.push_back(m.current);

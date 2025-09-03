@@ -8,11 +8,9 @@
 
 enum ObjectiveType {
   OBJECTIVE_TYPE_BUILD_WALL,
-  OBJECTIVE_TYPE_BUILD_WALL_SUB,
   OBJECTIVE_TYPE_BUILD_DOOR,
   OBJECTIVE_TYPE_BUILD_TOWER,
   OBJECTIVE_TYPE_BUILD_SUBSPAWNER,
-  OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB,
   OBJECTIVE_TYPE_BUILD_BOMB,
   OBJECTIVE_TYPE_GOTO,
   OBJECTIVE_TYPE_ATTACK
@@ -38,6 +36,7 @@ struct Objective {
   MapUnit::iterator getIterator();
   bool isDone();
   bool regionIsReadyForBuilding();
+  void updateCiter(UnitType);
   void update();
   ~Objective();
 };

@@ -43,7 +43,7 @@ void Agent::update(AgentEvent *aevent) {
           return;
         }
         break;
-      case OBJECTIVE_TYPE_BUILD_SUBSPAWNER_SUB:
+      case OBJECTIVE_TYPE_BUILD_SUBSPAWNER:
         if (m->type == UNIT_TYPE_EMPTY ||
             (m->type == UNIT_TYPE_SPAWNER && m->hp < SUBSPAWNER_UNIT_COST)) {
           aevent->dir = dirRef[i];
