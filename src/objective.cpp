@@ -9,6 +9,8 @@ Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
     : type(t), strength(s), done(false), sid(_sid), game(g), region(r) {
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
+    citer = concentric_iterator(g, region.x, region.y, region.w, region.h);
+/*
     for (int i = 0; region.w - (2 * i) > 0 && region.h - (2 * i) > 0; i++) {
       SDL_Rect sub = {region.x + i, region.y + i, region.w - (2 * i),
                       region.h - (2 * i)};
@@ -16,6 +18,7 @@ Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
           this, OBJECTIVE_TYPE_BUILD_WALL_SUB, strength, game, sub, sid));
     }
     iter = subObjectives.begin();
+*/
     break;
   case OBJECTIVE_TYPE_BUILD_TOWER:
     started = false;
@@ -78,14 +81,32 @@ bool Objective::regionIsReadyForBuilding() {
 
 void Objective::update() {
   SpawnerID psid = game->getPlayerSpawnID();
+  bool current_done;
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    if (iter != subObjectives.end()) {
+    current_done = true;
+    for (MapUnit *m : citer.current) {
+      if (m->type != UNIT_TYPE_WALL) {
+        current_done = false;
+        if (m->type == UNIT_TYPE_EMPTY) {
+          m->playerDict[psid].objective = this;
+          m->setScent(strength);
+        }
+      }
+    }
+    if (current_done) {
+      if (citer.hasNext()) {
+        citer++;
+      } else {
+        done = true;
+      }
+    }
+/*    if (iter != subObjectives.end()) {
       (*iter)->update();
       if ((*iter)->isDone()) {
         iter++;
       }
-    }
+    }*/
     break;
   case OBJECTIVE_TYPE_BUILD_WALL_SUB:
     done = true;

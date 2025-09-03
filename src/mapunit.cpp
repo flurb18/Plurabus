@@ -32,6 +32,19 @@ void MapUnit::iterator::next() {
   }
 }
 
+void concentric_iterator::next() {
+  r--;
+  for (MapUnit *m : current) {
+    past.push_back(m);
+  }
+  current.clear();
+  for (MapUnit::iterator m = g->mapUnitAt(x+r,y+r)->getIterator(w-(2*r),h-(2*r)); m.hasNext(); m++) {
+    if (m->x == x+r || m->y == y+r || m->x == x+w-r || m->y == y+h-r) {
+      current.push_back(m.current);
+    }
+  }
+}
+
 void MapUnit::clearScent() {
   playerDict[game->getPlayerSpawnID()].scent = 0.0;
   playerDict[game->getPlayerSpawnID()].prevScent = 0.0;

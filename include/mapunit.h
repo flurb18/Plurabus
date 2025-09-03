@@ -2,6 +2,8 @@
 #define MAPUNIT_H
 
 #include <map>
+#include <list>
+#include <algorithm>
 
 #include "event.h"
 
@@ -78,5 +80,26 @@ struct MapUnit {
   void update();
   ~MapUnit();
 };
+
+class concentric_iterator {
+private:
+  std::list<MapUnit*> current;
+  std::list<MapUnit*> past;
+  void next();
+public:
+  int r, R, x, y, w, h;
+  Game *g;
+  concentric_iterator(Game *game, int tx, int ty, int tw, int th): x(tx), y(ty), w(tw), h(th) {
+    g = game;
+    R = (std::min(w,h)-1)/2;
+    r = R;
+    for (MapUnit::iterator m = g->mapUnitAt(x+R,y+R)->getIterator(w-(2*R),h-(2*R)); m.hasNext(); m++) {
+      current.push_back(m.current);
+    }
+  };
+  concentric_iterator operator++() {concentric_iterator it = *this; next(); return it;};
+  concentric_iterator operator++(int junk) {next(); return *this;};
+  bool hasNext() {return (r > 0);};
+}
 
 #endif
