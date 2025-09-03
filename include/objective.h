@@ -25,14 +25,10 @@ struct Objective {
   bool started;
   bool done;
   SpawnerID sid;
-  Objective *super;
-  std::deque<Objective*> subObjectives;
-  std::deque<Objective*>::iterator iter;
   concentric_iterator *citer;
   Game* game;
   SDL_Rect region;
   Objective(ObjectiveType, int, Game*, SDL_Rect, SpawnerID);
-  Objective(Objective*, ObjectiveType, int, Game*, SDL_Rect, SpawnerID);
   MapUnit::iterator getIterator();
   bool isDone();
   bool regionIsReadyForBuilding();

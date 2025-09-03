@@ -28,12 +28,6 @@ Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
   }
 }
 
-Objective::Objective(Objective *sup, ObjectiveType t, int s, Game *g,
-                     SDL_Rect r, SpawnerID _sid)
-    : Objective(t, s, g, r, _sid) {
-  super = sup;
-}
-
 MapUnit::iterator Objective::getIterator() {
   MapUnit *first = game->mapUnitAt(region.x, region.y);
   return first->getIterator(region.w, region.h);

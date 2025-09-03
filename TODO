@@ -5,5 +5,9 @@
 -figure out android authentication
 -better zooming and panning on mobile
 
+crashes:
+- bomb kills spawner 
+- subspawner interrupted, place 3
+
 eventually:
 -4 player
