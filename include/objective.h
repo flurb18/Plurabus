@@ -36,7 +36,7 @@ struct Objective {
   MapUnit::iterator getIterator();
   bool isDone();
   bool regionIsReadyForBuilding();
-  void updateCiter(UnitType);
+  void updateCiter(UnitType, int);
   void update();
   ~Objective();
 };
