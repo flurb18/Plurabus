@@ -100,6 +100,6 @@ public:
   concentric_iterator operator++() {concentric_iterator it = *this; next(); return it;};
   concentric_iterator operator++(int junk) {next(); return *this;};
   bool hasNext() {return (r > 0);};
-}
+};
 
 #endif
