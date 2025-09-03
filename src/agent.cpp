@@ -35,7 +35,7 @@ void Agent::update(AgentEvent *aevent) {
     if ((m->type != UNIT_TYPE_OUTSIDE) &&
         (m->playerDict[psid].objective != nullptr) && (!m->isMarked())) {
       switch (m->playerDict[psid].objective->type) {
-      case OBJECTIVE_TYPE_BUILD_WALL_SUB:
+      case OBJECTIVE_TYPE_BUILD_WALL:
         if (canMoveTo(m) && m->type != UNIT_TYPE_DOOR) {
           aevent->dir = dirRef[i];
           aevent->action = AGENT_ACTION_BUILDWALL;
