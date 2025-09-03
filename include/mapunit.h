@@ -39,12 +39,10 @@ typedef struct MapUnitPerPlayerData {
 struct MapUnit {
   /* An iterator for traversing through a predefined rectangle of mapunits */
   class iterator {
-  private:
+  public:
     bool hasNextUnit;
     MapUnit* current;
     MapUnit* firstInRow;
-    void next();
-  public:
     int j, i, w, h;
     iterator(MapUnit* first, int w_, int h_): hasNextUnit(true), \
     current(first), firstInRow(first), j(0), i(0), w(w_), h(h_){};
@@ -52,6 +50,7 @@ struct MapUnit {
     iterator operator++(int junk) {next(); return *this;};
     MapUnit& operator*() {return *current;};
     MapUnit* operator->() {return current;};
+    void next();
     bool hasNext() {return hasNextUnit;};
   };
   unsigned int x, y, index;
@@ -82,11 +81,9 @@ struct MapUnit {
 };
 
 class concentric_iterator {
-private:
+public:
   std::list<MapUnit*> current;
   std::list<MapUnit*> past;
-  void next();
-public:
   int r, R, x, y, w, h;
   Game *g;
   concentric_iterator(Game *game, int tx, int ty, int tw, int th): x(tx), y(ty), w(tw), h(th) {
@@ -100,6 +97,7 @@ public:
   concentric_iterator operator++() {concentric_iterator it = *this; next(); return it;};
   concentric_iterator operator++(int junk) {next(); return *this;};
   bool hasNext() {return (r > 0);};
+  void next();
 };
 
 #endif
