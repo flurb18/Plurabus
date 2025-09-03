@@ -11,6 +11,7 @@ Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
     citer = new concentric_iterator(g, region.x, region.y, region.w, region.h);
+    started = true;
 /*
     for (int i = 0; region.w - (2 * i) > 0 && region.h - (2 * i) > 0; i++) {
       SDL_Rect sub = {region.x + i, region.y + i, region.w - (2 * i),
