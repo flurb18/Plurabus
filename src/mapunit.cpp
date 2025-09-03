@@ -39,7 +39,7 @@ void concentric_iterator::next() {
   }
   current.clear();
   for (MapUnit::iterator m = g->mapUnitAt(x+r,y+r)->getIterator(w-(2*r),h-(2*r)); m.hasNext(); m++) {
-    if (m->x == x+r || m->y == y+r || m->x == x+w-r || m->y == y+h-r) {
+    if (m->x == x+r || m->y == y+r || m->x == x+w-r-1 || m->y == y+h-r-1) {
       current.push_back(m.current);
     }
   }
