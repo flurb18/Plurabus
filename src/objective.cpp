@@ -7,9 +7,10 @@
 Objective::Objective(ObjectiveType t, int s, Game *g, SDL_Rect r,
                      SpawnerID _sid)
     : type(t), strength(s), done(false), sid(_sid), game(g), region(r) {
+  citer = nullptr;
   switch (type) {
   case OBJECTIVE_TYPE_BUILD_WALL:
-    citer = concentric_iterator(g, region.x, region.y, region.w, region.h);
+    citer = new concentric_iterator(g, region.x, region.y, region.w, region.h);
 /*
     for (int i = 0; region.w - (2 * i) > 0 && region.h - (2 * i) > 0; i++) {
       SDL_Rect sub = {region.x + i, region.y + i, region.w - (2 * i),
@@ -262,4 +263,10 @@ Objective::~Objective() {
   for (Objective *o : subObjectives)
     delete o;
   subObjectives.clear();
+  switch (type) {
+  case OBJECTIVE_TYPE_BUILD_WALL:
+    delete citer;
+  default:
+    break;
+  }
 }

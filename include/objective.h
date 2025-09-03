@@ -30,7 +30,7 @@ struct Objective {
   Objective *super;
   std::deque<Objective*> subObjectives;
   std::deque<Objective*>::iterator iter;
-  concentric_iterator citer;
+  concentric_iterator *citer;
   Game* game;
   SDL_Rect region;
   Objective(ObjectiveType, int, Game*, SDL_Rect, SpawnerID);
