@@ -636,7 +636,6 @@ void Game::receiveBombEvent(BombEvent *bevent) {
       int dx = m->x - bevent->x;
       int dy = m->y - bevent->y;
       if (dx * dx + dy * dy <= BOMB_AOE_RADIUS * BOMB_AOE_RADIUS) {
-        Building *build;
         switch (m->type) {
         case UNIT_TYPE_AGENT:
           markAgentForDeletion(m->agent->id);
