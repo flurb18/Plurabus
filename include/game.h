@@ -214,7 +214,6 @@ public:
   static int messageSize(int);
   Game(int, int, int, double, char*, char*, bool);
   ~Game();
-  void practiceLoop();
   void mainLoop();
 };
 

@@ -58,38 +58,34 @@ bool Objective::regionIsReadyForBuilding() {
 
 void Objective::updateCiter(UnitType desired, int desiredHP) {
   SpawnerID psid = game->getPlayerSpawnID();
-  bool past_done = true;
-  for (MapUnit *m : citer->past) {
-    if (m->type != desired) {
-      past_done = false;
+  bool past_done = false;
+  if (citer->hasPrev()) {
+    while (citer->hasPrev() and !past_done) {
+      past_done = true;
+      (*citer)--;
+      for (MapUnit *m : citer->current) {
+        if (m->type != desired || (m->type == desired && m->hp < desiredHP)) past_done = false;
+      }
     }
-  }
-  if (!past_done) {
-    done = true;
-    return;
+    if (past_done) (*citer)++;
   }
   bool current_done = true;
   for (MapUnit *m : citer->current) {
-    if (m->type == desired) {
-      if (m->hp < desiredHP) {
-        current_done = false;
-        m->playerDict[psid].objective = this;
-        m->setEmptyNeighborScents(strength);
-      }
-    } else {
+    if (m->type != desired || (m->type == desired && m->hp < desiredHP)) {
       current_done = false;
       if (m->type == UNIT_TYPE_EMPTY) {
         m->playerDict[psid].objective = this;
         m->setScent(strength);
       }
+      if (m->type == desired) {
+        m->playerDict[psid].objective = this;
+        m->setEmptyNeighborScents(strength);
+      }
     }
   }
   if (current_done) {
-    if (citer->hasNext()) {
-      (*citer)++;
-    } else {
-      done = true;
-    }
+    if (citer->hasNext()) (*citer)++;
+    else done = true;
   }
 }
 

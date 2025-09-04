@@ -32,11 +32,7 @@ void MapUnit::iterator::next() {
   }
 }
 
-void concentric_iterator::next() {
-  r--;
-  for (MapUnit *m : current) {
-    past.push_back(m);
-  }
+void concentric_iterator::update_current() {
   current.clear();
   for (MapUnit::iterator m = g->mapUnitAt(x+r,y+r)->getIterator(w-(2*r),h-(2*r)); m.hasNext(); m++) {
     if (m->x == x+r || m->y == y+r || m->x == x+w-r-1 || m->y == y+h-r-1) {
@@ -45,14 +41,22 @@ void concentric_iterator::next() {
   }
 }
 
+void concentric_iterator::next() {
+  r--;
+  update_current();
+}
+
+void concentric_iterator::prev() {
+  r++;
+  update_current();
+}
+
 concentric_iterator::concentric_iterator(Game *game, int tx, int ty, int tw, int th): x(tx), y(ty), w(tw), h(th) {
     g = game;
     R = (w < h) ? (w-1)/2 : (h-1)/2;
     r = R;
-    for (MapUnit::iterator m = g->mapUnitAt(x+R,y+R)->getIterator(w-(2*R),h-(2*R)); m.hasNext(); m++) {
-      current.push_back(m.current);
-    }
-  };
+    update_current();
+}
 
 void MapUnit::clearScent() {
   playerDict[game->getPlayerSpawnID()].scent = 0.0;

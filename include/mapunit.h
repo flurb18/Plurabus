@@ -80,16 +80,21 @@ struct MapUnit {
 };
 
 class concentric_iterator {
+private:
+  void update_current();
 public:
   std::list<MapUnit*> current;
-  std::list<MapUnit*> past;
   int r, R, x, y, w, h;
   Game *g;
   concentric_iterator(Game*, int, int, int, int);
   concentric_iterator operator++() {concentric_iterator it = *this; next(); return it;};
   concentric_iterator operator++(int junk) {next(); return *this;};
+  concentric_iterator operator--() {concentric_iterator it = *this; prev(); return it;};
+  concentric_iterator operator--(int junk) {prev(); return *this;};
   bool hasNext() {return (r > 0);};
+  bool hasPrev() {return (r < R);};
   void next();
+  void prev();
 };
 
 #endif
