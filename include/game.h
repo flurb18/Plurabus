@@ -65,12 +65,12 @@ typedef struct MarkedCoord {
 
 typedef struct TowerZap {
   int x1, y1, x2, y2;
-  std::chrono::time_point start;
+  std::chrono::time_point<std::chrono::high_resolution_clock> start;
 } TowerZap;
 
 typedef struct BombEffect {
   int x, y;
-  std::chrono::time_point start;
+  std::chrono::time_point<std::chrono::high_resolution_clock> start;
 } BombEffect;
 
 typedef struct ColorScheme {
