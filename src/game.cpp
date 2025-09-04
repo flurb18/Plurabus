@@ -347,16 +347,6 @@ int Game::messageSize(int n) {
          sizeof(int) + (sizeof(AgentEvent) * n);
 }
 
-void Game::sizeEventsBuffer(int s) {
-  bool resize = (s > eventsBufferCapacity);
-  while (s > eventsBufferCapacity)
-    eventsBufferCapacity *= 2;
-  if (resize) {
-    free(eventsBuffer);
-    eventsBuffer = malloc(messageSize(eventsBufferCapacity));
-  }
-}
-
 void Game::receiveData(void *data, int numBytes) {
   Events *events = (Events *)data;
   sizeEventsBuffer(events->numAgentEvents);
@@ -371,16 +361,6 @@ void Game::receiveData(void *data, int numBytes) {
 
 void Game::receiveEventsBuffer() {
   Events *events = (Events *)eventsBuffer;
-  receiveEvents(events);
-  deleteMarkedAgents();
-}
-
-void Game::sendEventsBuffer() {
-  Events *events = (Events *)eventsBuffer;
-  net->send(eventsBuffer, messageSize(events->numAgentEvents));
-}
-
-void Game::receiveEvents(Events *events) {
   for (int i = 0; i < events->numAgentEvents; i++) {
     receiveAgentEvent(&events->agentEvents[i]);
   }
@@ -392,6 +372,22 @@ void Game::receiveEvents(Events *events) {
   }
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
+  }
+  deleteMarkedAgents();
+}
+
+void Game::sendEventsBuffer() {
+  Events *events = (Events *)eventsBuffer;
+  net->send(eventsBuffer, messageSize(events->numAgentEvents));
+}
+
+void Game::sizeEventsBuffer(int s) {
+  bool resize = (s > eventsBufferCapacity);
+  while (s > eventsBufferCapacity)
+    eventsBufferCapacity *= 2;
+  if (resize) {
+    free(eventsBuffer);
+    eventsBuffer = malloc(messageSize(eventsBufferCapacity));
   }
 }
 
@@ -425,18 +421,12 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
   }
   switch (aevent->action) {
   case AGENT_ACTION_MOVE:
-    if (destuptr->type == UNIT_TYPE_DOOR) {
-      destuptr->door->isEmpty = false;
-    } else {
-      destuptr->type = UNIT_TYPE_AGENT;
-    }
+    if (destuptr->type == UNIT_TYPE_DOOR) destuptr->door->isEmpty = false;
+    else destuptr->type = UNIT_TYPE_AGENT;
     a->unit = destuptr;
     destuptr->agent = a;
-    if (startuptr->type == UNIT_TYPE_DOOR) {
-      startuptr->door->isEmpty = true;
-    } else {
-      startuptr->type = UNIT_TYPE_EMPTY;
-    }
+    if (startuptr->type == UNIT_TYPE_DOOR) startuptr->door->isEmpty = true;
+    else startuptr->type = UNIT_TYPE_EMPTY;
     startuptr->agent = nullptr;
     break;
   case AGENT_ACTION_BUILDWALL:

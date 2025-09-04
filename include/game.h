@@ -174,11 +174,10 @@ private:
   void standardizeEventCoords(float, float, int*, int*);
   void handleSDLEvent(SDL_Event*);
   void handleSDLEventMobile(SDL_Event*);
-  void sizeEventsBuffer(int);
   void receiveData(void*, int);
   void receiveEventsBuffer();
   void sendEventsBuffer();
-  void receiveEvents(Events*);
+  void sizeEventsBuffer(int);
   void receiveAgentEvent(AgentEvent*);
   void receiveTowerEvent(TowerEvent*);
   void receiveSpawnerEvent(SpawnerEvent*);
