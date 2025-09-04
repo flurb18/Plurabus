@@ -352,10 +352,13 @@ void Game::deleteMarkedBuildings() {
   for (Building *build : markedBuildings) {
     bool found_past = false;
     for (Building *pastbuild : past) {
-      if (build == pastbuild) found_past = true;
+      if (build == pastbuild) {
+        found_past = true;
+        break;
+      }
     }
     if (found_past) continue;
-    past.push_back(build);
+    past.push_front(build);
   }
   for (Building *build : past) {
     for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
