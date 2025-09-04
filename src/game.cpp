@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <thread>
 #include <chrono>
+#include <ctime>
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_rect.h>
@@ -319,8 +320,6 @@ void Game::checkSpawnersDestroyed() {
         winnerSpawnID = SPAWNER_ID_ONE;
         break;
       }
-      towerZaps.clear();
-      bombEffects.clear();
       end(DONE_STATUS_WINNER);
     }
   }
@@ -602,7 +601,7 @@ void Game::receiveTowerEvent(TowerEvent *tevent) {
     auto it = agentDict.find(tevent->id);
     if (it != agentDict.end()) {
       Agent *a = it->second;
-      TowerZap t = {tevent->x, tevent->y, (int)a->unit->x, (int)a->unit->y, 0};
+      TowerZap t = {tevent->x, tevent->y, (int)a->unit->x, (int)a->unit->y, std::chrono::high_resolution_clock::now()};
       towerZaps.push_back(t);
       markAgentForDeletion(a->id);
     }
@@ -624,7 +623,7 @@ void Game::receiveSpawnerEvent(SpawnerEvent *sevent) {
 
 void Game::receiveBombEvent(BombEvent *bevent) {
   if (bevent->detonated) {
-    BombEffect be = {bevent->x, bevent->y, 0};
+    BombEffect be = {bevent->x, bevent->y, std::chrono::high_resolution_clock::now()};
     bombEffects.push_back(be);
     int startx = bevent->x - BOMB_AOE_RADIUS;
     int starty = bevent->y - BOMB_AOE_RADIUS;
@@ -667,24 +666,6 @@ void Game::receiveBombEvent(BombEvent *bevent) {
 void Game::update() {
   sizeEventsBuffer(numPlayerAgents[playerSpawnID]);
   Events *events = (Events *)eventsBuffer;
-  auto tzit = towerZaps.begin();
-  while (tzit != towerZaps.end()) {
-    tzit->counter++;
-    if (tzit->counter >= ZAP_CLEAR_TIME) {
-      tzit = towerZaps.erase(tzit);
-    } else {
-      tzit++;
-    }
-  }
-  auto beit = bombEffects.begin();
-  while (beit != bombEffects.end()) {
-    beit->counter++;
-    if (beit->counter >= BOMB_CLEAR_TIME) {
-      beit = bombEffects.erase(beit);
-    } else {
-      beit++;
-    }
-  }
   for (MapUnit *u : mapUnits) {
     u->marked = false;
     u->update();
@@ -1791,6 +1772,18 @@ void Game::mainLoop(void) {
   default:
     draw();
     break;
+  }
+  auto tzit = towerZaps.begin();
+  while (tzit != towerZaps.end()) {
+    if (std::chrono::high_resolution_clock::now() - tzit->start >= ms(ZAP_CLEAR_TIME)) {
+      tzit = towerZaps.erase(tzit);
+    } else tzit++;
+  }
+  auto beit = bombEffects.begin();
+  while (beit != bombEffects.end()) {
+    if (std::chrono::high_resolution_clock::now() - beit->start >= ms(BOMB_CLEAR_TIME)) {
+      beit = bombEffects.erase(beit);
+    } else beit++;
   }
   SDL_PumpEvents();
   SDL_Event e;

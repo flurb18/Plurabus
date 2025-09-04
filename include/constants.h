@@ -26,7 +26,7 @@ const int MAX_SUBSPAWNERS = 3;
 const int SUBSPAWNER_SIZE = 5; //should be odd
 const int SUBSPAWNER_UNIT_COST = 4;
 const int SUBSPAWNER_UPDATE_TIME = 5;
-const int ZAP_CLEAR_TIME = 6;
+const int ZAP_CLEAR_TIME = 20;
 const int ZAP_EFFECTS_SUBDIVISION = 50;
 const int ZAP_CENTER_EFFECTS_NUM = 7;
 const int INIT_EVENT_BUFFER_SIZE = 16;
@@ -34,7 +34,7 @@ const int MAX_BOMBS = 1;
 const int MAX_BOMB_HEALTH = 300;
 const int BOMB_AOE_RADIUS = 20;
 const int BOMB_SIZE = 5;
-const int BOMB_CLEAR_TIME = 4;
+const int BOMB_CLEAR_TIME = 50;
 extern const char *TITLE;
 
 #endif
