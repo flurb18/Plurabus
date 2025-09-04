@@ -1775,13 +1775,13 @@ void Game::mainLoop(void) {
   }
   auto tzit = towerZaps.begin();
   while (tzit != towerZaps.end()) {
-    if (std::chrono::high_resolution_clock::now() - tzit->start >= ms(ZAP_CLEAR_TIME)) {
+    if (std::chrono::high_resolution_clock::now() - tzit->start >= std::chrono::milliseconds(ZAP_CLEAR_TIME)) {
       tzit = towerZaps.erase(tzit);
     } else tzit++;
   }
   auto beit = bombEffects.begin();
   while (beit != bombEffects.end()) {
-    if (std::chrono::high_resolution_clock::now() - beit->start >= ms(BOMB_CLEAR_TIME)) {
+    if (std::chrono::high_resolution_clock::now() - beit->start >= std::chrono::milliseconds(BOMB_CLEAR_TIME)) {
       beit = bombEffects.erase(beit);
     } else beit++;
   }
