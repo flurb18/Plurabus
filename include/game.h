@@ -124,6 +124,7 @@ private:
   std::vector<MapUnit*> mapUnits;
   std::deque<MarkedCoord> markedCoords;
   std::deque<AgentID> markedAgents;
+  std::deque<Building *> markedBuildings;
   std::deque<TowerZap> towerZaps;
   std::deque<BombEffect> bombEffects;
   std::list<Objective*> objectives;
@@ -185,7 +186,9 @@ private:
   void receiveBombEvent(BombEvent*);
   void deleteSelectedObjective();
   void markAgentForDeletion(AgentID);
+  void markBuildingForDeletion(Building*);
   void deleteMarkedAgents();
+  void deleteMarkedBuildings();
   void checkSpawnersDestroyed();
   void update();
   void simpleAggMode();

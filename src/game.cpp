@@ -347,6 +347,35 @@ void Game::deleteMarkedAgents() {
   markedAgents.clear();
 }
 
+void Game::deleteMarkedBuildings() {
+  std::deque<Building*> past;
+  for (Building *build : markedBuildings) {
+    bool found_past = false;
+    for (Building *pastbuild : past) {
+      if (build == pastbuild) found_past = true;
+    }
+    if (found_past) continue;
+    past.push_back(build);
+    for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
+      it->type = UNIT_TYPE_EMPTY;
+      it->building = nullptr;
+    }
+    for (auto it = buildingLists[build->type].begin();
+          it != buildingLists[build->type].end(); it++) {
+      Building *b = *it;
+      if (b == build) {
+        buildingLists[build->type].erase(it);
+        break;
+      }
+    }
+  }
+  for (Building *build : past) {
+    delete build;
+  }
+  markedBuildings.clear();
+  past.clear();
+}
+
 int Game::messageSize(int n) {
   return (sizeof(SpawnerEvent) * (MAX_SUBSPAWNERS + 1)) +
          (sizeof(TowerEvent) * MAX_TOWERS) + (sizeof(BombEvent) * MAX_BOMBS) +
@@ -378,6 +407,7 @@ void Game::receiveEventsBuffer() {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
   deleteMarkedAgents();
+  deleteMarkedBuildings();
   checkSpawnersDestroyed();
 }
 
@@ -553,24 +583,7 @@ void Game::receiveAgentEvent(AgentEvent *aevent) {
     case UNIT_TYPE_BUILDING:
       build = destuptr->building;
       build->hp--;
-      if (build->hp <= 0) {
-        for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
-          it->type = UNIT_TYPE_EMPTY;
-          it->building = nullptr;
-        }
-        for (auto it = buildingLists[build->type].begin();
-             it != buildingLists[build->type].end(); it++) {
-          Building *b = *it;
-          if (destuptr->x >= b->region.x &&
-              destuptr->x <= b->region.x + b->region.w - 1 &&
-              destuptr->y >= b->region.y &&
-              destuptr->y <= b->region.y + b->region.h - 1) {
-            it = buildingLists[build->type].erase(it);
-            delete b;
-            break;
-          }
-        }
-      }
+      if (build->hp <= 0) markBuildingForDeletion(build);
       markAgentForDeletion(a->id);
       break;
     default:
@@ -638,22 +651,7 @@ void Game::receiveBombEvent(BombEvent *bevent) {
           }
           break;
         case UNIT_TYPE_BUILDING:
-          build = m->building;
-          for (MapUnit::iterator it = build->getIterator(); it.hasNext();
-               it++) {
-            it->type = UNIT_TYPE_EMPTY;
-            it->building = nullptr;
-          }
-          for (auto it = buildingLists[build->type].begin();
-               it != buildingLists[build->type].end(); it++) {
-            Building *b = *it;
-            if (m->x >= b->region.x && m->x <= b->region.x + b->region.w - 1 &&
-                m->y >= b->region.y && m->y <= b->region.y + b->region.h - 1) {
-              buildingLists[build->type].erase(it);
-              delete build;
-              break;
-            }
-          }
+          markBuildingForDeletion(m->building);
           break;
         default:
           break;
@@ -1570,6 +1568,7 @@ void Game::showBasicInfo() { panel->basicInfoText(); }
 void Game::showCosts() { panel->costsText(); }
 void Game::clearPanel() { panel->clearText(); }
 void Game::markAgentForDeletion(AgentID id) { markedAgents.push_back(id); }
+void Game::markBuildingForDeletion(Building *build) { markedBuildings.push_back(build); }
 MapUnit *Game::mapUnitAt(int x, int y) { return mapUnits[y * gameSize + x]; }
 MapUnit::iterator Game::getSelectionIterator() {
   return mapUnitAt(selection.x + view.x, selection.y + view.y)
