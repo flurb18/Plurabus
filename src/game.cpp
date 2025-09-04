@@ -352,11 +352,9 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  checkSpawnersDestroyed();
   update();
   receiveEventsBuffer();
   sendEventsBuffer();
-  checkSpawnersDestroyed();
 }
 
 void Game::receiveEventsBuffer() {
@@ -374,6 +372,7 @@ void Game::receiveEventsBuffer() {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
   deleteMarkedAgents();
+  checkSpawnersDestroyed();
 }
 
 void Game::sendEventsBuffer() {
@@ -1778,11 +1777,9 @@ void Game::mainLoop(void) {
     playerSpawnID = SPAWNER_ID_TWO;
     update();
     receiveEventsBuffer();
-    checkSpawnersDestroyed();
     playerSpawnID = SPAWNER_ID_ONE;
     update();
     receiveEventsBuffer();
-    checkSpawnersDestroyed();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   default:
     draw();
