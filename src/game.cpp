@@ -341,6 +341,7 @@ void Game::deleteMarkedAgents() {
     }
     u->agent = nullptr;
     agentDict.erase(it);
+    delete a;
     numPlayerAgents[s]--;
   }
   markedAgents.clear();
