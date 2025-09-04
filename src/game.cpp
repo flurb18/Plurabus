@@ -137,6 +137,9 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
 Game::~Game() {
   if (!ended)
     end(DONE_STATUS_EXIT);
+  if (gameMode == 0) {
+    delete net;
+  }
   for (MapUnit *u : mapUnits) {
     u->left = nullptr;
     u->right = nullptr;
@@ -271,7 +274,6 @@ void Game::end(DoneStatus s) {
   }
   if (gameMode == 0) {
     net->closeConnection("Normal");
-    delete net;
   }
   panel->addText(closeText.c_str());
   int p1score, p2score;
