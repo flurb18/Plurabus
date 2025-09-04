@@ -356,6 +356,8 @@ void Game::deleteMarkedBuildings() {
     }
     if (found_past) continue;
     past.push_back(build);
+  }
+  for (Building *build : past) {
     for (MapUnit::iterator it = build->getIterator(); it.hasNext(); it++) {
       it->type = UNIT_TYPE_EMPTY;
       it->building = nullptr;
@@ -363,13 +365,11 @@ void Game::deleteMarkedBuildings() {
     for (auto it = buildingLists[build->type].begin();
           it != buildingLists[build->type].end(); it++) {
       Building *b = *it;
-      if (b == build) {
-        buildingLists[build->type].erase(it);
+      if (rectCollides(build->region, b->region)) {
+        it = buildingLists[build->type].erase(it);
         break;
       }
     }
-  }
-  for (Building *build : past) {
     delete build;
   }
   markedBuildings.clear();
