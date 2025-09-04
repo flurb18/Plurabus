@@ -219,6 +219,12 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
             game->sendEventsBuffer();
           }
         }
+      } else if (strcmp((char *)data, "WINNER_1") == 0) {
+        game->winnerSpawnID = SPAWNER_ID_ONE;
+        game->end(DONE_STATUS_WINRECV);
+      } else if (strcmp((char *)data, "WINNER_2") == 0) {
+        game->winnerSpawnID = SPAWNER_ID_TWO;
+        game->end(DONE_STATUS_WINRECV);
       } else if (strcmp((char *)data, "TIMEOUT") == 0) {
         game->end(DONE_STATUS_TIMEOUT);
       } else if (strcmp((char *)data, "DISCONNECT") == 0) {

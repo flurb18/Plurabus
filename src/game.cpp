@@ -185,14 +185,17 @@ void Game::end(DoneStatus s) {
   int p1units, p2units;
   bool we_have_a_winner = false;
   switch (s) {
+  case DONE_STATUS_WINRECV:
   case DONE_STATUS_WINNER:
     we_have_a_winner = true;
     switch (winnerSpawnID) {
     case SPAWNER_ID_ONE:
       closeText = colorScheme.p1name + " team wins!";
+      if (s == DONE_STATUS_WINNER) net->sendText("WINNER_1");
       break;
     case SPAWNER_ID_TWO:
       closeText = colorScheme.p2name + " team wins!";
+      if (s == DONE_STATUS_WINNER) net->sendText("WINNER_2");
       break;
     }
     break;
