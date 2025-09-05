@@ -101,6 +101,7 @@ private:
   char *pairString;
   void *eventsBuffer;
   bool mobile;
+  bool flipped;
   bool resignConfirmation;
   bool ended;
   unsigned int eventsBufferCapacity;
@@ -146,6 +147,7 @@ private:
   bool rectCollides(SDL_Rect, SDL_Rect);
   bool potentialSelectionCollidesWithObjective(int, int, int, int);
   bool potentialSelectionCollidesWithBuilding(int, int, int, int);
+  void flipIfNeeded(int*, int*, int, int);
   void mouseMoved(int, int);
   void leftMouseDown(int, int);
   void leftMouseUp(int, int);
@@ -154,6 +156,10 @@ private:
   void panViewRight();
   void panViewUp();
   void panViewDown();
+  void panViewTrueLeft();
+  void panViewTrueRight();
+  void panViewTrueUp();
+  void panViewTrueDown();
   void adjustViewToScale();
   void deselect();
   int scaleInt(int);

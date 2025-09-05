@@ -199,6 +199,7 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
         ncon = NET_CONTEXT_PLAYING;
         game->playerSpawnID = SPAWNER_ID_TWO;
         game->panel->addText("You are the RED team.");
+        game->flipped = true;
         sendText("Set");
         game->context = GAME_CONTEXT_STARTUPTIMER;
       } else if (strcmp((char *)data, "Go") == 0) {

@@ -40,7 +40,7 @@
 /*---------Constructor / Destructor----------------*/
 
 Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, bool mob)
-    : pairString(pstr), mobile(mob), resignConfirmation(false), ended(false),
+    : pairString(pstr), mobile(mob), flipped(false), resignConfirmation(false), ended(false),
       eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
       context(GAME_CONTEXT_CONNECTING),
       selectionContext(SELECTION_CONTEXT_UNSELECTED), initScale(scl),
@@ -750,7 +750,7 @@ void Game::simpleDefMode() {
   Objective *attack = new Objective(OBJECTIVE_TYPE_ATTACK, 255, this, green_spawn,
                                 SPAWNER_ID_TWO);
   objectives.push_back(attack);
-  SDL_Rect defensiveWall = { 0, p2offset + SPAWNER_SIZE + 15, 75, 2 };
+  SDL_Rect defensiveWall = { 0, p2offset + SPAWNER_SIZE + 15, 75, 1 };
   Objective *wall = new Objective(OBJECTIVE_TYPE_BUILD_WALL, 255, this, defensiveWall, SPAWNER_ID_TWO);
   objectives.push_back(wall);
   SDL_Rect subspawn_location = { p2offset + SPAWNER_SIZE + 20, p2offset + (SPAWNER_SIZE/2), SUBSPAWNER_SIZE, SUBSPAWNER_SIZE };
@@ -962,11 +962,21 @@ void Game::adjustViewToScale() {
   mouseMoved(mouseX, mouseY);
 }
 
+void Game::flipIfNeeded(int *x, int *y, int w, int h) {
+  if (flipped) {
+    *x = gameDisplaySize - *x;
+    *y = gameDisplaySize - *y;
+    *x = *x - w;
+    *y = *y - h;
+  }
+}
+
 void Game::mouseMoved(int x, int y) {
   if (y >= gameDisplaySize || x >= gameDisplaySize)
     return;
   mouseX = x;
   mouseY = y;
+  flipIfNeeded(&x, &y, 0, 0);
   int mouseUnitX = (int)((double)x / scale) + view.x;
   int mouseUnitY = (int)((double)y / scale) + view.y;
   int potX = selection.x;
@@ -1065,6 +1075,9 @@ void Game::leftMouseDown(int x, int y) {
         }
       }
     }
+    int oldx = x;
+    int oldy = y;
+    flipIfNeeded(&x, &y, 0, 0);
     int mouseUnitX = (int)((double)x / scale) + view.x;
     int mouseUnitY = (int)((double)y / scale) + view.y;
     if (menu->getIfObjectivesShown()) {
@@ -1094,7 +1107,7 @@ void Game::leftMouseDown(int x, int y) {
     default:
       if (selectedObjective == nullptr) {
         selectionContext = SELECTION_CONTEXT_UNSELECTED;
-        mouseMoved(x, y);
+        mouseMoved(oldx, oldy);
         selectionContext = SELECTION_CONTEXT_SELECTING;
       }
       break;
@@ -1103,8 +1116,10 @@ void Game::leftMouseDown(int x, int y) {
 }
 
 void Game::leftMouseUp(int x, int y) {
-  if (selectionContext == SELECTION_CONTEXT_SELECTING)
+  if (selectionContext == SELECTION_CONTEXT_SELECTING) {
     selectionContext = SELECTION_CONTEXT_SELECTED;
+    return;
+  }
   if (selectionContext == SELECTION_CONTEXT_PLACING) {
     switch (placingType) {
     case BUILDING_TYPE_TOWER:
@@ -1150,24 +1165,44 @@ void Game::rightMouseDown(int x, int y) {
 }
 
 void Game::panViewLeft() {
+  if (flipped) panViewTrueRight();
+  else panViewTrueLeft();
+}
+
+void Game::panViewRight() {
+  if (flipped) panViewTrueLeft();
+  else panViewTrueRight();
+}
+
+void Game::panViewUp() {
+  if (flipped) panViewTrueDown();
+  else panViewTrueUp();
+}
+
+void Game::panViewDown() {
+  if (flipped) panViewTrueUp();
+  else panViewTrueDown();
+}
+
+void Game::panViewTrueLeft() {
   view.x -= view.w / 4;
   if (view.x < 0)
     view.x = 0;
 }
 
-void Game::panViewRight() {
+void Game::panViewTrueRight() {
   view.x += view.w / 4;
   if (view.x > gameSize - view.w)
     view.x = gameSize - view.w;
 }
 
-void Game::panViewUp() {
+void Game::panViewTrueUp() {
   view.y -= view.h / 4;
   if (view.y < 0)
     view.y = 0;
 }
 
-void Game::panViewDown() {
+void Game::panViewTrueDown() {
   view.y += view.h / 4;
   if (view.y > gameSize - view.h)
     view.y = gameSize - view.h;
@@ -1266,6 +1301,7 @@ void Game::drawEffects() {
         tx += (rand() % 2 * (int)scale) - (int)scale;
         ty += (rand() % 2 * (int)scale) - (int)scale;
       }
+      flipIfNeeded(&tx, &ty, 0, 0);
       effectPoints[i] = {tx, ty};
     }
     disp->drawLines(effectPoints, ZAP_EFFECTS_SUBDIVISION);
@@ -1273,11 +1309,13 @@ void Game::drawEffects() {
   for (auto it = bombEffects.begin(); it != bombEffects.end(); it++) {
     int x = scaleInt(it->x - view.x);
     int y = scaleInt(it->y - view.y) + panelYDrawOffset;
+    flipIfNeeded(&x, &y, 0, 0);
     int maxRad = scaleInt(BOMB_AOE_RADIUS);
     int r = rand() % 255;
     int g = rand() % 255;
     int b = rand() % 255;
     disp->setDrawColor(r, g, b);
+    
     for (int i = 1; i <= maxRad; i++) {
       disp->drawCircle(x, y, i);
     }
@@ -1300,6 +1338,7 @@ void Game::drawBuilding(Building *build) {
     x = scaleInt(t->region.x - view.x);
     y = scaleInt(t->region.y - view.y) + panelYDrawOffset;
     s = scaleInt(TOWER_SIZE);
+    flipIfNeeded(&x, &y, s, s);
     disp->drawRectFilled(x, y + s / 4, s, s / 2);
     disp->drawRectFilled(x + s / 4, y, s / 2, s);
     disp->drawLine(x, y + s / 4, x + s / 4, y);
@@ -1311,9 +1350,9 @@ void Game::drawBuilding(Building *build) {
       disp->drawCircle(x + s / 2, y + s / 2, i);
     }
     for (int i = 0; i < ZAP_CENTER_EFFECTS_NUM; i++) {
-      int tx = x + s / 2 + (rand() % (s / 3)) - s / 6;
-      int ty = y + s / 2 + (rand() % (s / 3)) - s / 6;
-      centerPoints[i] = {tx, ty};
+      int dx = s / 2 + (rand() % (s / 3)) - s / 6;
+      int dy = s / 2 + (rand() % (s / 3)) - s / 6;
+      centerPoints[i] = {x + dx, y + dy};
     }
     disp->setDrawColorWhite();
     if (t->hp < t->max_hp) {
@@ -1335,6 +1374,7 @@ void Game::drawBuilding(Building *build) {
     x = scaleInt(b->region.x - view.x);
     y = scaleInt(b->region.y - view.y) + panelYDrawOffset;
     s = scaleInt(BOMB_SIZE);
+    flipIfNeeded(&x, &y, s, s);
     int rectHeight = (int)((double)s * completion);
     disp->setDrawColorWhite();
     disp->drawRectFilled(x, y + s - rectHeight, s, rectHeight);
@@ -1354,6 +1394,7 @@ void Game::draw() {
        iter.hasNext(); iter++) {
     int scaledX = scaleInt(iter->x - view.x);
     int scaledY = scaleInt(iter->y - view.y) + panelYDrawOffset;
+    flipIfNeeded(&scaledX, &scaledY, (int)scale, (int)scale);
     int off;
     double offProp;
     switch (iter->type) {
@@ -1418,6 +1459,7 @@ void Game::draw() {
     disp->setDrawColor(150, 150, 150);
     int selectionScaledX = scaleInt(selection.x - view.x);
     int selectionScaledY = scaleInt(selection.y - view.y) + panelYDrawOffset;
+    flipIfNeeded(&selectionScaledX, &selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
     disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w),
                    scaleInt(selection.h));
   }
@@ -1450,9 +1492,12 @@ void Game::draw() {
     disp->setDrawColorWhite();
     for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
       for (Building *build : it->second) {
-        disp->drawRect(scaleInt(build->region.x - view.x),
-                       scaleInt(build->region.y - view.y) + panelYDrawOffset,
-                       scaleInt(build->region.w), scaleInt(build->region.h));
+        int bx = scaleInt(build->region.x - view.x);
+        int by = scaleInt(build->region.y - view.y) + panelYDrawOffset;
+        int bw = scaleInt(build->region.w);
+        int bh = scaleInt(build->region.h);
+        flipIfNeeded(&bx, &by, bw, bh);
+        disp->drawRect(bx, by, bw, bh);
       }
     }
   }
@@ -1469,6 +1514,7 @@ void Game::draw() {
       int scaledY = scaleInt(o->region.y - view.y) + panelYDrawOffset;
       int scaledW = scaleInt(o->region.w);
       int scaledH = scaleInt(o->region.h);
+      flipIfNeeded(&scaledX, &scaledY, scaledW, scaledH);
       disp->drawRect(scaledX, scaledY, scaledW, scaledH);
       disp->drawRect(scaledX - 1, scaledY - 1, scaledW + 2, scaledH + 2);
     }
