@@ -1462,7 +1462,7 @@ void Game::draw() {
     int sw = scaleInt(selection.w);
     int sh = scaleInt(selection.h);
     flipIfNeeded(&sx, &sy, sw, sh);
-    disp->drawRect(selectionScaledX, selectionScaledY, sw, sh);
+    disp->drawRect(sx, sy, sw, sh);
   }
   if (selectionContext == SELECTION_CONTEXT_PLACING) {
     ObjectiveType oType;
