@@ -83,9 +83,10 @@ bool Spawner::isDestroyed() {
 void Spawner::update(SpawnerEvent *sevent) {
   sevent->created = false;
   if (canUpdate()) {
-    sevent->id = game->getNewAgentID();
-    sevent->sid = game->getPlayerSpawnID();
-    sevent->created = canSpawnAgent(&sevent->x, &sevent->y);
+    if (sevent->created) {
+      sevent->id = game->getNewAgentID();
+      sevent->sid = game->getPlayerSpawnID();
+    }
   }
 }
 
@@ -154,9 +155,11 @@ void Subspawner::update(SpawnerEvent *sevent) {
     }
   }
   if (canUpdate()) {
-    sevent->id = game->getNewAgentID();
-    sevent->sid = game->getPlayerSpawnID();
     sevent->created = canSpawnAgent(&sevent->x, &sevent->y);
+    if (sevent->created) {
+      sevent->id = game->getNewAgentID();
+      sevent->sid = game->getPlayerSpawnID();
+    }
   }
 }
 

@@ -7,7 +7,6 @@
 #include <pthread.h>
 #include <thread>
 #include <chrono>
-#include <ctime>
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_rect.h>
