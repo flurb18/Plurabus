@@ -1457,11 +1457,12 @@ void Game::draw() {
   }
   if (selectionContext != SELECTION_CONTEXT_UNSELECTED) {
     disp->setDrawColor(150, 150, 150);
-    int selectionScaledX = scaleInt(selection.x - view.x);
-    int selectionScaledY = scaleInt(selection.y - view.y) + panelYDrawOffset;
-    flipIfNeeded(&selectionScaledX, &selectionScaledY, scaleInt(selection.w), scaleInt(selection.h));
-    disp->drawRect(selectionScaledX, selectionScaledY, scaleInt(selection.w),
-                   scaleInt(selection.h));
+    int sx = scaleInt(selection.x - view.x);
+    int sy = scaleInt(selection.y - view.y) + panelYDrawOffset;
+    int sw = scaleInt(selection.w);
+    int sh = scaleInt(selection.h);
+    flipIfNeeded(&sx, &sy, sw, sh);
+    disp->drawRect(selectionScaledX, selectionScaledY, sw, sh);
   }
   if (selectionContext == SELECTION_CONTEXT_PLACING) {
     ObjectiveType oType;
@@ -1474,9 +1475,6 @@ void Game::draw() {
       break;
     case BUILDING_TYPE_BOMB:
       oType = OBJECTIVE_TYPE_BUILD_BOMB;
-      break;
-    default:
-      oType = OBJECTIVE_TYPE_BUILD_TOWER;
       break;
     }
     SDL_Texture *texture = objectiveInfoTextures[oType];
@@ -1547,7 +1545,7 @@ void Game::draw() {
   }
   panel->flushText();
   panel->draw();
-  menu->draw(disp);
+  menu->draw();
 }
 
 /*-------------------Helper functions &

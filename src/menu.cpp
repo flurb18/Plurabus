@@ -169,7 +169,8 @@ void Menu::hideAllSubMenus() {
   }
 }
 
-void Menu::draw(Display *disp) {
+void Menu::draw() {
+  Display *disp = game->disp;
   int yoff = disp->getHeight() - disp->getMenuSize();
   disp->setDrawColorWhite();
   disp->drawRect(0, yoff, disp->getGameDisplaySize(), disp->getMenuSize());

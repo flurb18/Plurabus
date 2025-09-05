@@ -55,7 +55,7 @@ private:
   std::vector<MenuItem*> items;
 public:
   void hideAllSubMenus();
-  void draw(Display*);
+  void draw();
   bool getIfScentsShown();
   bool getIfObjectivesShown();
   bool getIfBuildingsOutlined();
