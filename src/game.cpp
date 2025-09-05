@@ -1476,6 +1476,8 @@ void Game::draw() {
     case BUILDING_TYPE_BOMB:
       oType = OBJECTIVE_TYPE_BUILD_BOMB;
       break;
+    default:
+      break;
     }
     SDL_Texture *texture = objectiveInfoTextures[oType];
     int objectiveInfoWidth;
