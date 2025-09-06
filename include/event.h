@@ -7,7 +7,9 @@ typedef unsigned int AgentID;
 
 typedef enum _SpawnerID {
   SPAWNER_ID_ONE,
-  SPAWNER_ID_TWO
+  SPAWNER_ID_TWO,
+  SPAWNER_ID_THREE,
+  SPAWNER_ID_FOUR
 } SpawnerID;
 
 typedef enum AgentAction {

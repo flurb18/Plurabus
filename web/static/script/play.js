@@ -9,6 +9,7 @@ var Module = { canvas: (function() { return document.getElementById('canvas') })
 document.getElementById('canvas').removeAttribute("hidden");
 document.getElementById('canvas').addEventListener("contextmenu", (e) => {e.preventDefault()});
 var gameSize = 100;
+var numPlayers = 2;
 var gamePanelSize;
 var gameWindowPadding = 10;
 var scale;
@@ -34,6 +35,7 @@ Module['arguments'] = [
     scale.toString(),
     document.body.dataset.pstr,
     (window.location.origin+"/d/game").replace(/^https(.*)/, 'wss$1'),
+    numPlayers.toString(),
     document.body.dataset.pmode
 ];
 if (window.mobileAndTabletCheck()) {

@@ -194,18 +194,37 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
       if (strcmp((char *)data, "P1") == 0) {
         game->playerSpawnID = SPAWNER_ID_ONE;
         game->panel->addText("You are the GREEN team.");
+        game->context = GAME_CONTEXT_STARTUPTIMER;
+        game->recvCounter = 4;
         sendText("Set");
       } else if (strcmp((char *)data, "P2") == 0) {
         ncon = NET_CONTEXT_PLAYING;
         game->playerSpawnID = SPAWNER_ID_TWO;
         game->panel->addText("You are the RED team.");
-        game->flipped = true;
-        sendText("Set");
+        game->flipped_X = true;
+        game->flipped_Y = true;
         game->context = GAME_CONTEXT_STARTUPTIMER;
+        game->recvCounter = 1;
+        sendText("Set");
+      } else if (strcmp((char *)data, "P3") == 0) {
+        ncon = NET_CONTEXT_PLAYING;
+        game->playerSpawnID = SPAWNER_ID_THREE;
+        game->panel->addText("You are the BLUE team.");
+        game->flipped_X = true;
+        game->context = GAME_CONTEXT_STARTUPTIMER;
+        game->recvCounter = 2;
+        sendText("Set");
+      } else if (strcmp((char *)data, "P4") == 0) {
+        ncon = NET_CONTEXT_PLAYING;
+        game->playerSpawnID = SPAWNER_ID_FOUR;
+        game->panel->addText("You are the YELLOW team.");
+        game->flipped_Y = true;
+        game->context = GAME_CONTEXT_STARTUPTIMER;
+        game->recvCounter = 3;
+        sendText("Set");
       } else if (strcmp((char *)data, "Go") == 0) {
         ncon = NET_CONTEXT_PLAYING;
         sendText("Start");
-        game->context = GAME_CONTEXT_STARTUPTIMER;
       }
     }
     break;

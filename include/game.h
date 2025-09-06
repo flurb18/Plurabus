@@ -73,13 +73,10 @@ typedef struct BombEffect {
   std::chrono::time_point<std::chrono::high_resolution_clock> start;
 } BombEffect;
 
-typedef struct ColorScheme {
-  std::string p1name;
-  std::string p2name;
-  int p1r, p2r;
-  int p1g, p2g;
-  int p1b, p2b;
-} ColorScheme;
+typedef struct Colors {
+  std::string name;
+  int r, g, b;
+} Colors;
 
 class Game {
   friend class NetHandler;
@@ -101,15 +98,18 @@ private:
   char *pairString;
   void *eventsBuffer;
   bool mobile;
-  bool flipped;
+  bool flipped_X;
+  bool flipped_Y;
   bool resignConfirmation;
   bool ended;
   unsigned int eventsBufferCapacity;
   Context context;
   SelectionContext selectionContext;
-  ColorScheme colorScheme;
+  Colors colorScheme[4];
   double initScale;
   double scale;
+  int recvCounter;
+  int numPlayers;
   int gameMode;
   int gameSize;
   int gameDisplaySize;
@@ -122,8 +122,7 @@ private:
   int secondsRemaining;
   SDL_Rect selection;
   SDL_Rect view;
-  SDL_Texture* p1bombTexture;
-  SDL_Texture* p2bombTexture;
+  SDL_Texture* bombTextures[4];
   std::map<ObjectiveType, SDL_Texture*> objectiveInfoTextures;
   std::vector<MapUnit*> mapUnits;
   std::deque<MarkedCoord> markedCoords;
@@ -162,6 +161,7 @@ private:
   void panViewTrueDown();
   void adjustViewToScale();
   void deselect();
+  int getTeamNum(SpawnerID);
   int scaleInt(int);
   MapUnit::iterator getSelectionIterator();
   void attack();
@@ -176,7 +176,7 @@ private:
   void clearScent();
   void resign();
   void confirmResign();
-  void setColors(std::string, std::string, int, int, int, int, int, int);
+  void setColors(int, std::string, int, int, int);
   void setTeamDrawColor(SpawnerID);
   void draw();
   void drawBuilding(Building*);
@@ -225,7 +225,7 @@ public:
   void zoomOut();
   void end(DoneStatus);
   static int messageSize(int);
-  Game(int, int, int, double, char*, char*, bool);
+  Game(int, int, int, double, char*, char*, int, bool);
   ~Game();
   void mainLoop();
 };
