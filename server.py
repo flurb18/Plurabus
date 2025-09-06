@@ -113,12 +113,13 @@ async def create_assessment(project_id, recaptcha_site_key, token):
 #--------------------------Matchmaking------------------------------
         
 class Matchmaker:
-    def __init__(self):
+    def __init__(self, num_players):
         self.sendChannel, self.receiveChannel = trio.open_memory_channel(MATCHMAKER_BUFFER_SIZE)
         self.lobbyKeys = SharedResource([])
         self.publicLobbies = []
         self.runningLobbies = []
         self.privateLobbies = {}
+        self.num_players = num_players
         
     async def add_player_id(self, identifier):
         async with self.sendChannel.clone() as sender:
@@ -167,7 +168,7 @@ class Matchmaker:
                         self.runningLobbies.append(startLobby)
                         nursery.start_soon(startLobby.game)
                 else:
-                    lobby = Lobby(websocket, 2)
+                    lobby = Lobby(websocket, self.num_players)
                     await MainLogger.log("Created lobby", opt=lobby)
                     lobbies.append(lobby) if public else lobbies.update({ index : lobby })
             elif directive == REMOVE_DIRECTIVE:
@@ -311,6 +312,27 @@ async def serve_game_websocket():
             await MainLogger.log("Ending connection", opt=websocket)
             await MainMatchmaker.remove_player_id(websocket.identifier)
 
+@app.websocket("/d/fourplayergame")
+async def serve_game_websocket():
+    websocket = quart.websocket._get_current_object()
+    websocket.identifier = secrets.token_hex(ID_BYTES)
+    await MainLogger.log("Incoming connection", opt=websocket)
+    async with Connections.lock:
+        Connections.var.update({ websocket.identifier : websocket })
+    try:
+        with trio.move_on_after(STARTUP_TIMEOUT) as cancel_scope:
+            websocket.pairString = await websocket.receive()
+            websocket.gameStarted = trio.Event()
+            websocket.gameFinished = trio.Event()
+            await FourPlayerMatchmaker.add_player_id(websocket.identifier)
+            await websocket.gameStarted.wait()
+        if not cancel_scope.cancelled_caught:
+            await websocket.gameFinished.wait()
+    finally:
+        with trio.CancelScope(shield = True):
+            await MainLogger.log("Ending connection", opt=websocket)
+            await FourPlayerMatchmaker.remove_player_id(websocket.identifier)
+
 @app.route("/d/serverinfo", methods=["GET"])
 async def serve_http_serverinfo():
     info = {}
@@ -336,7 +358,18 @@ async def serve_public():
         await MainLogger.log(f"Bad POST request\n{str(e)}")
         quart.abort(400)
     tok = await create_token(quart.request.remote_addr)
-    return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0" }, token=tok)
+    return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "2" }, token=tok)
+
+@app.route("/d/fourplayer", methods=["POST"])
+async def serve_fourplayer():
+    try:
+        postData = await quart.request.get_data()
+    except Exception as e:
+        await MainLogger.log(f"Bad POST request\n{str(e)}")
+        quart.abort(400)
+    tok = await create_token(quart.request.remote_addr)
+    return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "4" }, token=tok)
+
 
 @app.route("/d/private", methods=["POST"])
 async def serve_private():
@@ -357,7 +390,7 @@ async def serve_practice():
         quart.abort(400)    
     practice_mode = parse_qs(quart.request.query_string.decode("utf-8")).get("m", ["1"])[0]
     tok = await create_token(quart.request.remote_addr)
-    return await serve_dynamic_file("play.html", { "PMODE_PLACEHOLDER" : practice_mode })
+    return await serve_dynamic_file("play.html", { "PMODE_PLACEHOLDER" : practice_mode, "PLAYERS_PLACEHOLDER" : "2" })
             
 @app.route("/g/<string:lobbyKey>", methods=["GET"])
 async def serve_http_lobbykey(lobbyKey):
@@ -367,7 +400,7 @@ async def serve_http_lobbykey(lobbyKey):
         validKey = lobbyKey in MainMatchmaker.lobbyKeys.var
     if validKey:
         tok = await create_token(quart.request.remote_addr)
-        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey, "PMODE_PLACEHOLDER" : "0" }, token=tok)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "2" }, token=tok)
     else:
         quart.abort(404)
 
@@ -442,7 +475,8 @@ class Logger:
     
 #-----------------------Main------------------------------------#
 
-MainMatchmaker = Matchmaker()
+MainMatchmaker = Matchmaker(2)
+FourPlayerMatchmaker = Matchmaker(4)
 MainLogger = Logger()
 
 async def main_app():
@@ -461,6 +495,7 @@ async def main():
             nursery.start_soon(main_app)
             nursery.start_soon(MainLogger.service_log_queue)
             nursery.start_soon(MainMatchmaker.service_matchmaking_queue, nursery)
+            nursery.start_soon(FourPlayerMatchmaker.service_matchmaking_queue, nursery)
     finally:
         with trio.CancelScope(shield=True):
             await MainMatchmaker.end()

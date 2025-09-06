@@ -12,8 +12,18 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
 
-<body data-pstr="PSTR_PLACEHOLDER" data-pmode="PMODE_PLACEHOLDER" data-players="PLAYERS_PLACEHOLDER">
-  <canvas id="canvas" hidden="hidden"></canvas>
-  <script src="/script/play.js"></script>
+<body>
+  <div class="bodyText" id="bodyDiv">
+    <img src="/img/webtitle.png" alt="Plurabus">
+    <br>
+    <h1>Other Modes</h1>
+    <form id="fourplayerpublicform" action="/d/fourplayer" method="POST">
+      <div>
+	    <button id="fourplayerpublicformbutton" type="submit" class="block">Simple - Aggressive</button>
+      </div>
+    </form>    
+    <br><br>
+    <a href="/">Back</a>
+  </div>
 </body>
 </html>

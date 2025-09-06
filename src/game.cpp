@@ -908,7 +908,7 @@ void Game::pinkBrown() {
   menu->items.at(3)->subMenu.toggleFlags.at(6) = true;
   setColors(0, "PINK", 255, 0, 255);
   setColors(1, "BROWN", 123, 63, 0);
-  setColors(2, "GREY", 155, 155, 155);
+  setColors(2, "GREY", 200, 200, 200);
   setColors(3, "YELLOW", 255, 255, 0);
   int teamNum = getTeamNum(playerSpawnID);
   panel->addText("You are the " + colorScheme[teamNum].name " team.");

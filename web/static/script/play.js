@@ -9,7 +9,6 @@ var Module = { canvas: (function() { return document.getElementById('canvas') })
 document.getElementById('canvas').removeAttribute("hidden");
 document.getElementById('canvas').addEventListener("contextmenu", (e) => {e.preventDefault()});
 var gameSize = 100;
-var numPlayers = 2;
 var gamePanelSize;
 var gameWindowPadding = 10;
 var scale;
@@ -28,14 +27,18 @@ const memory = new WebAssembly.Memory({
     maximum: 16384,
     shared: true,
 });
+var numPlayers = int(document.body.dataset.players);
+var suffix = "/d/game"
+if (numPlayers > 2) {
+    suffix = "/d/fourplayergame"
+}
 Module['wasmMemory'] = memory;
 Module['arguments'] = [
     gameSize.toString(),
     gamePanelSize.toString(),
     scale.toString(),
     document.body.dataset.pstr,
-    (window.location.origin+"/d/game").replace(/^https(.*)/, 'wss$1'),
-    numPlayers.toString(),
+    (window.location.origin + suffix).replace(/^https(.*)/, 'wss$1'),
     document.body.dataset.pmode
 ];
 if (window.mobileAndTabletCheck()) {
