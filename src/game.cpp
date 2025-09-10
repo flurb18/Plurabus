@@ -399,6 +399,7 @@ void Game::receiveData(void *data, int numBytes) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
+    turnNum = (turnNum + 1) % numPlayers;
   }
 }
 
