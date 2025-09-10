@@ -108,8 +108,9 @@ private:
   Colors colorScheme[4];
   double initScale;
   double scale;
-  int recvCounter;
+  int turnNum;
   int numPlayers;
+  int remainingPlayers;
   int gameMode;
   int gameSize;
   int gameDisplaySize;
@@ -134,6 +135,7 @@ private:
   std::map<AgentID, Agent*> agentDict;
   std::map<SpawnerID, int> numPlayerAgents;
   std::map<BuildingType, std::deque<Building*>> buildingLists;
+  std::map<SpawnerID, int> turnMap;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;
   DoneStatus doneStatus;

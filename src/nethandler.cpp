@@ -195,7 +195,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
         game->playerSpawnID = SPAWNER_ID_ONE;
         game->panel->addText("You are the GREEN team.");
         game->context = GAME_CONTEXT_STARTUPTIMER;
-        game->recvCounter = 4;
         sendText("Set");
       } else if (strcmp((char *)data, "P2") == 0) {
         ncon = NET_CONTEXT_PLAYING;
@@ -204,25 +203,23 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
         game->flipped_X = true;
         game->flipped_Y = true;
         game->context = GAME_CONTEXT_STARTUPTIMER;
-        game->recvCounter = 1;
         sendText("Set");
       } else if (strcmp((char *)data, "P3") == 0) {
         ncon = NET_CONTEXT_PLAYING;
         game->playerSpawnID = SPAWNER_ID_THREE;
         game->panel->addText("You are the BLUE team.");
-        game->flipped_X = true;
+        game->flipped_Y = true;
         game->context = GAME_CONTEXT_STARTUPTIMER;
-        game->recvCounter = 2;
         sendText("Set");
       } else if (strcmp((char *)data, "P4") == 0) {
         ncon = NET_CONTEXT_PLAYING;
         game->playerSpawnID = SPAWNER_ID_FOUR;
         game->panel->addText("You are the YELLOW team.");
-        game->flipped_Y = true;
+        game->flipped_X = true;
         game->context = GAME_CONTEXT_STARTUPTIMER;
-        game->recvCounter = 3;
         sendText("Set");
       } else if (strcmp((char *)data, "Go") == 0) {
+        game->context = GAME_CONTEXT_STARTUPTIMER;
         ncon = NET_CONTEXT_PLAYING;
         sendText("Start");
       }
@@ -244,6 +241,12 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
         game->end(DONE_STATUS_WINRECV);
       } else if (strcmp((char *)data, "WINNER_2") == 0) {
         game->winnerSpawnID = SPAWNER_ID_TWO;
+        game->end(DONE_STATUS_WINRECV);
+      } else if (strcmp((char *)data, "WINNER_3") == 0) {
+        game->winnerSpawnID = SPAWNER_ID_THREE;
+        game->end(DONE_STATUS_WINRECV);
+      } else if (strcmp((char *)data, "WINNER_4") == 0) {
+        game->winnerSpawnID = SPAWNER_ID_FOUR;
         game->end(DONE_STATUS_WINRECV);
       } else if (strcmp((char *)data, "TIMEOUT") == 0) {
         game->end(DONE_STATUS_TIMEOUT);

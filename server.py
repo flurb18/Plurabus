@@ -313,7 +313,7 @@ async def serve_game_websocket():
             await MainMatchmaker.remove_player_id(websocket.identifier)
 
 @app.websocket("/d/fourplayergame")
-async def serve_game_websocket():
+async def serve_fourplayer_game_websocket():
     websocket = quart.websocket._get_current_object()
     websocket.identifier = secrets.token_hex(ID_BYTES)
     await MainLogger.log("Incoming connection", opt=websocket)

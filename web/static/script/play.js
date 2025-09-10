@@ -27,7 +27,7 @@ const memory = new WebAssembly.Memory({
     maximum: 16384,
     shared: true,
 });
-var numPlayers = int(document.body.dataset.players);
+var numPlayers = parseInt(document.body.dataset.players);
 var suffix = "/d/game"
 if (numPlayers > 2) {
     suffix = "/d/fourplayergame"
@@ -39,7 +39,8 @@ Module['arguments'] = [
     scale.toString(),
     document.body.dataset.pstr,
     (window.location.origin + suffix).replace(/^https(.*)/, 'wss$1'),
-    document.body.dataset.pmode
+    document.body.dataset.pmode,
+    numPlayers.toString()
 ];
 if (window.mobileAndTabletCheck()) {
     Module['arguments'].push('mobile');

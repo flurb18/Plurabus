@@ -43,12 +43,16 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, int np, b
       eventsBufferCapacity(INIT_EVENT_BUFFER_SIZE),
       context(GAME_CONTEXT_CONNECTING),
       selectionContext(SELECTION_CONTEXT_UNSELECTED), initScale(scl),
-      scale(scl), recvCounter(0), numPlayers(np), gameMode(gm), gameSize(sz), panelSize(psz), mouseX(0),
+      scale(scl), turnNum(0), numPlayers(np), remainingPlayers(np), gameMode(gm), gameSize(sz), panelSize(psz), mouseX(0),
       mouseY(0), placementW(0), placementH(0), zapCounter(1),
       secondsRemaining(GAME_TIME_SECONDS + STARTUP_TIME_SECONDS),
       doneStatus(DONE_STATUS_INIT), newAgentID(1), outside(this),
       selectedObjective(nullptr) {
 
+  turnMap[SPAWNER_ID_ONE] = 0;
+  turnMap[SPAWNER_ID_TWO] = 1;
+  turnMap[SPAWNER_ID_THREE] = 2;
+  turnMap[SPAWNER_ID_FOUR] = 3;
   numPlayerAgents[SPAWNER_ID_ONE] = 0;
   numPlayerAgents[SPAWNER_ID_TWO] = 0;
   numPlayerAgents[SPAWNER_ID_THREE] = 0;
@@ -174,8 +178,9 @@ Game::~Game() {
   }
   towerZaps.clear();
   bombEffects.clear();
-  SDL_DestroyTexture(p1bombTexture);
-  SDL_DestroyTexture(p2bombTexture);
+  for (int i = 0; i < 4; i++) {
+    SDL_DestroyTexture(bombTextures[i]);
+  }
   objectiveInfoTextures.clear();
   agentDict.clear();
   buildingLists.clear();
@@ -194,6 +199,7 @@ void Game::end(DoneStatus s) {
   std::string closeText = "Connection closed.";
   std::string winningTeamName;
   int winningTeamNum;
+  int idx;
   int current_min;
   bool we_have_a_winner = false;
   switch (s) {
@@ -203,7 +209,7 @@ void Game::end(DoneStatus s) {
     winningTeamNum = getTeamNum(winnerSpawnID);
     winningTeamName = colorScheme[winningTeamNum].name;
     closeText = winningTeamName + " team wins!";
-    if (s == DONE_STATUS_WINNER) net->sendText(std::string("WINNER_") + std::string(winningTeamNum + 1));
+    if (s == DONE_STATUS_WINNER) net->sendText((std::string("WINNER_") + std::to_string(winningTeamNum + 1)).c_str());
     break;
   case DONE_STATUS_DRAW:
     closeText = "Draw!";
@@ -234,11 +240,11 @@ void Game::end(DoneStatus s) {
       spawns[teamNum] = build;
     }
     current_min = ((Spawner *)spawns[0])->getNumSpawnUnits();
-    int idx = 0;
+    idx = 0;
     for (int i = 1; i < numPlayers; i++) {
-      int units = ((Spawner *)spawns[i])->getNumSpawnUnits()
+      int units = ((Spawner *)spawns[i])->getNumSpawnUnits();
       if (units < current_min) {
-        current_min = units
+        current_min = units;
         idx = i;
       }
     }
@@ -270,7 +276,7 @@ void Game::end(DoneStatus s) {
     scores[getTeamNum(winnerSpawnID)] = 1;
   }
   std::string returnText = std::to_string(scores[0]);
-  for (int i = 1; i < numPlayers; i++) {
+  for (int i = 1; i < remainingPlayers; i++) {
     returnText = returnText + "-" + std::to_string(scores[i]);
   }
   std::cout << returnText << std::endl;
@@ -293,15 +299,33 @@ void Game::checkSpawnersDestroyed() {
   for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
     Spawner *s = (Spawner *)build;
     if (s->isDestroyed()) {
-      switch (s->sid) {
-      case SPAWNER_ID_ONE:
-        winnerSpawnID = SPAWNER_ID_TWO;
-        break;
-      case SPAWNER_ID_TWO:
-        winnerSpawnID = SPAWNER_ID_ONE;
-        break;
+      for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+        if (it->second->sid == s->sid) {
+          markAgentForDeletion(it->second->id);
+        }
       }
-      end(DONE_STATUS_WINNER);
+      for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+        if (it->second->sid == s->sid) {
+          markAgentForDeletion(it->second->id);
+        }
+      }
+      for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+        for (Building *build : it->second) {
+          if (build->sid == s->sid) {
+            markBuildingForDeletion(build);
+          }
+        }
+      }
+      remainingPlayers--;
+      if (remainingPlayers == 1) {
+        for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
+          Spawner *s = (Spawner *)build;
+          if (!s->isDestroyed()) {
+            winnerSpawnID = s->sid;
+            end(DONE_STATUS_WINNER);
+          }
+        }
+      }
     }
   }
 }
@@ -370,9 +394,8 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  recvCounter--;
-  if (recvCounter == 0) {
-    recvCounter = numPlayers - 1;
+  turnNum = (turnNum + 1) % (numPlayers - 1);
+  if (turnNum == turnMap[playerSpawnID]) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
@@ -393,9 +416,9 @@ void Game::receiveEventsBuffer() {
   for (int i = 0; i < MAX_SUBSPAWNERS + 1; i++) {
     receiveSpawnerEvent(&events->spawnEvents[i]);
   }
+  checkSpawnersDestroyed();
   deleteMarkedAgents();
   deleteMarkedBuildings();
-  checkSpawnersDestroyed();
 }
 
 void Game::sendEventsBuffer() {
@@ -872,7 +895,7 @@ void Game::greenRed() {
   setColors(2, "BLUE", 0, 0, 255);
   setColors(3, "YELLOW", 255, 255, 0);
   int teamNum = getTeamNum(playerSpawnID);
-  panel->addText("You are the " + colorScheme[teamNum].name " team.");
+  panel->addText(("You are the " + colorScheme[teamNum].name + " team.").c_str());
 }
 
 void Game::orangeBlue() {
@@ -885,7 +908,7 @@ void Game::orangeBlue() {
   setColors(2, "DARK_GREEN", 0, 155, 0);
   setColors(3, "PURPLE", 165, 0, 165);
   int teamNum = getTeamNum(playerSpawnID);
-  panel->addText("You are the " + colorScheme[teamNum].name " team.");
+  panel->addText(("You are the " + colorScheme[teamNum].name + " team.").c_str());
 }
 
 void Game::purpleYellow() {
@@ -898,7 +921,7 @@ void Game::purpleYellow() {
   setColors(2, "ORANGE", 255, 128, 0);
   setColors(3, "GREEN", 0, 255, 0);
   int teamNum = getTeamNum(playerSpawnID);
-  panel->addText("You are the " + colorScheme[teamNum].name " team.");
+  panel->addText(("You are the " + colorScheme[teamNum].name + " team.").c_str());
 }
 
 void Game::pinkBrown() {
@@ -911,7 +934,7 @@ void Game::pinkBrown() {
   setColors(2, "GREY", 200, 200, 200);
   setColors(3, "YELLOW", 255, 255, 0);
   int teamNum = getTeamNum(playerSpawnID);
-  panel->addText("You are the " + colorScheme[teamNum].name " team.");
+  panel->addText(("You are the " + colorScheme[teamNum].name + " team.").c_str());
 }
 
 void Game::zoomIn() {
@@ -1152,22 +1175,22 @@ void Game::rightMouseDown(int x, int y) {
 }
 
 void Game::panViewLeft() {
-  if (flipped) panViewTrueRight();
+  if (flipped_X) panViewTrueRight();
   else panViewTrueLeft();
 }
 
 void Game::panViewRight() {
-  if (flipped) panViewTrueLeft();
+  if (flipped_X) panViewTrueLeft();
   else panViewTrueRight();
 }
 
 void Game::panViewUp() {
-  if (flipped) panViewTrueDown();
+  if (flipped_Y) panViewTrueDown();
   else panViewTrueUp();
 }
 
 void Game::panViewDown() {
-  if (flipped) panViewTrueUp();
+  if (flipped_Y) panViewTrueUp();
   else panViewTrueDown();
 }
 
@@ -1590,14 +1613,6 @@ void Game::confirmResign() {
 }
 
 void Game::resign() {
-  switch (playerSpawnID) {
-  case SPAWNER_ID_ONE:
-    winnerSpawnID = SPAWNER_ID_TWO;
-    break;
-  case SPAWNER_ID_TWO:
-    winnerSpawnID = SPAWNER_ID_ONE;
-    break;
-  }
   end(DONE_STATUS_RESIGN);
 }
 
