@@ -20,6 +20,7 @@ MapUnit::MapUnit(Game *g, int x_, int y_)
   playerDict[SPAWNER_ID_TWO] = {nullptr, 0.0, 0.0, 0.15};
   playerDict[SPAWNER_ID_THREE] = {nullptr, 0.0, 0.0, 0.15};
   playerDict[SPAWNER_ID_FOUR] = {nullptr, 0.0, 0.0, 0.15};
+}
 
 void MapUnit::iterator::next() {
   current = current->right;
