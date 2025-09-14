@@ -371,15 +371,20 @@ async def serve_fourplayer():
     return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : PUBLIC_PAIRSTRING, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "4" }, token=tok)
 
 
-@app.route("/d/private", methods=["POST"])
-async def serve_private():
-    try:
-        postData = await quart.request.get_data()
-    except Exception as e:
-        await MainLogger.log(f"Bad POST request\n{str(e)}")
-        quart.abort(400)    
-    lobbyKey = await MainMatchmaker.create_lobby_key()
+async def serve_private(fourplayer=False): 
+    if fourplayer:
+        lobbyKey = await FourPlayerMatchmaker.create_lobby_key()
+    else:
+        lobbyKey = await MainMatchmaker.create_lobby_key()
     return await serve_dynamic_file("private.html", { "KEY_PLACEHOLDER" : lobbyKey })
+
+@app.route("/d/private", methods=["POST"])
+async def serve_normalprivate():
+    return await serve_private(fourplayer=False)
+
+@app.route("/d/fourplayerprivate", methods=["POST"])
+async def serve_fourplayerprivate():
+    return await serve_private(fourplayer=True)
 
 @app.route("/d/practice", methods=["POST"])
 async def serve_practice():
@@ -401,6 +406,12 @@ async def serve_http_lobbykey(lobbyKey):
     if validKey:
         tok = await create_token(quart.request.remote_addr)
         return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "2" }, token=tok)
+    async with FourPlayerMatchmaker.lobbyKeys.lock:
+        validKey = lobbyKey in FourPlayerMatchmaker.lobbyKeys.var
+    if validKey:
+        tok = await create_token(quart.request.remote_addr)
+        return await serve_dynamic_file("play.html", { "PSTR_PLACEHOLDER" : lobbyKey, "PMODE_PLACEHOLDER" : "0", "PLAYERS_PLACEHOLDER" : "4" }, token=tok)
+
     else:
         quart.abort(404)
 
