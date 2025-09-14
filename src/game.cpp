@@ -418,7 +418,7 @@ void Game::receiveEventsBuffer() {
   checkSpawnersDestroyed();
   deleteMarkedAgents();
   deleteMarkedBuildings();
-  if (numPlayers > 2) turnNum = (turnNum + 1) % (numPlayers - 1);
+  if (numPlayers > 2) turnNum = (turnNum + 1) % numPlayers;
 }
 
 void Game::sendEventsBuffer() {
