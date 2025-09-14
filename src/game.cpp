@@ -394,7 +394,7 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  if (turnNum == turnMap[playerSpawnID]) {
+  if (numPlayers == 2 or turnNum == turnMap[playerSpawnID]) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
@@ -418,7 +418,7 @@ void Game::receiveEventsBuffer() {
   checkSpawnersDestroyed();
   deleteMarkedAgents();
   deleteMarkedBuildings();
-  turnNum = (turnNum + 1) % numPlayers;
+  if (numPlayers > 2) turnNum = (turnNum + 1) % (numPlayers - 1);
 }
 
 void Game::sendEventsBuffer() {
