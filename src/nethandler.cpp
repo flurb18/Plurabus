@@ -194,7 +194,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
       if (strcmp((char *)data, "P1") == 0) {
         game->playerSpawnID = SPAWNER_ID_ONE;
         game->panel->addText("You are the GREEN team.");
-//        game->context = GAME_CONTEXT_STARTUPTIMER;
         sendText("Set");
       } else if (strcmp((char *)data, "P2") == 0) {
         ncon = NET_CONTEXT_PLAYING;
