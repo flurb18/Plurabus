@@ -394,7 +394,7 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  if (numPlayers == 2 or turnNum == turnMap[playerSpawnID]) {
+  if (numPlayers == 2 || turnNum == turnMap[playerSpawnID]) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
