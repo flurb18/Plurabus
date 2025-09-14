@@ -394,12 +394,10 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  turnNum = (turnNum + 1) % numPlayers;
   if (turnNum == turnMap[playerSpawnID]) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
-    turnNum = (turnNum + 1) % numPlayers;
   }
 }
 
@@ -420,6 +418,7 @@ void Game::receiveEventsBuffer() {
   checkSpawnersDestroyed();
   deleteMarkedAgents();
   deleteMarkedBuildings();
+  turnNum = (turnNum + 1) % numPlayers;
 }
 
 void Game::sendEventsBuffer() {

@@ -234,7 +234,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
             game->update();
             game->receiveEventsBuffer();
             game->sendEventsBuffer();
-            game->turnNum = 1;
           }
         }
       } else if (strcmp((char *)data, "WINNER_1") == 0) {
