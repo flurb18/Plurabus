@@ -221,8 +221,7 @@ class Lobby:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught:
                         parent_scope.cancel()
-                    else:
-                        await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])                    
+                    await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])                    
         except:
             parent_scope.cancel()
             raise
