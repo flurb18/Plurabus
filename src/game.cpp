@@ -48,11 +48,12 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, int np, b
       secondsRemaining(GAME_TIME_SECONDS + STARTUP_TIME_SECONDS),
       doneStatus(DONE_STATUS_INIT), newAgentID(1), outside(this),
       selectedObjective(nullptr) {
+  
 
-  turnMap[SPAWNER_ID_ONE] = 0;
-  turnMap[SPAWNER_ID_TWO] = 1;
-  turnMap[SPAWNER_ID_THREE] = 2;
-  turnMap[SPAWNER_ID_FOUR] = 3;
+  for (int i = 0; i < numPlayers; i++) {
+    turnMap[i] = (i + 1) % numPlayers;
+    inverseTurnMap[turnMap[i]] = i;
+  }
   numPlayerAgents[SPAWNER_ID_ONE] = 0;
   numPlayerAgents[SPAWNER_ID_TWO] = 0;
   numPlayerAgents[SPAWNER_ID_THREE] = 0;
@@ -203,13 +204,11 @@ void Game::end(DoneStatus s) {
   int current_min;
   bool we_have_a_winner = false;
   switch (s) {
-  case DONE_STATUS_WINRECV:
   case DONE_STATUS_WINNER:
     we_have_a_winner = true;
     winningTeamNum = getTeamNum(winnerSpawnID);
     winningTeamName = colorScheme[winningTeamNum].name;
     closeText = winningTeamName + " team wins!";
-    if (s == DONE_STATUS_WINNER) net->sendText((std::string("WINNER_") + std::to_string(winningTeamNum + 1)).c_str());
     break;
   case DONE_STATUS_DRAW:
     closeText = "Draw!";
@@ -284,6 +283,43 @@ void Game::end(DoneStatus s) {
 
 /*--------------Game state functions-------------*/
 
+void Game::lose(SpawnerID sid) {
+  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+    if (it->second->sid == sid) {
+      markAgentForDeletion(it->second->id);
+    }
+  }
+  for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
+    if (it->second->sid == sid) {
+      markAgentForDeletion(it->second->id);
+    }
+  }
+  for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
+    for (Building *build : it->second) {
+      if (build->sid == sid) {
+        markBuildingForDeletion(build);
+      }
+    }
+  }
+  int teamNum = getTeamNum(sid);
+  panel->addText((colorScheme[teamNum].name + " team is out!").c_str());
+  int prev = inverseTurnMap[teamNum];
+  int next = turnMap[teamNum];
+  inverseTurnMap[next] = prev;
+  turnMap[prev] = next;
+  remainingPlayers--;
+  if (remainingPlayers == 1) {
+    for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
+      Spawner *s = (Spawner *)build;
+      if (!s->isDestroyed()) {
+        winnerSpawnID = s->sid;
+        break;
+      }
+    }
+    end(DONE_STATUS_WINNER);
+  }
+}
+
 void Game::checkSpawnersDestroyed() {
   auto ssit = buildingLists[BUILDING_TYPE_SUBSPAWNER].begin();
   while (ssit != buildingLists[BUILDING_TYPE_SUBSPAWNER].end()) {
@@ -299,33 +335,7 @@ void Game::checkSpawnersDestroyed() {
   for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
     Spawner *s = (Spawner *)build;
     if (s->isDestroyed()) {
-      for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
-        if (it->second->sid == s->sid) {
-          markAgentForDeletion(it->second->id);
-        }
-      }
-      for (auto it = agentDict.begin(); it != agentDict.end(); it++) {
-        if (it->second->sid == s->sid) {
-          markAgentForDeletion(it->second->id);
-        }
-      }
-      for (auto it = buildingLists.begin(); it != buildingLists.end(); it++) {
-        for (Building *build : it->second) {
-          if (build->sid == s->sid) {
-            markBuildingForDeletion(build);
-          }
-        }
-      }
-      remainingPlayers--;
-      if (remainingPlayers == 1) {
-        for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
-          Spawner *s = (Spawner *)build;
-          if (!s->isDestroyed()) {
-            winnerSpawnID = s->sid;
-            end(DONE_STATUS_WINNER);
-          }
-        }
-      }
+      lose(s->sid);
     }
   }
 }
@@ -394,7 +404,7 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  if (numPlayers == 2 || turnNum == turnMap[playerSpawnID]) {
+  if (numPlayers == 2 || turnNum == (int)playerSpawnID) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
@@ -418,7 +428,7 @@ void Game::receiveEventsBuffer() {
   checkSpawnersDestroyed();
   deleteMarkedAgents();
   deleteMarkedBuildings();
-  if (numPlayers > 2) turnNum = (turnNum + 1) % numPlayers;
+  turnNum = turnMap[turnNum];
 }
 
 void Game::sendEventsBuffer() {

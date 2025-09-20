@@ -25,7 +25,7 @@ LOBBY_KEY_BYTES = 16
 ID_BYTES = 16
 GAME_LIFETIME = 1203
 STARTUP_TIMEOUT = 300
-FRAME_TIMEOUT = 5
+FRAME_TIMEOUT = 1.5
 WEBSOCKET_PING_INTERVAL = 1
 MATCHMAKER_SERVICE_SLEEPTIME = 0.01
 LOGGER_SERVICE_SLEEPTIME = 0.1
@@ -214,14 +214,21 @@ class Lobby:
 
     async def game_loop(self, parent_scope):
         try:
+            to_delete = []
             while (True):
                 await trio.sleep(FRAME_DELAY)
                 for index in range(len(self.players)):
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught:
-                        parent_scope.cancel()
-                    await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])
+                        to_delete.append(index)
+                        await self.broadcast("LOST", [i for i in range(len(self.players)) if i != index])
+                    else:
+                        await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])
+                for index in to_delete:
+                    self.players.pop(index)
+                if len(self.players == 0):
+                    parent_scope.cancel()
         except:
             parent_scope.cancel()
             raise

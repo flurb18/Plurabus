@@ -47,6 +47,7 @@ enum SelectionContext {
 
 typedef enum DoneStatus {
   DONE_STATUS_INIT,
+  DONE_STATUS_LOST,
   DONE_STATUS_WINNER,
   DONE_STATUS_WINRECV,
   DONE_STATUS_DRAW,
@@ -135,7 +136,8 @@ private:
   std::map<AgentID, Agent*> agentDict;
   std::map<SpawnerID, int> numPlayerAgents;
   std::map<BuildingType, std::deque<Building*>> buildingLists;
-  std::map<SpawnerID, int> turnMap;
+  std::map<int, int> turnMap;
+  std::map<int, int> inverseTurnMap;
   SpawnerID playerSpawnID;
   SpawnerID winnerSpawnID;
   DoneStatus doneStatus;
@@ -225,6 +227,7 @@ public:
   void clearPanel();
   void zoomIn();
   void zoomOut();
+  void lose(SpawnerID);
   void end(DoneStatus);
   static int messageSize(int);
   Game(int, int, int, double, char*, char*, int, bool);
