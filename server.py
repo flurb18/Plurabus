@@ -214,21 +214,15 @@ class Lobby:
 
     async def game_loop(self, parent_scope):
         try:
-            to_delete = []
             while (True):
                 await trio.sleep(FRAME_DELAY)
                 for index in range(len(self.players)):
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught:
-                        to_delete.append(index)
-                        await self.broadcast("LOST", [i for i in range(len(self.players)) if i != index])
+                        parent_scope.cancel()
                     else:
-                        await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])
-                for index in to_delete:
-                    self.players.pop(index)
-                if len(self.players == 0):
-                    parent_scope.cancel()
+                        await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])                    
         except:
             parent_scope.cancel()
             raise
