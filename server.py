@@ -199,15 +199,18 @@ class Lobby:
         self.started = False
         websocket.lobby = self
 
-    async def broadcast(self, msg, indexes):
-        [await self.players[index].send(msg) for index in indexes]
+    async def broadcast(self, msg):
+        [await p.send(msg) for p in self.players]
+
+    async def broadcast_except(self, msg, excp):
+        [await self.players[i].send(msg) for i in range(len(self.players)) if i != excp]
         
     async def timer_loop(self, parent_scope):
         try:
             for _ in range(GAME_LIFETIME):
                 await trio.sleep(1)
-                await self.broadcast("TIMER", range(len(self.players)))
-            await self.broadcast("TIMEOUT", range(len(self.players)))
+                await self.broadcast("TIMER")
+            await self.broadcast("TIMEOUT")
         except:
             parent_scope.cancel()
             raise
@@ -216,12 +219,17 @@ class Lobby:
         try:
             while (True):
                 await trio.sleep(FRAME_DELAY)
-                for index in range(len(self.players)):
+                index = 0
+                while index < len(self.players):
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught:
-                        parent_scope.cancel()
-                    await self.broadcast(msg, [i for i in range(len(self.players)) if i != index])                    
+                        self.players.pop(index)
+                        if len(self.players) == 0:
+                            parent_scope.cancel()
+                    else:
+                        await self.broadcast_except(msg, index)
+                        index += 1
         except:
             parent_scope.cancel()
             raise
