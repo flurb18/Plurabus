@@ -50,6 +50,9 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, int np, b
       selectedObjective(nullptr) {
   
 
+  for (int i = 0; i < 4; i++) {
+    scores[i] = 0;
+  }
   for (int i = 0; i < numPlayers; i++) {
     turnMap[i] = (i + 1) % numPlayers;
     inverseTurnMap[turnMap[i]] = i;
@@ -245,7 +248,6 @@ void Game::lose(SpawnerID sid) {
     winningTeamName = colorScheme[winningTeamNum].name;
     closeText = winningTeamName + " team wins!";
     panel->addText(closeText.c_str());
-    scores = {0,0,0,0};
     scores[getTeamNum(winnerSpawnID)] = 1;
   }
 }
