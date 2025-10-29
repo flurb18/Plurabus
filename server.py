@@ -246,6 +246,7 @@ class Lobby:
             try:
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(self.timer_loop, nursery.cancel_scope)
+                    await trio.sleep(3)
                     nursery.start_soon(self.game_loop, nursery.cancel_scope)
             except* Exception as egrp:
                 [await MainLogger.log(str(e)) for e in egrp.exceptions]
