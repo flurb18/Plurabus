@@ -122,6 +122,7 @@ private:
   int placementW, placementH;
   int zapCounter;
   int secondsRemaining;
+  int scores[4];
   SDL_Rect selection;
   SDL_Rect view;
   SDL_Texture* bombTextures[4];
@@ -139,7 +140,6 @@ private:
   std::map<int, int> turnMap;
   std::map<int, int> inverseTurnMap;
   SpawnerID playerSpawnID;
-  SpawnerID winnerSpawnID;
   DoneStatus doneStatus;
   AgentID newAgentID;
   BuildingType placingType;

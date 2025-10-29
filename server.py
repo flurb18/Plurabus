@@ -194,6 +194,7 @@ class Matchmaker:
 class Lobby:
     def __init__(self, websocket, desiredNumPlayers):
         self.players = [websocket]
+        self.outPlayers = []
         self.pairString = websocket.pairString
         self.desiredNumPlayers = desiredNumPlayers
         self.started = False
@@ -224,11 +225,19 @@ class Lobby:
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught:
-                        self.players.pop(index)
+                        self.outPlayers.append(self.players.pop(index))
                         if len(self.players) == 0:
                             parent_scope.cancel()
                     else:
                         await self.broadcast_except(msg, index)
+                        p = 0
+                        while p < len(self.outPlayers):
+                            with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+                                await p.send(msg)
+                            if cancel_scope.cancelled_caught:
+                                self.outPlayers.pop(p)
+                            else:
+                                p += 1
                         index += 1
         except:
             parent_scope.cancel()

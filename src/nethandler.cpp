@@ -235,18 +235,16 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
             game->sendEventsBuffer();
           }
         }
-      } else if (strcmp((char *)data, "LOST") == 0) {
-        game->lose(static_cast<SpawnerID>(game->turnNum));
-        game->turnNum = game->turnMap[game->turnNum];
-      } else if (strcmp((char *)data, "TIMEOUT") == 0) {
-        game->end(DONE_STATUS_TIMEOUT);
-      } else if (strcmp((char *)data, "DISCONNECT") == 0) {
-        game->end(DONE_STATUS_DISCONNECT);
       } else if (strcmp((char *)data, "RESIGN") == 0) {
-        game->winnerSpawnID = game->playerSpawnID;
-        game->end(DONE_STATUS_RESIGN);
-      } else if (strcmp((char *)data, "FRAME_TIMEOUT") == 0) {
-        game->end(DONE_STATUS_FRAME_TIMEOUT);
+        game->lose(static_cast<SpawnerID>(game->turnNum));
+        game->deleteMarkedAgents();
+        game->deleteMarkedBuildings();
+        game->turnNum = game->turnMap[game->turnNum];
+        if (game->turnNum == (int)(game->playerSpawnID)) {
+          game->update();
+          game->receiveEventsBuffer();
+          game->sendEventsBuffer();
+        }
       }
     } else {
       game->receiveData(data, numBytes);

@@ -153,6 +153,7 @@ Game::~Game() {
   if (!ended)
     end(DONE_STATUS_EXIT);
   if (gameMode == 0) {
+    net->closeConnection("Normal");
     delete net;
   }
   for (MapUnit *u : mapUnits) {
@@ -197,83 +198,6 @@ void Game::end(DoneStatus s) {
   if (ended) return;
   context = GAME_CONTEXT_DONE;
   ended = true;
-  std::string closeText = "Connection closed.";
-  std::string winningTeamName;
-  int winningTeamNum;
-  int idx;
-  int current_min;
-  bool we_have_a_winner = false;
-  switch (s) {
-  case DONE_STATUS_WINNER:
-    we_have_a_winner = true;
-    winningTeamNum = getTeamNum(winnerSpawnID);
-    winningTeamName = colorScheme[winningTeamNum].name;
-    closeText = winningTeamName + " team wins!";
-    break;
-  case DONE_STATUS_DRAW:
-    closeText = "Draw!";
-    break;
-  case DONE_STATUS_DISCONNECT:
-    closeText = "Other player disconnected.";
-    break;
-  case DONE_STATUS_RESIGN:
-    we_have_a_winner = true;
-    if (winnerSpawnID != playerSpawnID && gameMode == 0) {
-      net->sendText("RESIGN");
-    }
-    winningTeamNum = getTeamNum(winnerSpawnID);
-    closeText = colorScheme[winningTeamNum].name + " team wins by resignation!";
-    break;
-  case DONE_STATUS_EXIT:
-    if (gameMode == 0) {
-      net->sendText("DISCONNECT");
-    }
-    break;
-  case DONE_STATUS_OTHER:
-    closeText = "What! You shouldn't see this text!";
-    break;
-  case DONE_STATUS_TIMEOUT:
-    Building *spawns[4];
-    for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
-      int teamNum = getTeamNum(build->sid);
-      spawns[teamNum] = build;
-    }
-    current_min = ((Spawner *)spawns[0])->getNumSpawnUnits();
-    idx = 0;
-    for (int i = 1; i < numPlayers; i++) {
-      int units = ((Spawner *)spawns[i])->getNumSpawnUnits();
-      if (units < current_min) {
-        current_min = units;
-        idx = i;
-      }
-    }
-    panel->addText("Timeout!");
-    we_have_a_winner = true;
-    winnerSpawnID = spawns[idx]->sid;
-    closeText = colorScheme[idx].name + " team wins by tiebreaker!";
-    if (gameMode == 0) {
-      net->sendText("TIMEOUT");
-    }
-    break;
-  case DONE_STATUS_FRAME_TIMEOUT:
-    closeText = "Network error, took too long.";
-    break;
-  case DONE_STATUS_BACKGROUND:
-    if (gameMode == 0) {
-      net->sendText("DISCONNECT");
-    }
-    break;
-  default:
-    break;
-  }
-  if (gameMode == 0) {
-    net->closeConnection("Normal");
-  }
-  panel->addText(closeText.c_str());
-  int scores[4] = {0,0,0,0};
-  if (we_have_a_winner) {
-    scores[getTeamNum(winnerSpawnID)] = 1;
-  }
   std::string returnText = std::to_string(scores[0]);
   for (int i = 1; i < remainingPlayers; i++) {
     returnText = returnText + "-" + std::to_string(scores[i]);
@@ -309,6 +233,7 @@ void Game::lose(SpawnerID sid) {
   turnMap[prev] = next;
   remainingPlayers--;
   if (remainingPlayers == 1) {
+    SpawnerID winnerSpawnID;
     for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
       Spawner *s = (Spawner *)build;
       if (!s->isDestroyed()) {
@@ -316,7 +241,12 @@ void Game::lose(SpawnerID sid) {
         break;
       }
     }
-    end(DONE_STATUS_WINNER);
+    winningTeamNum = getTeamNum(winnerSpawnID);
+    winningTeamName = colorScheme[winningTeamNum].name;
+    closeText = winningTeamName + " team wins!";
+    panel->addText(closeText.c_str());
+    scores = {0,0,0,0};
+    scores[getTeamNum(winnerSpawnID)] = 1;
   }
 }
 
