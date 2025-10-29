@@ -246,7 +246,7 @@ void Game::lose(SpawnerID sid) {
     }
     winningTeamNum = getTeamNum(winnerSpawnID);
     winningTeamName = colorScheme[winningTeamNum].name;
-    closeText = winningTeamName + " team wins!";
+    std::string closeText = winningTeamName + " team wins!";
     panel->addText(closeText.c_str());
     scores[getTeamNum(winnerSpawnID)] = 1;
   }
