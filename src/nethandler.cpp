@@ -227,7 +227,7 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
   case NET_CONTEXT_PLAYING:
     if (isText) {
       if (strcmp((char *)data, "TIMER") == 0) {
-        if (game->secondsRemaining-- - GAME_TIME_SECONDS == 0) {
+        if (--game->secondsRemaining - GAME_TIME_SECONDS == 0) {
           game->context = GAME_CONTEXT_PLAYING;
           if (game->playerSpawnID == SPAWNER_ID_ONE) {
             game->update();
