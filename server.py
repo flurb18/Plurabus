@@ -233,7 +233,7 @@ class Lobby:
                         p = 0
                         while p < len(self.outPlayers):
                             with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
-                                await p.send(msg)
+                                await self.outPlayers[p].send(msg)
                             if cancel_scope.cancelled_caught:
                                 self.outPlayers.pop(p)
                             else:
