@@ -192,7 +192,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_READY:
     if (isText) {
-      if (((char*)data)[0] == 'P') {
         int pnum = atoi(&(((char *)data)[1]));
         game->playerSpawnID = static_cast<SpawnerID>(pnum);
         std::string panelText = "You are the " + game->colorScheme[pnum].name + " team.";
@@ -202,7 +201,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
         game->context = GAME_CONTEXT_STARTUPTIMER;
         ncon = NET_CONTEXT_PLAYING;
         sendText("Set");
-      }
     }
     break;
   case NET_CONTEXT_PLAYING:
