@@ -192,9 +192,8 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_READY:
     if (isText) {
-      std::string receivedText((char *)data);
-      if (strcmp(receivedText.substr(0,1).c_str(), "P") == 0) {
-        int pnum = atoi(receivedText.substr(1,1).c_str());
+      if (((char*)data)[0] == 'P') {
+        int pnum = atoi(&((char *)data[1]));
         game->playerSpawnID = static_cast<SpawnerID>(pnum);
         std::string panelText = "You are the " + game->colorScheme[pnum].name + " team.";
         game->panel->addText(panelText.c_str());
@@ -208,7 +207,6 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
-      std::string receivedText((char *)data);
       if (strcmp((char *)data, "TIMER") == 0) {
         if (--game->secondsRemaining - GAME_TIME_SECONDS == 0) {
           game->context = GAME_CONTEXT_PLAYING;
@@ -218,8 +216,8 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
             game->sendEventsBuffer();
           }
         }
-      } else if (strcmp(receivedText.substr(0,1).c_str(), "L") == 0) {
-        int pnum = atoi(receivedText.substr(1,1).c_str());
+      } else if (((char*)data)[0] == 'L') {
+        int pnum = atoi(&((char *)data[1]));
         game->lose(static_cast<SpawnerID>(pnum));
         game->deleteMarkedAgents();
         game->deleteMarkedBuildings();
