@@ -248,11 +248,14 @@ class Lobby:
     async def game(self):
 
         async def setup_subroutine(playernum):
+            await MainLogger.log("setup started")
             websocket = self.players[playernum]
             await websocket.send(self.pairString)
             readymsg = await websocket.receive()
+            await MainLogger.log("ready complete")
             await websocket.send(f"P{str(playernum)}")
             setmsg = await websocket.receive()
+            await MainLogger.log("setup complete")
 
         random.shuffle(self.players)
         try:
