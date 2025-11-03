@@ -246,17 +246,14 @@ class Lobby:
             raise
         
     async def game(self):
-
-        async def setup_subroutine(playernum):
-            websocket = self.players[playernum]
-            await websocket.send(self.pairString)
-            readymsg = await websocket.receive()
-            await websocket.send(f"P{str(playernum)}")
-            setmsg = await websocket.receive()
-
         random.shuffle(self.players)
         try:
-            [await setup_subroutine(i) for i in range(len(self.players))]
+            for playernum in range(len(self.players)):
+                websocket = self.players[playernum]
+                await websocket.send(self.pairString)
+                readymsg = await websocket.receive()
+                await websocket.send(f"P{str(playernum)}")
+                setmsg = await websocket.receive()
         except* Exception as egrp:
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
         else:
