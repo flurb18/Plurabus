@@ -256,7 +256,7 @@ class Lobby:
 
         random.shuffle(self.players)
         try:
-            [setup_subroutine(i) for i in range(len(self.players))]
+            [await setup_subroutine(i) for i in range(len(self.players))]
         except* Exception as egrp:
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
         else:
