@@ -252,10 +252,10 @@ class Lobby:
                 websocket = self.players[playernum]
                 await websocket.send(self.pairString)
                 readymsg = await websocket.receive()
+                print("ready")
                 await websocket.send(f"P{str(playernum)}")
                 setmsg = await websocket.receive()
         except* Exception as egrp:
-            print("ERROR ERROR")
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
         else:
             [websocket.gameStarted.set() for websocket in self.players]
