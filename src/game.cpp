@@ -1557,7 +1557,7 @@ void Game::confirmResign() {
 }
 
 void Game::resign() {
-  end(DONE_STATUS_RESIGN);
+  net->sendText("L");
 }
 
 void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {

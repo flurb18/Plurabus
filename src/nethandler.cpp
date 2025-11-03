@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <string>
+#include <cstdlib>
 
 #include "game.h"
 #include "panel.h"
@@ -191,41 +192,23 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
     break;
   case NET_CONTEXT_READY:
     if (isText) {
-      if (strcmp((char *)data, "P1") == 0) {
-        game->playerSpawnID = SPAWNER_ID_ONE;
-        game->panel->addText("You are the GREEN team.");
-        sendText("Set");
-      } else if (strcmp((char *)data, "P2") == 0) {
-        ncon = NET_CONTEXT_PLAYING;
-        game->playerSpawnID = SPAWNER_ID_TWO;
-        game->panel->addText("You are the RED team.");
-        game->flipped_X = true;
-        game->flipped_Y = true;
-        game->context = GAME_CONTEXT_STARTUPTIMER;
-        sendText("Set");
-      } else if (strcmp((char *)data, "P3") == 0) {
-        ncon = NET_CONTEXT_PLAYING;
-        game->playerSpawnID = SPAWNER_ID_THREE;
-        game->panel->addText("You are the BLUE team.");
-        game->flipped_Y = true;
-        game->context = GAME_CONTEXT_STARTUPTIMER;
-        sendText("Set");
-      } else if (strcmp((char *)data, "P4") == 0) {
-        ncon = NET_CONTEXT_PLAYING;
-        game->playerSpawnID = SPAWNER_ID_FOUR;
-        game->panel->addText("You are the YELLOW team.");
-        game->flipped_X = true;
-        game->context = GAME_CONTEXT_STARTUPTIMER;
-        sendText("Set");
-      } else if (strcmp((char *)data, "Go") == 0) {
+      std::string receivedText((char *)data);
+      if (strcmp(receivedText.substr(0,1).c_str(), "P") == 0) {
+        int pnum = atoi(receivedText.substr(1,1).c_str());
+        game->playerSpawnID = static_cast<SpawnerID>(pnum);
+        std::string panelText = "You are the " + game->colorScheme[pnum].name + " team.";
+        game->panel->addText(panelText.c_str());
+        game->flipped_X = (pnum == 1 || pnum == 3);
+        game->flipped_Y = (pnum == 1 || pnum == 2);
         game->context = GAME_CONTEXT_STARTUPTIMER;
         ncon = NET_CONTEXT_PLAYING;
-        sendText("Start");
+        sendText("Set");
       }
     }
     break;
   case NET_CONTEXT_PLAYING:
     if (isText) {
+      std::string receivedText((char *)data);
       if (strcmp((char *)data, "TIMER") == 0) {
         if (--game->secondsRemaining - GAME_TIME_SECONDS == 0) {
           game->context = GAME_CONTEXT_PLAYING;
@@ -235,11 +218,12 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
             game->sendEventsBuffer();
           }
         }
-      } else if (strcmp((char *)data, "RESIGN") == 0) {
-        game->lose(static_cast<SpawnerID>(game->turnNum));
+      } else if (strcmp(receivedText.substr(0,1).c_str(), "L") == 0) {
+        int pnum = atoi(receivedText.substr(1,1).c_str());
+        game->lose(static_cast<SpawnerID>(pnum));
         game->deleteMarkedAgents();
         game->deleteMarkedBuildings();
-        game->turnNum = game->turnMap[game->turnNum];
+        game->turnNum = game->turnMap[pnum];
         if (game->turnNum == (int)(game->playerSpawnID)) {
           game->update();
           game->receiveEventsBuffer();

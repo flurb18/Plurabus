@@ -224,7 +224,9 @@ class Lobby:
                 while index < len(self.players):
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
-                    if cancel_scope.cancelled_caught:
+                    if cancel_scope.cancelled_caught or isinstance(msg, str):
+                        if isinstance(msg, str):
+                            await self.broadcast_except(f"L{index}", index)
                         self.outPlayers.append(self.players.pop(index))
                         if len(self.players) == 1:
                             parent_scope.cancel()
@@ -244,18 +246,21 @@ class Lobby:
             raise
         
     async def game(self):
+
+        async def setup_subroutine(playernum):
+            websocket = self.players[playernum]
+            await websocket.send(self.pairString)
+            readymsg = await websocket.receive()
+            await websocket.send(f"P{str(playernum)}")
+            setmsg = await websocket.receive()
+
         random.shuffle(self.players)
-        with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
-            for playernum in range(len(self.players)):
-                websocket = self.players[playernum]
-                await websocket.send(self.pairString)
-                readymsg = await websocket.receive()
-                await websocket.send(f"P{str(playernum + 1)}")
-                setmsg = await websocket.receive()
-                if (playernum == 0):
-                    await websocket.send("Go")
-                    startmsg = await websocket.receive()
-        if not cancel_scope.cancelled_caught:
+        try:
+            async with trio.open_nursery() as nursery:
+                [nursery.start_soon(setup_subroutine, i) for i in range(len(self.players))]
+        except* Exception as egrp:
+            [await MainLogger.log(str(e)) for e in egrp.exceptions]
+        else:
             [websocket.gameStarted.set() for websocket in self.players]
             await MainLogger.log("Game started", opt=self)
             async with SessionGamesPlayed.lock:
