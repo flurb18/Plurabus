@@ -248,19 +248,15 @@ class Lobby:
     async def game(self):
 
         async def setup_subroutine(playernum):
-            await MainLogger.log("setup started")
             websocket = self.players[playernum]
             await websocket.send(self.pairString)
             readymsg = await websocket.receive()
-            await MainLogger.log("ready complete")
             await websocket.send(f"P{str(playernum)}")
             setmsg = await websocket.receive()
-            await MainLogger.log("setup complete")
 
         random.shuffle(self.players)
         try:
-            async with trio.open_nursery() as nursery:
-                [nursery.start_soon(setup_subroutine, i) for i in range(len(self.players))]
+            [setup_subroutine(i) for i in range(len(self.players))]
         except* Exception as egrp:
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
         else:
