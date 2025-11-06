@@ -182,27 +182,17 @@ void NetHandler::receive(void *data, int numBytes, bool isText) {
   switch (ncon) {
   case NET_CONTEXT_INIT:
     break;
-  case NET_CONTEXT_CONNECTED:
-    if (isText) {
-      if (strcmp((char *)data, pairString) == 0) {
-        ncon = NET_CONTEXT_READY;
-        sendText("Ready");
-      }
-    }
-    break;
   case NET_CONTEXT_READY:
     if (isText) {
-      if (((char*)data)[0] == 'P') {
-        int pnum = ((char *)data)[1] - '0';
-        game->playerSpawnID = static_cast<SpawnerID>(pnum);
-        std::string panelText = "You are the " + game->colorScheme[pnum].name + " team.";
-        game->panel->addText(panelText.c_str());
-        game->flipped_X = (pnum == 1 || pnum == 3);
-        game->flipped_Y = (pnum == 1 || pnum == 2);
-        game->context = GAME_CONTEXT_STARTUPTIMER;
-        ncon = NET_CONTEXT_PLAYING;
-        sendText("Set");
-      }
+      int pnum = atoi((char *)data);
+      game->playerSpawnID = static_cast<SpawnerID>(pnum);
+      std::string panelText = "You are the " + game->colorScheme[pnum].name + " team.";
+      game->panel->addText(panelText.c_str());
+      game->flipped_X = (pnum == 1 || pnum == 3);
+      game->flipped_Y = (pnum == 1 || pnum == 2);
+      game->context = GAME_CONTEXT_STARTUPTIMER;
+      ncon = NET_CONTEXT_PLAYING;
+      sendText("Set");
     }
     break;
   case NET_CONTEXT_PLAYING:
@@ -252,7 +242,7 @@ void NetHandler::closeConnection(const char *reason) {
 }
 
 void NetHandler::notifyOpen() {
-  ncon = NET_CONTEXT_CONNECTED;
+  ncon = NET_CONTEXT_READY;
 
   sendText(pairString);
 }

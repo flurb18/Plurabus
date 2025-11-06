@@ -250,10 +250,7 @@ class Lobby:
         try:
             for playernum in range(len(self.players)):
                 websocket = self.players[playernum]
-                await websocket.send(self.pairString)
-                readymsg = await websocket.receive()
-                print("ready")
-                await websocket.send(f"P{str(playernum)}")
+                await websocket.send(str(playernum))
                 setmsg = await websocket.receive()
         except* Exception as egrp:
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
