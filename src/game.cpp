@@ -249,6 +249,7 @@ void Game::lose(SpawnerID sid) {
     std::string closeText = winningTeamName + " team wins!";
     panel->addText(closeText.c_str());
     scores[getTeamNum(winnerSpawnID)] = 1;
+    end(DONE_STATUS_EXIT);
   }
 }
 
