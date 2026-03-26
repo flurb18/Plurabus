@@ -16,11 +16,10 @@ canvas{
 .bodyText {
     inline-size: 450px;
     position: absolute;
-    work-break: break-all;
     text-align: center;
-    top: 50%;
+    top: 10vh;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, 0);
     line-height: 1.5em;
 }
 
