@@ -17,7 +17,7 @@ canvas{
     inline-size: 450px;
     position: absolute;
     text-align: center;
-    top: 10vh;
+    top: 5vh;
     left: 50%;
     transform: translate(-50%, 0);
     line-height: 1.5em;
