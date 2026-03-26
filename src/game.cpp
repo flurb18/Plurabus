@@ -57,20 +57,20 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, int np, b
     turnMap[i] = (i + 1) % numPlayers;
     inverseTurnMap[turnMap[i]] = i;
   }
-  keyboardMap[SDLK_ESCAPE] = &deselect;
-  keyboardMap[SDLK_UP] = &panViewUp;
-  keyboardMap[SDLK_DOWN] = &panViewDown;
-  keyboardMap[SDLK_RIGHT] = &panViewRight;
-  keyboardMap[SDLK_LEFT] = &panViewLeft;
-  keyboardMap[SDLK_w] = &buildWall;
-  keyboardMap[SDLK_a] = &attack;
-  keyboardMap[SDLK_d] = &buildDoor;
-  keyboardMap[SDLK_g] = &goTo;
-  keyboardMap[SDLK_t] = &placeTower;
-  keyboardMap[SDLK_b] = &placeBomb;
-  keyboardMap[SDLK_s] = &placeSubspawner;
-  keyboardMap[SDLK_BACKSPACE] = &deleteSelectedObjective;
-  keyboardMap[SDLK_DELETE] = &deleteSelectedObjective;
+  keyboardMap[SDLK_ESCAPE] = &Game::deselect;
+  keyboardMap[SDLK_UP] = &Game::panViewUp;
+  keyboardMap[SDLK_DOWN] = &Game::panViewDown;
+  keyboardMap[SDLK_RIGHT] = &Game::panViewRight;
+  keyboardMap[SDLK_LEFT] = &Game::panViewLeft;
+  keyboardMap[SDLK_w] = &Game::buildWall;
+  keyboardMap[SDLK_a] = &Game::attack;
+  keyboardMap[SDLK_d] = &Game::buildDoor;
+  keyboardMap[SDLK_g] = &Game::goTo;
+  keyboardMap[SDLK_t] = &Game::placeTower;
+  keyboardMap[SDLK_b] = &Game::placeBomb;
+  keyboardMap[SDLK_s] = &Game::placeSubspawner;
+  keyboardMap[SDLK_BACKSPACE] = &Game::deleteSelectedObjective;
+  keyboardMap[SDLK_DELETE] = &Game::deleteSelectedObjective;
   numPlayerAgents[SPAWNER_ID_ONE] = 0;
   numPlayerAgents[SPAWNER_ID_TWO] = 0;
   numPlayerAgents[SPAWNER_ID_THREE] = 0;
@@ -1637,6 +1637,8 @@ void Game::handleSDLEvent(SDL_Event *e) {
   }
   if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
     return;
+  int x, y;
+  SDL_GetMouseState(&x, &y);
   switch (e->type) {
   case SDL_MOUSEWHEEL:
     if (x >= gameDisplaySize) {
