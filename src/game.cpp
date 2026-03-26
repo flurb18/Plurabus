@@ -1681,7 +1681,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
     unsigned int keySym = e->key.keysym.sym;
     auto it = keyboardMap.find(keySym);
     if (it != keyboardMap.end()) {
-      (*it)();
+      (this->*(it->second))();
     }
     break;
   }
