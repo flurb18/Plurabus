@@ -139,6 +139,7 @@ private:
   std::map<BuildingType, std::deque<Building*>> buildingLists;
   std::map<int, int> turnMap;
   std::map<int, int> inverseTurnMap;
+  std::map<unsigned int, void (Game::*)()> keyboardMap;
   SpawnerID playerSpawnID;
   DoneStatus doneStatus;
   AgentID newAgentID;
@@ -177,7 +178,6 @@ private:
   void placeSubspawner();
   void placeBomb();
   void setObjective(ObjectiveType);
-  void clearScent();
   void resign();
   void confirmResign();
   void setColors(int, std::string, int, int, int);

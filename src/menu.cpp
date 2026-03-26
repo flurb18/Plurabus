@@ -87,7 +87,6 @@ Menu::Menu(Game *g) : game(g) {
   barsSubMenu.strings.push_back("Tower");
   barsSubMenu.strings.push_back("Subspawner");
   barsSubMenu.strings.push_back("Bomb");
-  barsSubMenu.strings.push_back("Clear Scent");
   barsSubMenu.funcs.push_back(&Game::buildWall);
   barsSubMenu.funcs.push_back(&Game::buildDoor);
   barsSubMenu.funcs.push_back(&Game::goTo);
@@ -95,7 +94,6 @@ Menu::Menu(Game *g) : game(g) {
   barsSubMenu.funcs.push_back(&Game::placeTower);
   barsSubMenu.funcs.push_back(&Game::placeSubspawner);
   barsSubMenu.funcs.push_back(&Game::placeBomb);
-  barsSubMenu.funcs.push_back(&Game::clearScent);
   barsSubMenu.isToggleSubMenu = false;
   barsSubMenu.size(game->disp, barsSubIdx);
   SubMenu viewSubMenu;

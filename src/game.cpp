@@ -57,6 +57,20 @@ Game::Game(int gm, int sz, int psz, double scl, char *pstr, char *uri, int np, b
     turnMap[i] = (i + 1) % numPlayers;
     inverseTurnMap[turnMap[i]] = i;
   }
+  keyboardMap[SDLK_ESCAPE] = &deselect;
+  keyboardMap[SDLK_UP] = &panViewUp;
+  keyboardMap[SDLK_DOWN] = &panViewDown;
+  keyboardMap[SDLK_RIGHT] = &panViewRight;
+  keyboardMap[SDLK_LEFT] = &panViewLeft;
+  keyboardMap[SDLK_w] = &buildWall;
+  keyboardMap[SDLK_a] = &attack;
+  keyboardMap[SDLK_d] = &buildDoor;
+  keyboardMap[SDLK_g] = &goTo;
+  keyboardMap[SDLK_t] = &placeTower;
+  keyboardMap[SDLK_b] = &placeBomb;
+  keyboardMap[SDLK_s] = &placeSubspawner;
+  keyboardMap[SDLK_BACKSPACE] = &deleteSelectedObjective;
+  keyboardMap[SDLK_DELETE] = &deleteSelectedObjective;
   numPlayerAgents[SPAWNER_ID_ONE] = 0;
   numPlayerAgents[SPAWNER_ID_TWO] = 0;
   numPlayerAgents[SPAWNER_ID_THREE] = 0;
@@ -712,12 +726,6 @@ void Game::simpleDefMode() {
 }
 
 /*------------------Objective Functions-----------------*/
-
-void Game::clearScent() {
-  for (auto it = getSelectionIterator(); it.hasNext(); it++) {
-    it->clearScent();
-  }
-}
 
 void Game::placeBuilding(BuildingType type) {
   int numPlayerBuilds = 0;
@@ -1623,14 +1631,12 @@ void Game::handleSDLEventMobile(SDL_Event *e) {
 }
 
 void Game::handleSDLEvent(SDL_Event *e) {
-  int x, y;
   if (e->type == SDL_QUIT) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
   if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
     return;
-  SDL_GetMouseState(&x, &y);
   switch (e->type) {
   case SDL_MOUSEWHEEL:
     if (x >= gameDisplaySize) {
@@ -1670,55 +1676,10 @@ void Game::handleSDLEvent(SDL_Event *e) {
     mouseMoved(x, y);
     break;
   case SDL_KEYDOWN:
-    switch (e->key.keysym.sym) {
-    case SDLK_ESCAPE:
-      deselect();
-    case SDLK_SPACE:
-      break;
-    case SDLK_UP:
-      panViewUp();
-      mouseMoved(x, y);
-      break;
-    case SDLK_DOWN:
-      panViewDown();
-      mouseMoved(x, y);
-      break;
-    case SDLK_RIGHT:
-      panViewRight();
-      mouseMoved(x, y);
-      break;
-    case SDLK_LEFT:
-      panViewLeft();
-      mouseMoved(x, y);
-      break;
-    case SDLK_w:
-      buildWall();
-      break;
-    case SDLK_d:
-      buildDoor();
-      break;
-    case SDLK_c:
-      clearScent();
-      break;
-    case SDLK_a:
-      attack();
-      break;
-    case SDLK_g:
-      goTo();
-      break;
-    case SDLK_t:
-      placeTower();
-      break;
-    case SDLK_b:
-      placeBomb();
-      break;
-    case SDLK_s:
-      placeSubspawner();
-      break;
-    case SDLK_BACKSPACE:
-    case SDLK_DELETE:
-      deleteSelectedObjective();
-      break;
+    unsigned int keySym = e->key.keysym.sym;
+    auto it = keyboardMap.find(keySym);
+    if (it != keyboardMap.end()) {
+      (&it)();
     }
     break;
   }
