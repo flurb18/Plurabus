@@ -1566,8 +1566,7 @@ void Game::confirmResign() {
 }
 
 void Game::resign() {
-  std::string loseText = "L" + std::to_string((int)playerSpawnID);
-  net->sendText(loseText.c_str());
+  lose(playerSpawnID);
 }
 
 void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {

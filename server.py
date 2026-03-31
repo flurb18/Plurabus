@@ -200,18 +200,19 @@ class Lobby:
         self.started = False
         websocket.lobby = self
 
-    async def broadcast(self, msg):
-        [await p.send(msg) for p in self.players]
-
-    async def broadcast_except(self, msg, excp):
-        [await self.players[i].send(msg) for i in range(len(self.players)) if i != excp]
+    async def send(self, player, msg):
+        with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
+            await player.send(msg)
+        return not(cancel_scope.cancelled_caught)
         
     async def timer_loop(self, parent_scope):
         try:
             for _ in range(GAME_LIFETIME):
                 await trio.sleep(1)
-                await self.broadcast("TIMER")
-            await self.broadcast("TIMEOUT")
+                for p in self.players:
+                    await self.send(p, "TIMER")
+            for p in self.players:
+                await self.send(p, "TIMEOUT")
         except:
             parent_scope.cancel()
             raise
@@ -225,18 +226,19 @@ class Lobby:
                     with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
                         msg = await self.players[index].receive()
                     if cancel_scope.cancelled_caught or isinstance(msg, str):
-                        if isinstance(msg, str):
-                            await self.broadcast(msg)
+                        for p in self.players + self.outPlayers:
+                            await self.send(p, f"L{index}")
                         self.outPlayers.append(self.players.pop(index))
                         if len(self.players) == 1:
                             parent_scope.cancel()
                     else:
-                        await self.broadcast_except(msg, index)
+                        for i in range(len(self.players)):
+                            if i != index:
+                                await self.send(players[i], msg)
                         p = 0
                         while p < len(self.outPlayers):
-                            with trio.move_on_after(FRAME_TIMEOUT) as cancel_scope:
-                                await self.outPlayers[p].send(msg)
-                            if cancel_scope.cancelled_caught:
+                            sent = await self.send(self.outPlayers[p], msg)
+                            if not(sent):
                                 self.outPlayers.pop(p)
                             else:
                                 p += 1
@@ -249,13 +251,13 @@ class Lobby:
         random.shuffle(self.players)
         try:
             for playernum in range(len(self.players)):
-                websocket = self.players[playernum]
-                await websocket.send(str(playernum))
-                setmsg = await websocket.receive()
+                p = self.players[playernum]
+                await p.send(str(playernum))
+                setmsg = await p.receive()
         except* Exception as egrp:
             [await MainLogger.log(str(e)) for e in egrp.exceptions]
         else:
-            [websocket.gameStarted.set() for websocket in self.players]
+            [p.gameStarted.set() for p in self.players]
             await MainLogger.log("Game started", opt=self)
             async with SessionGamesPlayed.lock:
                 SessionGamesPlayed.var += 1
@@ -268,7 +270,7 @@ class Lobby:
                 [await MainLogger.log(str(e)) for e in egrp.exceptions]
             finally:
                 await MainLogger.log("Game finished", opt=self)
-                [websocket.gameFinished.set() for websocket in self.players]
+                [p.gameFinished.set() for p in self.players]
 
 #---------------------Route Handlers-------------------------#
 
