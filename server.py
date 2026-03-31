@@ -234,7 +234,7 @@ class Lobby:
                     else:
                         for i in range(len(self.players)):
                             if i != index:
-                                await self.send(players[i], msg)
+                                await self.send(self.players[i], msg)
                         p = 0
                         while p < len(self.outPlayers):
                             sent = await self.send(self.outPlayers[p], msg)
