@@ -281,8 +281,8 @@ void Game::checkSpawnersDestroyed() {
   }
   for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
     Spawner *s = (Spawner *)build;
-    if (s->isDestroyed()) {
-      lose(s->sid);
+    if (s->isDestroyed() && s->sid == playerSpawnID) {
+      resign();
     }
   }
 }
@@ -351,7 +351,7 @@ void Game::receiveData(void *data, int numBytes) {
   sizeEventsBuffer(events->numAgentEvents);
   memcpy(eventsBuffer, (const void *)data, messageSize(events->numAgentEvents));
   receiveEventsBuffer();
-  if (numPlayers == 2 || turnNum == (int)playerSpawnID) {
+  if ((numPlayers == 2 || turnNum == (int)playerSpawnID) && context != GAME_CONTEXT_WATCHING) {
     update();
     receiveEventsBuffer();
     sendEventsBuffer();
@@ -1566,7 +1566,7 @@ void Game::confirmResign() {
 }
 
 void Game::resign() {
-  lose(playerSpawnID);
+  context = GAME_CONTEXT_WATCHING;
 }
 
 void Game::standardizeEventCoords(float x, float y, int *retx, int *rety) {
@@ -1579,7 +1579,7 @@ void Game::handleSDLEventMobile(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
-  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE && context != GAME_CONTEXT_WATCHING)
     return;
   int x, y;
   switch (e->type) {
@@ -1634,7 +1634,7 @@ void Game::handleSDLEvent(SDL_Event *e) {
     context = GAME_CONTEXT_EXIT;
     return;
   }
-  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE)
+  if (context != GAME_CONTEXT_PLAYING && context != GAME_CONTEXT_DONE && context != GAME_CONTEXT_PRACTICE && context != GAME_CONTEXT_WATCHING)
     return;
   int x, y;
   SDL_GetMouseState(&x, &y);
