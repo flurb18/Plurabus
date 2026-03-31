@@ -281,7 +281,7 @@ void Game::checkSpawnersDestroyed() {
   }
   for (Building *build : buildingLists[BUILDING_TYPE_SPAWNER]) {
     Spawner *s = (Spawner *)build;
-    if (s->isDestroyed() && s->sid == playerSpawnID) {
+    if (s->isDestroyed() && s->sid == playerSpawnID && context == GAME_CONTEXT_PLAYING) {
       resign();
     }
   }
